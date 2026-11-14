@@ -35,6 +35,27 @@ class Merge(unittest.TestCase):
                          'WINEDLLOVERRIDES="dinput8=n,b" %command%')
 
 
+class DropStaleMods(unittest.TestCase):
+    NO_MODS = {"dinput8.dll", "game.dll"}
+    USER_NOW = 'WINEDLLOVERRIDES="dxgi,dinput8=n,b" LD_PRELOAD="" AMD_USERQ=1 PROTON_ENABLE_WAYLAND=1 gamemoderun %command%'
+
+    def test_renodx_removed_dxgi_kept(self):
+        self.assertEqual(lo.merge(CURRENT, self.NO_MODS), self.USER_NOW)
+
+    def test_dxgi_never_dropped(self):  # user's DLSS mod: dxgi must survive deploy, dll present or not
+        for present in (self.NO_MODS, {"dxgi.dll"}, None):
+            self.assertEqual(lo.merge(self.USER_NOW, present), self.USER_NOW)
+
+    def test_from_old_merged(self):
+        self.assertEqual(lo.merge(MERGED, self.NO_MODS), lo.merge(CURRENT, self.NO_MODS))
+
+    def test_mods_still_present_kept(self):
+        self.assertEqual(lo.merge(CURRENT, {"dxgi.dll", "renodx-grimdawn.addon64"}), MERGED)
+
+    def test_hdr_last_token(self):
+        self.assertEqual(lo.merge("%command% DXVK_HDR=1", set()), 'WINEDLLOVERRIDES="dinput8=n,b" %command%')
+
+
 class Remove(unittest.TestCase):
     def test_roundtrip(self):
         self.assertEqual(lo.remove(MERGED), CURRENT)

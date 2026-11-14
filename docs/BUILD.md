@@ -24,7 +24,17 @@ CRT: `/MD` (dynamic), because Game.dll/Engine.dll import MSVCP140/VCRUNTIME140/u
 
 ## Deploy / uninstall
 ```sh
-scripts/deploy.sh      # builds, installs dinput8.dll (Ultimate ASI Loader v9.7.4, hash-pinned) + GDCompare.asi into compat/
-scripts/uninstall.sh   # removes only what deploy installed and is unchanged
+scripts/deploy.sh                # builds, installs dinput8.dll (Ultimate ASI Loader v9.7.4, hash-pinned) + dinput8.ini + GDCompare.asi into compat/
+scripts/deploy.sh --loader-only  # loader + ini only; removes our .asi
+scripts/uninstall.sh             # removes only what deploy installed and is unchanged
 ```
-Both print the exact Steam launch options string. `GD_SUBDIR=x64` targets the non-compat launch entry.
+Both print the exact Steam launch options string. `GD_SUBDIR=x64` targets the non-compat launch entry. Scripts work from any cwd.
+
+`adapter/ual/dinput8.ini` sets `dontloadfromdllmain=0`. Without it the loader crashes the game before the main menu (it defers loading the real `dinput8.dll`, and the game calls `DirectInput8Create` first; see the ini comment). Never deploy the loader without it.
+
+### Safe-mode test (after every loader change, or any crash before the main menu)
+1. `scripts/deploy.sh --loader-only`, start the game. Must reach the main menu. No `GDCompare.log` appears.
+2. `scripts/deploy.sh`, start the game. Must reach the main menu. Send `compat/GDCompare.log`.
+3. Only if step 1 crashes: OptiScaler/ReShade are already removed (2026-11-14, see RECON.md); send the crash zip from the game root.
+
+Kill switch: `compat/GDCompare.disable` exists, or launch option `GDCOMPARE_DISABLE=1` → the .asi does nothing (no log written).

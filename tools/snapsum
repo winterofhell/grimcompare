@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""One-screen summaries of GD Compare auto snapshots (gdc::store, docs/SNAPSHOT.md "Auto snapshots").
+
+usage: snapsum [DIR] [--char NAME] [--last N] [--full SEGMENT-SEQ [-o FILE]]
+  DIR    the snapshots folder (default: $GD_DIR or the Steam install, compat/snapshots) or one
+         character's folder in it
+  --last N              summarize the last N records per character (default 15; 0 = all)
+  --full SEGMENT-SEQ    rebuild that record (e.g. 20261114-120319-056-0003) as a normal snapshot JSON
+                        (snap::from_json reads it) to stdout or -o FILE
+Stdlib only.
+"""
+import argparse
+import gzip
+import json
+import os
+import re
+import sys
+
+FORMAT = "gdc-snap/1"
+KEYED = ["char_attributes", "defense", "damage_modifiers", "conversions", "skills", "item_skill_modifiers",
+         "equipped", "inventory"]  # store.cpp kRules
+NAME_RE = re.compile(r"^(\d{8}-\d{6}-\d{3})-(\d{4})-(full|delta)\.json\.gz$")
+SHEET_CHAR = {1: "Physique", 2: "Cunning", 3: "Spirit", 4: "Life", 5: "Energy", 6: "LifeRegen", 7: "EnergyRegen",
+              14: "RunSpeed", 21: "OA flat", 23: "DA flat"}  # CharAttributeType (re/CharAttributeType.tsv)
+RESISTS = {2, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 20, 21, 42, 43, 44, 45, 46}  # stat_model.cpp cappable()
+
+
+def default_dir():
+    gd = os.environ.get("GD_DIR") or os.path.expanduser("~/.local/share/Steam/steamapps/common/Grim Dawn")
+    return os.path.join(gd, "compat", "snapshots")
+
+
+def merge(target, patch):  # RFC 7386
+    if not isinstance(patch, dict):
+        return patch
+    out = dict(target) if isinstance(target, dict) else {}
+    for k, v in patch.items():
+        if v is None:
+            out.pop(k, None)
+        else:
+            out[k] = merge(out.get(k), v)
+    return out
+
+
+def unkey(keyed):
+    out = dict(keyed)
+    for sec in KEYED:
+        v = out.get(sec)
+        if isinstance(v, dict):
+            keys = list(v)
+            numeric = all(re.fullmatch(r"-?\d+", k) for k in keys)
+            keys.sort(key=(lambda k: int(k)) if numeric else None)
+            out[sec] = [v[k] for k in keys]
+    return out
+
+
+def chains(char_dir):
+    """[(segment, [(seq, kind, path)])] in time order."""
+    segs = {}
+    for name in os.listdir(char_dir):
+        m = NAME_RE.match(name)
+        if m:
+            segs.setdefault(m.group(1), []).append((int(m.group(2)), m.group(3), os.path.join(char_dir, name)))
+    return [(s, sorted(segs[s])) for s in sorted(segs)]
+
+
+def load(path):
+    with gzip.open(path, "rb") as f:
+        rec = json.loads(f.read())
+    if rec.get("format") != FORMAT:
+        raise ValueError(f"{path}: format {rec.get('format')!r}, expected {FORMAT}")
+    return rec
+
+
+def replay(records):
+    """Yields (record, state before, state after) along one segment."""
+    state = None
+    for seq, kind, path in records:
+        rec = load(path)
+        if kind == "full":
+            before, state = None, rec["snapshot"]
+        else:
+            if state is None:
+                raise ValueError(f"{path}: delta without a baseline (segment rotated?)")
+            before, state = state, merge(state, rec["patch"])
+        yield rec, before, state
+
+
+def short(record):
+    return record.rsplit("/", 1)[-1].removesuffix(".dbr") if record else "-"
+
+
+def num(v):
+    return f"{v:.0f}" if abs(v) >= 100 else f"{v:.4g}"
+
+
+def summarize(rec, before, after):
+    head = f"#{rec['seq']:04d} {rec['kind']:5} {rec.get('taken_at', '')[11:19]}  [{','.join(rec.get('trigger', []))}]"
+    lines = [head]
+    ch = after.get("character", {})
+    if before is None:
+        eq = after.get("equipped", {})
+        lines.append(f"  baseline: level {ch.get('level', 0)}, {ch.get('difficulty_name', '?')}, {len(eq)} equipped, "
+                     f"{len(after.get('skills', {}))} skills, mod {after.get('mod_version', '?')}")
+        return lines
+    cb = before.get("character", {})
+    diffs = [f"{k} {cb.get(k, 0)}->{ch.get(k, 0)}" for k in
+             ("level", "difficulty", "skill_points", "attribute_points", "devotion_points") if cb.get(k, 0) != ch.get(k, 0)]
+    if diffs:
+        lines.append("  char   " + ", ".join(diffs))
+    eb, ea = before.get("equipped", {}), after.get("equipped", {})
+    eq = []
+    for loc in sorted(set(eb) | set(ea), key=lambda k: int(k) if k.lstrip("-").isdigit() else 0):
+        a, b = eb.get(loc), ea.get(loc)
+        if (a or {}).get("id") != (b or {}).get("id") or (a or {}).get("record") != (b or {}).get("record"):
+            where = (b or a).get("location_name", "") + f"({loc})"
+            eq.append(f"{where}: {short((a or {}).get('record'))} -> {short((b or {}).get('record'))}")
+    if eq:
+        lines.append("  equip  " + "; ".join(eq))
+    sb, sa = before.get("skills", {}), after.get("skills", {})
+    sk = []
+    for r in sorted(set(sb) | set(sa)):
+        x, y = sb.get(r, {}), sa.get(r, {})
+        lx, ly = x.get("current_level", 0), y.get("current_level", 0)
+        px, py = x.get("level", 0), y.get("level", 0)
+        if lx != ly or px != py:
+            sk.append(f"{short(r)} {lx}->{ly}" + (f" (points {px}->{py})" if px != py else ""))
+    if sk:
+        lines.append("  skills " + ", ".join(sk[:12]) + (f" (+{len(sk) - 12} more)" if len(sk) > 12 else ""))
+    sheet, resist = [], []
+    cab, caa = before.get("char_attributes", {}), after.get("char_attributes", {})
+    for t, name in SHEET_CHAR.items():
+        a, b = cab.get(str(t), {}).get("total", 0), caa.get(str(t), {}).get("total", 0)
+        if abs(a - b) > 1e-3:
+            sheet.append(f"{name} {num(a)}->{num(b)}")
+    db, da = before.get("defense", {}), after.get("defense", {})
+    for k in sorted(set(db) | set(da), key=int):
+        x, y = db.get(k, {}), da.get(k, {})
+        name = (y or x).get("name", k)
+        if int(k) in RESISTS:  # raw, before the max-resist cap
+            a, b = x.get("defense", 0), y.get("defense", 0)
+            if abs(a - b) > 1e-3:
+                resist.append(f"{name} {num(a)}->{num(b)}")
+        elif int(k) in (38, 39, 40):  # armor, absorption, armor %
+            for f in ("processed", "defense", "defense_modifier"):
+                a, b = x.get(f, 0), y.get(f, 0)
+                if abs(a - b) > 1e-3:
+                    sheet.append(f"{name}.{f} {num(a)}->{num(b)}")
+    if sheet:
+        lines.append("  sheet  " + ", ".join(sheet))
+    if resist:
+        lines.append("  resist " + ", ".join(resist) + " (raw, uncapped)")
+    if not after.get("complete", True):
+        lines.append("  PARTIAL: " + "; ".join(after.get("errors", [])[:3]))
+    if len(lines) == 1:
+        lines.append("  (no summarized change)")
+    return lines
+
+
+def char_dirs(root, only):
+    if any(NAME_RE.match(n) for n in os.listdir(root)):
+        return [root]
+    dirs = sorted(os.path.join(root, d) for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)))
+    return [d for d in dirs if not only or os.path.basename(d) == only]
+
+
+def main(argv):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("dir", nargs="?", default=default_dir())
+    ap.add_argument("--char")
+    ap.add_argument("--last", type=int, default=15)
+    ap.add_argument("--full")
+    ap.add_argument("-o", "--output")
+    a = ap.parse_args(argv)
+    if not os.path.isdir(a.dir):
+        print(f"snapsum: no folder {a.dir}", file=sys.stderr)
+        return 2
+    if a.full:
+        m = re.fullmatch(r"(\d{8}-\d{6}-\d{3})-(\d{4})", a.full)
+        if not m:
+            print("snapsum: --full wants SEGMENT-SEQ, e.g. 20261114-120319-056-0003", file=sys.stderr)
+            return 2
+        for d in char_dirs(a.dir, a.char):
+            for seg, recs in chains(d):
+                if seg != m.group(1):
+                    continue
+                for rec, _, state in replay(recs):
+                    if rec["seq"] == int(m.group(2)):
+                        text = json.dumps(unkey(state), indent=2) + "\n"
+                        if a.output:
+                            with open(a.output, "w") as f:
+                                f.write(text)
+                        else:
+                            sys.stdout.write(text)
+                        return 0
+        print(f"snapsum: record {a.full} not found", file=sys.stderr)
+        return 1
+    for d in char_dirs(a.dir, a.char):
+        out = []
+        for seg, recs in chains(d):
+            seg_lines = [f"segment {seg}"]
+            for rec, before, after in replay(recs):
+                seg_lines.append(summarize(rec, before, after))
+            out.append(seg_lines)
+        flat = [(s[0], r) for s in out for r in s[1:]]
+        if a.last:
+            flat = flat[-a.last:]
+        print(f"== {os.path.basename(d)}: {sum(len(s) - 1 for s in out)} records in {len(out)} segment(s)")
+        seg = None
+        for s, lines in flat:
+            if s != seg:
+                print(s)
+                seg = s
+            print("\n".join(lines))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

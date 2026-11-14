@@ -18,6 +18,8 @@ constexpr Target kPlanned[] = {
      "?gGameEngine@GAME@@3PEAVGameEngine@1@EA"},  // 0xa66288
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetMainPlayer",
      "?GetMainPlayer@GameEngine@GAME@@QEBAPEAVPlayer@2@XZ"},  // 0x2ebb70
+    // Snapshot character.name / auto-snapshot folder: returns the u16string's data (Player+0x46C8, 0x3D3100).
+    {Module::Game, Kind::Call, true, "engine", "Player::GetPlayerName", "?GetPlayerName@Player@GAME@@QEBAPEBGXZ"},  // 0x3d3100
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetGameDifficulty",
      "?GetGameDifficulty@GameEngine@GAME@@QEBA?AW4GameDifficulty@2@XZ"},  // 0x2d8490
     {Module::Game, Kind::Detour, true, "tooltip", "ItemEquipment::GetUIDisplayText",
@@ -114,10 +116,22 @@ constexpr Target kPlanned[] = {
      "??0CharAttributeAccumulator@GAME@@QEAA@XZ"},  // 0xcf5c0
     {Module::Game, Kind::Call, true, "accumulator", "CharAttributeAccumulator::~CharAttributeAccumulator()",
      "??1CharAttributeAccumulator@GAME@@QEAA@XZ"},  // 0xcf660
-    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::CombatAttributeAccumulator()",
-     "??0CombatAttributeAccumulator@GAME@@QEAA@XZ"},  // 0x118fd0
-    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::~CombatAttributeAccumulator()",
-     "??1CombatAttributeAccumulator@GAME@@UEAA@XZ"},  // 0x119020
+    // Deterministic CombatAttributeAccumulator: EvaluateChance always true, chance attributes scaled by
+    // chance/100. With `true` it has the flags Skill::CollectWeaponDamage builds inline for the sheet.
+    {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::CombatDisplayAccumulator(bool)",
+     "??0CombatDisplayAccumulator@GAME@@QEAA@_N@Z"},  // 0x11b980
+    {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::~CombatDisplayAccumulator()",
+     "??1CombatDisplayAccumulator@GAME@@UEAA@XZ"},  // 0x11b9f0
+    // Copied (8 slots, up to CombatAttributeAccumulator::vftable at 0x6d3d38) with slot 0x18 replaced, to
+    // read chance-based item stats at 100% / 0% / chance (adapter snapshot.cpp, chance passes).
+    {Module::Game, Kind::Data, true, "accumulator", "CombatDisplayAccumulator::vftable",
+     "??_7CombatDisplayAccumulator@GAME@@6B@"},  // 0x6d3cf8
+    {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::GetChanceMultiplier",
+     "?GetChanceMultiplier@CombatDisplayAccumulator@GAME@@UEAAMM@Z"},  // 0x11ba10
+    {Module::Game, Kind::Data, true, "accumulator", "CombatAttributeDamage_BasePhysical::vftable",
+     "??_7CombatAttributeDamage_BasePhysical@GAME@@6B@"},  // 0x7358e8
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeDamage_BasePhysical::GetValues",
+     "?GetValues@CombatAttributeDamage_BasePhysical@GAME@@UEAAXAEAM0000@Z"},  // 0x1177b0
     {Module::Game, Kind::Call, true, "accumulator", "ConversionAttributeAccumulator::ConversionAttributeAccumulator()",
      "??0ConversionAttributeAccumulator@GAME@@QEAA@XZ"},  // 0x19fc0
     {Module::Game, Kind::Call, true, "accumulator", "ConversionAttributeAccumulator::~ConversionAttributeAccumulator()",
@@ -218,6 +232,89 @@ constexpr Target kPlanned[] = {
      "?GetWeaponIdRight@EquipManager@GAME@@QEBAIXZ"},  // 0x284670
     {Module::Game, Kind::Call, false, "equipment", "EquipManager::LocationToString",
      "?LocationToString@EquipManager@GAME@@AEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@W4EquipLocations@2@@Z"},  // 0x286480
+    // Phase 2: snapshots (docs/SNAPSHOT.md).
+    {Module::Game, Kind::Detour, true, "tick", "GameEngine::Update",
+     "?Update@GameEngine@GAME@@QEAAXH@Z"},  // 0x2d54b0
+    {Module::Engine, Kind::Call, true, "object", "Singleton<ObjectManager>::Get",
+     "?Get@?$Singleton@VObjectManager@GAME@@@GAME@@SAPEAVObjectManager@2@XZ"},  // 0x1c040
+    {Module::Engine, Kind::Call, true, "object", "Object::GetObjectName",
+     "?GetObjectName@Object@GAME@@QEBAPEBDXZ"},  // 0x3a760
+    {Module::Engine, Kind::Call, true, "object", "Object::GetObjectId",
+     "?GetObjectId@Object@GAME@@QEBAIXZ"},  // 0x3a740
+    {Module::Game, Kind::Data, true, "object", "Item::classInfo",
+     "?classInfo@Item@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c8a0
+    {Module::Game, Kind::Data, true, "object", "ItemEquipment::classInfo",
+     "?classInfo@ItemEquipment@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c840
+    {Module::Game, Kind::Data, true, "object", "ItemArtifact::classInfo",
+     "?classInfo@ItemArtifact@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5bd90
+    {Module::Game, Kind::Data, true, "object", "ItemRelic::classInfo",
+     "?classInfo@ItemRelic@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c780
+    {Module::Game, Kind::Data, true, "object", "ItemEnchantment::classInfo",
+     "?classInfo@ItemEnchantment@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5bf40
+    {Module::Game, Kind::Data, true, "item", "ItemEquipment::vftable{Object}",
+     "??_7ItemEquipment@GAME@@6BObject@1@@"},  // 0x76f718
+    {Module::Game, Kind::Data, true, "item", "ItemArtifact::vftable{Object}",
+     "??_7ItemArtifact@GAME@@6BObject@1@@"},  // 0x76ab48
+    {Module::Game, Kind::Data, true, "item", "ItemRelic::vftable{Object}",
+     "??_7ItemRelic@GAME@@6BObject@1@@"},  // 0x771180
+    {Module::Game, Kind::Data, true, "item", "ItemEnchantment::vftable{Object}",
+     "??_7ItemEnchantment@GAME@@6BObject@1@@"},  // 0x76ee60
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::GetTotalDefenseType",
+     "?GetTotalDefenseType@CombatAttributeAccumulator@GAME@@QEAAMW4CombatAttributeType@2@@Z"},  // 0x11a880
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::GetTotalDefenseModifierType",
+     "?GetTotalDefenseModifierType@CombatAttributeAccumulator@GAME@@QEAAMW4CombatAttributeType@2@@Z"},  // 0x11a980
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::GetTotalReduction",
+     "?GetTotalReduction@CombatAttributeAccumulator@GAME@@QEAAMW4CombatAttributeType@2@@Z"},  // 0x11aa10
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::GetTotalDamageModifierType",
+     "?GetTotalDamageModifierType@CombatAttributeAccumulator@GAME@@QEAAMPEAVCharacter@2@W4CombatAttributeType@2@W4DamageType@CombatAttribute@2@@Z"},  // 0x11a750
+    {Module::Game, Kind::Call, true, "character", "Player::CollectDamageModifiers",
+     "?CollectDamageModifiers@Player@GAME@@QEAAXAEAMW4CombatAttributeType@2@W4DamageType@CombatAttribute@2@@Z"},  // 0x3cd7e0
+    {Module::Game, Kind::Call, true, "character", "SkillManager::CollectAvailableOffensiveModifierAttributes",
+     "?CollectAvailableOffensiveModifierAttributes@SkillManager@GAME@@UEBAXAEAVCombatAttributeAccumulator@2@I@Z"},  // 0x536260
+    {Module::Game, Kind::Call, true, "character", "SkillManager::CollectAvailableConversionAttributes",
+     "?CollectAvailableConversionAttributes@SkillManager@GAME@@QEBAXAEAVConversionAttributeAccumulator@2@@Z"},  // 0x536400
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::ProcessDefense",
+     "?ProcessDefense@CombatAttributeAccumulator@GAME@@QEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x11ab40
+    {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAbsDefense::Process",
+     "?Process@CombatAttributeAbsDefense@GAME@@UEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x115370
+    // Per-skill passive contributions (adapter sec_skills): slots 0x408 / 0x438 of every skill vftable,
+    // checked against Skill_Passive's. Skill_BuffSelfToggled's overrides sit at the same slots
+    // (0x707B80 / 0x707BB0 in its vftable at 0x707778).
+    {Module::Game, Kind::Data, true, "skills", "Skill_Passive::vftable", "??_7Skill_Passive@GAME@@6B@"},  // 0x711ba0
+    {Module::Game, Kind::Call, true, "skills", "Skill_Passive::CollectPassiveCharAttributes",
+     "?CollectPassiveCharAttributes@Skill_Passive@GAME@@UEBAXAEAVCharAttributeAccumulator@2@@Z"},  // 0x5011d0
+    {Module::Game, Kind::Call, true, "skills", "Skill_Passive::CollectPassiveDefenseAttributes",
+     "?CollectPassiveDefenseAttributes@Skill_Passive@GAME@@UEBAXAEAVCombatAttributeAccumulator@2@@Z"},  // 0x4fb690
+    {Module::Game, Kind::Data, true, "skills", "Skill_Modifier::classInfo",
+     "?classInfo@Skill_Modifier@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5a770
+    {Module::Game, Kind::Call, true, "skills", "Skill_Modifier::CollectModifierOffensiveDamageAttributes",
+     "?CollectModifierOffensiveDamageAttributes@Skill_Modifier@GAME@@UEBAXAEAVCombatAttributeAccumulator@2@M@Z"},  // 0x4fb320
+    {Module::Game, Kind::Call, true, "skills", "Skill_Modifier::CollectModifierOffensiveModifierAttributes",
+     "?CollectModifierOffensiveModifierAttributes@Skill_Modifier@GAME@@UEBAXAEAVCombatAttributeAccumulator@2@@Z"},  // 0x4fb3d0
+    {Module::Game, Kind::Call, true, "skills", "Skill_Modifier::CollectModifierSkillAttributes",
+     "?CollectModifierSkillAttributes@Skill_Modifier@GAME@@UEBAXAEAVSkillAttributeAccumulator@2@@Z"},  // 0x4fb2a0
+    {Module::Game, Kind::Call, true, "skills", "Skill_Modifier::CollectModifierConversionAttributes",
+     "?CollectModifierConversionAttributes@Skill_Modifier@GAME@@UEBAXAEAVConversionAttributeAccumulator@2@@Z"},  // 0x4fb710
+    {Module::Game, Kind::Call, true, "character", "Character::GetInventoryItems",
+     "?GetInventoryItems@Character@GAME@@QEBAAEBV?$vector@I@mem@@XZ"},  // 0x63b80
+    {Module::Game, Kind::Call, true, "skills", "SkillManager::GetSkillList",
+     "?GetSkillList@SkillManager@GAME@@QEBAAEBV?$vector@PEAVSkill@GAME@@@mem@@XZ"},  // 0x8ef90
+    {Module::Game, Kind::Call, true, "skills", "SkillManager::GetNumDevotionPointsSpent",
+     "?GetNumDevotionPointsSpent@SkillManager@GAME@@QEBAIXZ"},  // 0x534d40
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetSkillLevel",
+     "?GetSkillLevel@Skill@GAME@@QEBA?BIXZ"},  // 0x4909b0
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetAugmentedLevel",
+     "?GetAugmentedLevel@Skill@GAME@@QEBA?BIXZ"},  // 0x490b30
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetCurrentLevel",
+     "?GetCurrentLevel@Skill@GAME@@UEBA?BIXZ"},  // 0x4909c0
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetDevotionLevel",
+     "?GetDevotionLevel@Skill@GAME@@QEBA?BIXZ"},  // 0x490b40
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetDevotionMaxLevel",
+     "?GetDevotionMaxLevel@Skill@GAME@@QEBA?BIXZ"},  // 0x490b50
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetMasteryId",
+     "?GetMasteryId@Skill@GAME@@QEBA?BIXZ"},  // 0x31e1e0
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetSkillType",
+     "?GetSkillType@Skill@GAME@@QEBA?AW4Skill_Type@12@XZ"},  // 0x426730
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

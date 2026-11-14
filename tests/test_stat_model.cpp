@@ -1,0 +1,300 @@
+#include <doctest/doctest.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "gdc/calibrate.h"
+#include "gdc/stat_model.h"
+
+using namespace gdc;
+namespace fs = std::filesystem;
+
+namespace {
+
+snap::Snapshot fixture(const char* name) {
+  std::ifstream f(std::string(GDC_SOURCE_DIR) + "/tests/fixtures/snapshots/" + name);
+  REQUIRE(f.good());
+  std::stringstream ss;
+  ss << f.rdbuf();
+  return snap::from_json(ss.str());
+}
+
+// The installed game database, or null (tests then expect the "no database" warning).
+const arz::Database* game_db() {
+  static const std::unique_ptr<arz::Database> db = []() -> std::unique_ptr<arz::Database> {
+    fs::path dir;
+    if (const char* d = std::getenv("GD_DIR")) dir = d;
+    else if (const char* h = std::getenv("HOME")) dir = fs::path(h) / ".local/share/Steam/steamapps/common/Grim Dawn";
+    if (dir.empty() || !fs::exists(dir / "database" / "database.arz")) return nullptr;
+    return std::make_unique<arz::Database>(arz::Database::open_game(dir));
+  }();
+  return db.get();
+}
+
+const snap::Item& at(const snap::Snapshot& s, int location) {
+  for (const auto& it : s.equipped)
+    if (it.location == location) return it;
+  FAIL("no item at location " << location);
+  return s.equipped.front();
+}
+
+// Calibration tolerance (PROMPT.md: +-1 / +-0.1%): the fits below are exact to float rounding.
+bool near(double a, double b) { return std::abs(a - b) <= std::max(0.01, 0.001 * std::abs(b)); }
+
+const model::Resist* resist(const model::Sheet& s, int type) {
+  for (const auto& r : s.resists)
+    if (r.type == type) return &r;
+  return nullptr;
+}
+
+bool has_warning(const model::Prediction& p, const std::string& text) {
+  return std::any_of(p.warnings.begin(), p.warnings.end(), [&](const std::string& w) { return w.find(text) != std::string::npos; });
+}
+
+void check_core_sheet(const model::Sheet& got, const model::Sheet& want) {
+  CHECK(near(got.physique, want.physique));
+  CHECK(near(got.cunning, want.cunning));
+  CHECK(near(got.spirit, want.spirit));
+  CHECK(near(got.life, want.life));
+  CHECK(near(got.energy, want.energy));
+  CHECK(near(got.life_regen, want.life_regen));
+  CHECK(near(got.energy_regen, want.energy_regen));
+  CHECK(near(got.oa, want.oa));
+  CHECK(near(got.da, want.da));
+  CHECK(near(got.run_speed, want.run_speed));
+}
+
+}  // namespace
+
+TEST_CASE("sheet armor from region chances matches the level-96 character sheet") {
+  // Sheet 2026-11-14, same session as the fixture: Armor 1408.
+  const auto s = fixture("lvl96-before-ring-swap.json");
+  CHECK(std::round(model::armor(s)) == 1408);
+}
+
+TEST_CASE("swap model: synthetic attribute, resist, absorption and set bookkeeping") {
+  snap::Snapshot s;
+  s.level = 50;
+  s.defense_cap = 80;
+  s.char_attributes = {{3, 110, 10, 50, 0}, {4, 1250, 25, 300, 0}, {5, 300, 0, 250, 0}};
+  s.defense = {{6, 70, 0, 0, 0, 0, 70, 0, true}, {39, 70, 20, 0, 0, 0, 84, 0}};
+  snap::Item old;
+  old.location = 4;
+  old.record = "records/a.dbr";
+  old.set = "records/sets/s.dbr";
+  old.stats = snap::ItemStats{};
+  old.stats->defense = {{39, 70, 20, 0, 0, 0}};
+  snap::Item other = old;
+  other.location = 5;
+  other.stats->defense = {{39, 70, 0, 0, 0, 0}};
+  s.equipped = {old, other};
+  snap::Item cand;
+  cand.record = "records/b.dbr";
+  cand.stats = snap::ItemStats{};
+  cand.stats->char_attributes = {{3, 10, 0}};
+  cand.stats->defense = {{6, 20, 0, 0, 0, 0}};
+
+  const auto p = model::swap(s, cand, 4, nullptr);
+  const auto sh = model::sheet(p.after);
+  CHECK(near(sh.spirit, 121));  // (100 + 10) x 1.1
+  CHECK(near(sh.life, (1000 + 1.5 * 11) * 1.25));
+  CHECK(near(sh.energy, 300 + 2 * 11));
+  REQUIRE(resist(sh, 6));
+  CHECK(resist(sh, 6)->raw == 90);
+  CHECK(resist(sh, 6)->shown == 80);
+  const auto ab = std::find_if(p.after.defense.begin(), p.after.defense.end(), [](auto& r) { return r.type == 39; });
+  REQUIRE(ab != p.after.defense.end());
+  CHECK(ab->defense == 70);           // mean of the remaining piece
+  CHECK(ab->defense_modifier == 0);   // the removed piece's +20%
+  CHECK(ab->processed == 70);
+  REQUIRE(p.sets.size() == 1);
+  CHECK(p.sets[0].before == 2);
+  CHECK(p.sets[0].after == 1);
+  CHECK(has_warning(p, "set bonuses"));
+  CHECK(has_warning(p, "no database"));
+  CHECK(at(p.after, 4).record == "records/b.dbr");
+}
+
+TEST_CASE("swap model: ring swap fixture (c031_ring -> b201e_ring, finger 2)") {
+  const auto before = fixture("lvl96-before-ring-swap.json");
+  const auto after = fixture("lvl96-after-ring-swap.json");
+  const auto p = model::swap(before, at(after, 5), 5, game_db());
+  const auto got = model::sheet(p.after), want = model::sheet(after);
+  check_core_sheet(got, want);
+  CHECK(near(got.armor, want.armor));
+  // c031_ring's +2 Possession (toggle, on): 21 -> 19, defensiveChaos 34 -> 32. Needs the database.
+  for (const auto& r : want.resists) {
+    const auto* g = resist(got, r.type);
+    REQUIRE(g);
+    if (r.type == 10 && !game_db()) CHECK(g->raw - r.raw == 2);
+    else CHECK(g->raw == r.raw);
+  }
+  if (game_db()) {
+    CHECK(has_warning(p, "assumed on"));  // schema-3 fixture: no per-skill activity
+    const auto it = std::find_if(p.skills.begin(), p.skills.end(),
+                                 [](const auto& k) { return k.record.ends_with("/possession1.dbr"); });
+    REQUIRE(it != p.skills.end());
+    CHECK(it->before == 21);
+    CHECK(it->after == 19);
+  } else {
+    CHECK(has_warning(p, "no database"));
+  }
+}
+
+TEST_CASE("swap model: poison swap fixture (ring 5 + chest 8), Poison 25 -> 91") {
+  const auto before = fixture("lvl96-phase21-axe-hover.json");
+  const auto after = fixture("lvl96-swap-poison-ring-chest.json");
+  const auto p1 = model::swap(before, at(after, 5), 5, game_db());
+  const auto p2 = model::swap(p1.after, at(after, 8), 8, game_db());
+  const auto got = model::sheet(p2.after), want = model::sheet(after);
+  for (const auto* p : {&p1, &p2})
+    for (const auto& w : p->warnings) CHECK_MESSAGE(w.find("assumed on") != std::string::npos, w);
+  check_core_sheet(got, want);
+  for (const auto& r : want.resists) {
+    const auto* g = resist(got, r.type);
+    REQUIRE(g);
+    if (r.type == 10 && !game_db()) CHECK(g->raw - r.raw == 2);  // Possession, see the ring test
+    else CHECK(g->raw == r.raw);
+    CHECK(g->shown == r.shown);
+  }
+  REQUIRE(resist(got, 7));
+  CHECK(resist(got, 7)->raw == 105);
+  CHECK(resist(got, 7)->shown == 91);
+  CHECK(resist(got, 7)->uncapped - resist(got, 7)->max == 14);  // sheet "+14% over maximum"
+  if (game_db()) {
+    // b002e_torso's +3 wpattack0 (Skill_Passive, learned 1): 5 -> 2, defensiveProtectionModifier 9 -> 5.
+    // With a11_torso004's +8%: Protection 9 - 4 + 8 = 13, armor exact (sheet 1386). Its +3 Blood of Dreeg
+    // (a timed buff, not running) changes nothing: OA matches above.
+    CHECK(near(got.armor, want.armor));
+    CHECK(std::round(got.armor) == 1386);
+  } else {
+    CHECK(has_warning(p1, "no database"));
+  }
+}
+
+TEST_CASE("swap model: skill grants use the engine's activity when captured (schema 4)") {
+  if (!game_db()) return;
+  auto before = fixture("lvl96-before-ring-swap.json");
+  const auto after = fixture("lvl96-after-ring-swap.json");
+  auto& pos = *std::find_if(before.skills.begin(), before.skills.end(),
+                            [](const auto& k) { return k.record.ends_with("/possession1.dbr"); });
+  for (auto& k : before.skills) k.passive = snap::ItemStats{};
+  // Possession at 21: defensiveChaos 34, defensiveDisruption 100 (the record's values).
+  pos.passive->defense = {{10, 34, 0, 0, 0, 0}, {13, 100, 0, 0, 0, 0}};
+  auto p = model::swap(before, at(after, 5), 5, game_db());
+  CHECK(!has_warning(p, "assumed"));
+  CHECK(resist(model::sheet(p.after), 10)->raw == resist(model::sheet(after), 10)->raw);
+
+  pos.passive = snap::ItemStats{};  // toggled off: no change
+  p = model::swap(before, at(after, 5), 5, game_db());
+  CHECK(resist(model::sheet(p.after), 10)->raw - resist(model::sheet(after), 10)->raw == 2);
+
+  pos.passive->defense = {{10, 30, 0, 0, 0, 0}};  // engine disagrees with the record: not applied, warned
+  p = model::swap(before, at(after, 5), 5, game_db());
+  CHECK(has_warning(p, "engine values differ"));
+  CHECK(resist(model::sheet(p.after), 10)->raw - resist(model::sheet(after), 10)->raw == 2);
+}
+
+TEST_CASE("calibrate: schema-4 swaps from the auto-snapshot store pass") {
+  // Store 20261114-123319-910 records 1->2 (finger 5: b201e_ring -> c031_ring) and 3->4 (chest:
+  // a11_torso004 -> b002e_torso). The ring's +2 Possession needs the database; Possession's engine numbers
+  // include the dual-wielded b013e swords' item skill modifiers (+8% attack speed each).
+  const auto r1 = fixture("lvl96-s4-before-ring-c031.json"), r2 = fixture("lvl96-s4-after-ring-c031.json");
+  const auto c1 = calibrate::check(r1, r2, game_db());
+  CHECK(c1.skipped.empty());
+  CHECK(c1.locations == std::vector<int>{5});
+  if (game_db()) {
+    for (const auto& d : c1.diffs) CHECK_MESSAGE(false, d.stat << " " << d.predicted << " vs " << d.actual);
+    // c031's skill grant moves Blood of Dreeg's modifier; its parent link is captured from schema 5.
+    REQUIRE(c1.warnings.size() == 1);
+    CHECK(c1.warnings[0] == "skill bloodofdreeg2.dbr: modifier level change not modeled (its parent skill is captured from schema 5)");
+  } else {
+    REQUIRE(c1.diffs.size() == 1);
+    CHECK(c1.diffs[0].stat == "Resist Chaos (raw)");
+  }
+  const auto c2 = calibrate::check(fixture("lvl96-s4-before-chest-b002e.json"), fixture("lvl96-s4-after-chest-b002e.json"),
+                                   game_db());
+  CHECK(c2.skipped.empty());
+  if (game_db())
+    for (const auto& d : c2.diffs) CHECK_MESSAGE(false, d.stat << " " << d.predicted << " vs " << d.actual);
+
+  // Schema 5 (store 20261114-125844-357 records 5 -> 6, finger 5: b201e_ring -> c031_ring): the captured
+  // bloodofdreeg1 -> bloodofdreeg2 link replaces the schema-4 "parent unknown" warning.
+  const auto c3 = calibrate::check(fixture("lvl96-s5-before-ring-c031.json"), fixture("lvl96-s5-after-ring-c031.json"),
+                                   game_db());
+  CHECK(c3.skipped.empty());
+  if (game_db()) {
+    for (const auto& d : c3.diffs) CHECK_MESSAGE(false, d.stat << " " << d.predicted << " vs " << d.actual);
+    for (const auto& w : c3.warnings) CHECK_MESSAGE(false, w);
+  }
+
+  // Not comparable: points spent in between.
+  auto lvl = r2;
+  lvl.level += 1;
+  CHECK(calibrate::check(r1, lvl, game_db()).skipped == "level changed");
+  CHECK(calibrate::check(r1, r1, game_db()).skipped == "no equipment change");
+}
+
+TEST_CASE("swap model: a learned modifier's level change goes through its parent") {
+  if (!game_db()) return;
+  // c031_ring moves bloodofdreeg2 (Skill_Modifier; defensivePoison 120@15 -> 105@12, defensivePhysical
+  // 17 -> 14) under bloodofdreeg1 (Skill_BuffRadius, captured passive empty: the buff wasn't counted).
+  auto before = fixture("lvl96-s4-before-ring-c031.json");
+  const auto after = fixture("lvl96-s4-after-ring-c031.json");
+  auto skill = [&](const char* tail) -> snap::Skill& {
+    return *std::find_if(before.skills.begin(), before.skills.end(), [&](const auto& k) { return k.record.ends_with(tail); });
+  };
+  skill("/bloodofdreeg1.dbr").modifier_ids = {skill("/bloodofdreeg2.dbr").id};
+  auto p = model::swap(before, at(after, 5), 5, game_db());
+  for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);  // parent off: nothing to apply
+  const auto poison = [](const model::Sheet& sh) { return resist(sh, 7)->raw; };
+  CHECK(poison(model::sheet(p.after)) == poison(model::sheet(after)));  // the ring's own stats only
+
+  skill("/bloodofdreeg1.dbr").passive = snap::ItemStats{};
+  skill("/bloodofdreeg1.dbr").passive->defense = {{7, 120, 0, 0, 0, 0}, {2, 17, 0, 0, 0, 0}};  // parent on
+  p = model::swap(before, at(after, 5), 5, game_db());
+  for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);
+  CHECK(poison(model::sheet(p.after)) - poison(model::sheet(after)) == -15);
+  CHECK(resist(model::sheet(p.after), 2)->raw - resist(model::sheet(after), 2)->raw == -3);
+  const auto& parent = *std::find_if(p.after.skills.begin(), p.after.skills.end(),
+                                     [](const auto& k) { return k.record.ends_with("/bloodofdreeg1.dbr"); });
+  CHECK(parent.passive->defense[0].defense == 105);
+}
+
+TEST_CASE("swap model: removing an item drops its item skill modifiers from an active skill") {
+  if (!game_db()) return;
+  // b013e_sword (R hand): +3 Possession, +2 Witchfire, modifiers sword1h_b013_possession(b) on Possession.
+  auto s = fixture("lvl96-s4-after-ring-c031.json");
+  // Schema 4 lacks Skill+0x140; Witchfire's engine passive (reserve 201, Life 28) is witchfire1@17 +
+  // witchfire2@15 (its learned modifier), so link them as a schema-5 capture would.
+  auto skill = [&](const char* tail) -> snap::Skill& {
+    return *std::find_if(s.skills.begin(), s.skills.end(), [&](const auto& k) { return k.record.ends_with(tail); });
+  };
+  skill("/witchfire1.dbr").modifier_ids = {skill("/witchfire2.dbr").id};
+  snap::Item cand = at(s, 0);  // same stats, a record that grants nothing
+  cand.record = "records/test/no-such-item.dbr";
+  cand.replica.reset();
+  cand.relic.reset();
+  cand.augment.reset();
+  const auto p = model::swap(s, cand, 0, game_db());
+  const auto pos = std::find_if(p.skills.begin(), p.skills.end(), [](const auto& k) { return k.record.ends_with("/possession1.dbr"); });
+  REQUIRE(pos != p.skills.end());
+  CHECK(pos->before == 21);
+  CHECK(pos->after == 18);
+  const auto& after_pos = *std::find_if(p.after.skills.begin(), p.after.skills.end(),
+                                        [](const auto& k) { return k.record.ends_with("/possession1.dbr"); });
+  REQUIRE(after_pos.passive);
+  REQUIRE(after_pos.passive->char_attributes.size() == 1);
+  CHECK(after_pos.passive->char_attributes[0].modifier == 8);  // one sword left
+  CHECK(resist(model::sheet(p.after), 10)->raw - resist(model::sheet(s), 10)->raw == -3);  // defensiveChaos 34 -> 31
+  CHECK(std::none_of(p.after.item_skill_modifiers.begin(), p.after.item_skill_modifiers.end(),
+                     [](const auto& m) { return m.location == 0; }));
+  for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);
+}

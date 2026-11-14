@@ -1,7 +1,18 @@
 // Phase 1: load under the ASI loader, identify the game build, resolve every planned
-// Game.dll/Engine.dll symbol by exported name and log it. No hooks, no writes to game memory.
+// Game.dll/Engine.dll symbol by exported name and log it. Fully passive: no hooks, no writes
+// to game memory, no engine calls except Engine::GetVersion (static string getter) after the
+// engine exists.
 // Gate (docs/RECON.md §6): disabled only if a required export is missing; an unknown
 // module hash just logs a warning.
+//
+// Safety rules (crash 2026-11-14, docs/BUILD.md "Safe-mode test"):
+// - DllMain: DisableThreadLibraryCalls + start one worker thread. Nothing else.
+// - Kill switch first (<mod dir>\GDCompare.disable or GDCOMPARE_DISABLE=1): the worker exits
+//   without logging or touching anything.
+// - First log line before any other work; every line goes straight to WriteFile (no user-space
+//   buffer), so after a crash the log ends at the last step reached.
+// - Each step runs under SEH; a fault logs, disables, returns. Nothing is rethrown.
+// - A vectored handler only logs faults whose address lies inside this module; it never handles.
 #include <windows.h>
 #include <bcrypt.h>
 #include <psapi.h>
@@ -15,20 +26,68 @@
 #include "gdc/hook_targets.h"
 #include "gdc/known_builds.h"
 #include "gdc/pe_exports.h"
+#include "hooks.h"
 #include "log.h"
+#include "snapshot.h"
 
 namespace {
 
-constexpr const char* kModVersion = "0.1.0 (phase 1)";
+constexpr const char* kModVersion = "0.3.2 (learned modifier ids, schema 5)";
+constexpr DWORD kPollMs = 250;
+// shortcut: generous fixed waits, no source for real load times — revisit when the Phase 1 log
+// shows how long modules / gGameEngine actually take.
+constexpr DWORD kModulesTimeoutMs = 120'000;
+constexpr DWORD kEngineTimeoutMs = 300'000;
 
 HMODULE g_self = nullptr;
+std::uintptr_t g_self_begin = 0, g_self_end = 0;
 std::atomic<bool> g_enabled{false};  // read by the hook/snapshot code of later phases
+std::atomic<long> g_veh_logged{0};
+constexpr long kVehMaxLines = 64;
 
 std::wstring module_path(HMODULE h) {
   std::wstring buf(32768, L'\0');
   const DWORD n = GetModuleFileNameW(h, buf.data(), static_cast<DWORD>(buf.size()));
   buf.resize(n);
   return buf;
+}
+
+std::wstring self_dir() {
+  std::wstring p = module_path(g_self);
+  const auto slash = p.find_last_of(L"\\/");
+  return slash == std::wstring::npos ? std::wstring{} : p.substr(0, slash + 1);
+}
+
+bool kill_switch() {
+  wchar_t env[8];
+  const DWORD n = GetEnvironmentVariableW(L"GDCOMPARE_DISABLE", env, 8);
+  if (n == 1 && env[0] == L'1') return true;
+  const std::wstring flag = self_dir() + L"GDCompare.disable";
+  return GetFileAttributesW(flag.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
+std::string where(std::uintptr_t addr) {
+  HMODULE m = nullptr;
+  char buf[96];
+  if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         reinterpret_cast<LPCWSTR>(addr), &m)) {
+    std::string name = gdc::log::utf8(module_path(m));
+    const auto slash = name.find_last_of("\\/");
+    if (slash != std::string::npos) name.erase(0, slash + 1);
+    std::snprintf(buf, sizeof buf, "+0x%llX",
+                  static_cast<unsigned long long>(addr - reinterpret_cast<std::uintptr_t>(m)));
+    return name + buf;
+  }
+  std::snprintf(buf, sizeof buf, "0x%016llX (no module)", static_cast<unsigned long long>(addr));
+  return buf;
+}
+
+// Vectored handler: log-only, lock-free, no heap (it can run on any thread, inside any state).
+LONG CALLBACK fault_logger(EXCEPTION_POINTERS* ep) {
+  const auto addr = reinterpret_cast<std::uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
+  if (addr >= g_self_begin && addr < g_self_end && g_veh_logged.fetch_add(1) < kVehMaxLines)
+    gdc::log::write_fault_raw(ep->ExceptionRecord->ExceptionCode, addr - g_self_begin);
+  return EXCEPTION_CONTINUE_SEARCH;
 }
 
 std::optional<std::string> sha256_file(const std::wstring& path) {
@@ -71,67 +130,60 @@ std::optional<std::string> sha256_file(const std::wstring& path) {
   return out;
 }
 
-// --- SEH-guarded reads of game memory. Each faulting access happens inside a noinline
-// callee so the __except in the caller reliably catches it (clang-cl, /EHsc).
-
-__declspec(noinline) void parse_mapped(std::span<const std::byte> img, gdc::pe::ExportTable& out) {
-  out = gdc::pe::read_exports(img, gdc::pe::Layout::Mapped);
-}
-
-bool parse_mapped_guarded(std::span<const std::byte> img, gdc::pe::ExportTable& out) {
-  __try {
-    parse_mapped(img, out);
-    return true;
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
-  }
-}
-
-__declspec(noinline) void copy_version(const void* fn, char* buf, std::size_t cap) {
-  using GetVersionFn = const char* (*)();
-  const char* s = reinterpret_cast<GetVersionFn>(const_cast<void*>(fn))();  // Engine::GetVersion: lea rax,[static]; ret
-  if (!s) return;
-  const std::size_t n = strnlen(s, cap - 1);
-  std::memcpy(buf, s, n);
-  buf[n] = '\0';
-}
-
-bool call_get_version_guarded(const void* fn, char* buf, std::size_t cap) {
-  __try {
-    copy_version(fn, buf, cap);
-    return true;
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
-  }
-}
-
-__declspec(noinline) std::uintptr_t read_ptr(const void* p) { return *static_cast<const volatile std::uintptr_t*>(p); }
-
-bool read_ptr_guarded(const void* p, std::uintptr_t& out) {
-  __try {
-    out = read_ptr(p);
-    return true;
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
-  }
-}
-
-// ---
+// --- steps
 
 struct Module {
   const wchar_t* name;
   HMODULE handle = nullptr;
   std::span<const std::byte> image;
   gdc::pe::ExportTable exports;
+  std::string build;  // known build version, "" if unknown
 };
 
-bool load_module(Module& m) {
-  m.handle = GetModuleHandleW(m.name);
-  const std::string name = gdc::log::utf8(m.name);
-  if (!m.handle) {
-    gdc::log::printf("%s: not loaded", name.c_str());
-    return false;
+struct Ctx {
+  Module game{L"Game.dll", nullptr, {}, {}, {}};
+  Module engine{L"Engine.dll", nullptr, {}, {}, {}};
+  gdc::targets::Report report;
+};
+
+const std::byte* target_address(const Ctx& c, std::string_view label) {
+  for (const auto& it : c.report.items) {
+    if (it.target->label != label || it.problem != gdc::targets::Problem::None) continue;
+    return (it.target->module == gdc::targets::Module::Game ? c.game : c.engine).image.data() + it.rva;
   }
+  return nullptr;
+}
+
+std::uintptr_t read_ptr(const void* p) { return *static_cast<const volatile std::uintptr_t*>(p); }
+
+bool step_identify(Ctx&) {
+  gdc::log::printf("process: %s", gdc::log::utf8(module_path(nullptr)).c_str());
+  gdc::log::printf("mod:     %s", gdc::log::utf8(module_path(g_self)).c_str());
+  using WineVer = const char* (*)();
+  if (auto wv = reinterpret_cast<WineVer>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version")))
+    gdc::log::printf("wine:    %s", wv());
+  return true;
+}
+
+bool step_wait_modules(Ctx& c) {
+  for (DWORD waited = 0;; waited += kPollMs) {
+    c.game.handle = GetModuleHandleW(c.game.name);
+    c.engine.handle = GetModuleHandleW(c.engine.name);
+    if (c.game.handle && c.engine.handle) {
+      gdc::log::printf("Game.dll + Engine.dll loaded (waited %lu ms)", waited);
+      return true;
+    }
+    if (waited >= kModulesTimeoutMs) {
+      gdc::log::printf("timeout after %lu ms: Game.dll %s, Engine.dll %s", waited, c.game.handle ? "loaded" : "missing",
+                       c.engine.handle ? "loaded" : "missing");
+      return false;
+    }
+    Sleep(kPollMs);
+  }
+}
+
+bool read_module(Module& m) {
+  const std::string name = gdc::log::utf8(m.name);
   MODULEINFO mi{};
   if (!GetModuleInformation(GetCurrentProcess(), m.handle, &mi, sizeof mi)) {
     gdc::log::printf("%s: GetModuleInformation failed (%lu)", name.c_str(), GetLastError());
@@ -145,6 +197,7 @@ bool load_module(Module& m) {
 
   if (const auto sha = sha256_file(path)) {
     const gdc::KnownBuild* kb = gdc::find_known_build(name, *sha);
+    if (kb) m.build = std::string(kb->version);
     if (kb)
       gdc::log::printf("%s: sha256 %s = known build %.*s [%.*s]", name.c_str(), sha->c_str(),
                        static_cast<int>(kb->version.size()), kb->version.data(), static_cast<int>(kb->variant.size()),
@@ -155,10 +208,7 @@ bool load_module(Module& m) {
     gdc::log::printf("%s: sha256 unavailable (warning only)", name.c_str());
   }
 
-  if (!parse_mapped_guarded(m.image, m.exports)) {
-    gdc::log::printf("%s: access violation while reading export table", name.c_str());
-    return false;
-  }
+  m.exports = gdc::pe::read_exports(m.image, gdc::pe::Layout::Mapped);
   if (!m.exports.error.empty()) {
     gdc::log::printf("%s: export table unreadable: %s", name.c_str(), m.exports.error.c_str());
     return false;
@@ -167,75 +217,176 @@ bool load_module(Module& m) {
   return true;
 }
 
+bool step_read_modules(Ctx& c) { return read_module(c.game) && read_module(c.engine); }
+
+bool step_resolve(Ctx& c) {
+  c.report = gdc::targets::resolve(gdc::targets::planned(), c.game.exports.exports, c.engine.exports.exports);
+  const auto base = [](const Module& m) { return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(m.handle)); };
+  gdc::log::write("hook targets:\n" + gdc::targets::format(c.report, base(c.game), base(c.engine)));
+  if (!c.report.enabled())
+    gdc::log::printf("%zu required target(s) unresolved, see above", c.report.required_failed);
+  return c.report.enabled();
+}
+
+bool step_wait_engine(Ctx& c) {
+  const std::byte* var = target_address(c, "gGameEngine");
+  if (!var) {
+    gdc::log::write("gGameEngine not resolved");
+    return false;
+  }
+  for (DWORD waited = 0;; waited += kPollMs) {
+    if (const std::uintptr_t v = read_ptr(var)) {
+      gdc::log::printf("gGameEngine = 0x%016llX (waited %lu ms)", static_cast<unsigned long long>(v), waited);
+      return true;
+    }
+    if (waited >= kEngineTimeoutMs) {
+      gdc::log::printf("timeout after %lu ms: gGameEngine still null", waited);
+      return false;
+    }
+    Sleep(kPollMs);
+  }
+}
+
+bool step_read_data(Ctx& c) {
+  for (const auto& it : c.report.items) {
+    if (it.problem != gdc::targets::Problem::None || it.target->kind != gdc::targets::Kind::Data) continue;
+    const std::byte* addr = (it.target->module == gdc::targets::Module::Game ? c.game : c.engine).image.data() + it.rva;
+    gdc::log::printf("*%.*s = 0x%016llX", static_cast<int>(it.target->label.size()), it.target->label.data(),
+                     static_cast<unsigned long long>(read_ptr(addr)));
+  }
+  return true;
+}
+
+bool step_version(Ctx& c) {
+  const std::byte* fn = target_address(c, "Engine::GetVersion");
+  if (!fn) {
+    gdc::log::write("Engine::GetVersion not resolved (optional); skipped");
+    return true;
+  }
+  using GetVersionFn = const char* (*)();
+  const char* s = reinterpret_cast<GetVersionFn>(const_cast<std::byte*>(fn))();  // lea rax,[static]; ret
+  char ver[128] = "(null)";
+  if (s) {
+    const std::size_t n = strnlen(s, sizeof ver - 1);
+    std::memcpy(ver, s, n);
+    ver[n] = '\0';
+  }
+  gdc::log::printf("Engine::GetVersion() = \"%s\"", ver);
+  return true;
+}
+
+gdc::adapter::Resolve resolver(const Ctx& c) {
+  return [&c](std::string_view label) -> const void* { return target_address(c, label); };
+}
+
+bool step_snapshot_init(Ctx& c) { return gdc::adapter::snapshot_init(resolver(c)); }
+
+bool step_hooks(Ctx& c) {
+  return gdc::adapter::hooks_install(resolver(c), {self_dir(), kModVersion, c.game.build});
+}
+
+// --- step runner. The SEH frame has no C++ objects; C++ exceptions are caught one level down.
+
+using StepFn = bool (*)(Ctx&);
+enum StepResult : int { kFault = -2, kCppException = -1, kFailed = 0, kOk = 1 };
+
+__declspec(noinline) int run_cpp(StepFn fn, Ctx& c) {
+  try {
+    return fn(c) ? kOk : kFailed;
+  } catch (const std::exception& e) {
+    gdc::log::printf("C++ exception: %s", e.what());
+  } catch (...) {
+    gdc::log::write("unknown C++ exception");
+  }
+  return kCppException;
+}
+
+int capture(EXCEPTION_POINTERS* ep, DWORD& code, std::uintptr_t& addr) {
+  code = ep->ExceptionRecord->ExceptionCode;
+  addr = reinterpret_cast<std::uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+
+__declspec(noinline) int run_seh(StepFn fn, Ctx& c, DWORD& code, std::uintptr_t& addr) {
+  __try {
+    return run_cpp(fn, c);
+  } __except (capture(GetExceptionInformation(), code, addr)) {
+    return kFault;
+  }
+}
+
+bool step(int n, int total, const char* name, StepFn fn, Ctx& c) {
+  gdc::log::printf("step %d/%d %s", n, total, name);
+  DWORD code = 0;
+  std::uintptr_t addr = 0;
+  const int r = run_seh(fn, c, code, addr);
+  if (r == kOk) return true;
+  if (r == kFault)
+    gdc::log::printf("step %d/%d %s: FAULT 0x%08lX at %s", n, total, name, code, where(addr).c_str());
+  gdc::log::printf("STATUS: DISABLED (step %d/%d %s failed)", n, total, name);
+  return false;
+}
+
 void run() {
+  struct Step {
+    const char* name;
+    StepFn fn;
+  };
+  static constexpr Step kSteps[] = {
+      {"identify", step_identify},
+      {"wait for Game.dll + Engine.dll", step_wait_modules},
+      {"read modules", step_read_modules},
+      {"resolve exports", step_resolve},
+      {"wait for gGameEngine", step_wait_engine},
+      {"read exported data", step_read_data},
+      {"Engine::GetVersion", step_version},
+      {"snapshot: bind + verify", step_snapshot_init},
+      {"install hooks", step_hooks},
+  };
+  constexpr int total = static_cast<int>(std::size(kSteps));
+  Ctx c;
+  for (int i = 0; i < total; ++i)
+    if (!step(i + 1, total, kSteps[i].name, kSteps[i].fn, c)) return;
+  g_enabled = true;
+  gdc::log::printf("STATUS: ENABLED (%zu optional target(s) missing; read-only snapshots on the hotkey and auto snapshots)",
+                   c.report.optional_failed);
+}
+
+void start() {
+  if (kill_switch()) return;
+
   std::wstring log_path = module_path(g_self);
   const auto dot = log_path.find_last_of(L'.');
   log_path = (dot == std::wstring::npos ? log_path : log_path.substr(0, dot)) + L".log";
   gdc::log::open(log_path);
+  gdc::log::printf("GD Compare %s (built %s %s) worker start, pid %lu tid %lu", kModVersion, __DATE__, __TIME__,
+                   GetCurrentProcessId(), GetCurrentThreadId());
 
-  gdc::log::printf("GD Compare %s, built %s %s", kModVersion, __DATE__, __TIME__);
-  gdc::log::printf("process: %s", gdc::log::utf8(module_path(nullptr)).c_str());
-  gdc::log::printf("mod:     %s", gdc::log::utf8(module_path(g_self)).c_str());
-  using WineVer = const char* (*)();
-  if (auto wv = reinterpret_cast<WineVer>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version")))
-    gdc::log::printf("wine:    %s", wv());
-
-  Module game{L"Game.dll", nullptr, {}, {}}, engine{L"Engine.dll", nullptr, {}, {}};
-  const bool game_ok = load_module(game);
-  const bool engine_ok = load_module(engine);
-  if (!game_ok || !engine_ok) {
-    gdc::log::write("STATUS: DISABLED (game modules unavailable)");
-    return;
+  MODULEINFO mi{};
+  if (GetModuleInformation(GetCurrentProcess(), g_self, &mi, sizeof mi)) {
+    g_self_begin = reinterpret_cast<std::uintptr_t>(mi.lpBaseOfDll);
+    g_self_end = g_self_begin + mi.SizeOfImage;
+    // Stay mapped for the process lifetime: the vectored handler must never dangle.
+    HMODULE pinned = nullptr;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                           reinterpret_cast<LPCWSTR>(&fault_logger), &pinned) &&
+        AddVectoredExceptionHandler(1, fault_logger))
+      gdc::log::write("fault logger installed");
+    else
+      gdc::log::printf("fault logger not installed (%lu)", GetLastError());
   }
-
-  const auto report = gdc::targets::resolve(gdc::targets::planned(), game.exports.exports, engine.exports.exports);
-  const auto base = [](const Module& m) { return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(m.handle)); };
-  gdc::log::write("hook targets:\n" + gdc::targets::format(report, base(game), base(engine)));
-
-  for (const auto& it : report.items) {
-    if (it.problem != gdc::targets::Problem::None) continue;
-    const std::byte* addr = (it.target->module == gdc::targets::Module::Game ? game : engine).image.data() + it.rva;
-    if (it.target->label == "Engine::GetVersion") {
-      char ver[128] = "?";
-      if (call_get_version_guarded(addr, ver, sizeof ver))
-        gdc::log::printf("Engine::GetVersion() = \"%s\"", ver);
-      else
-        gdc::log::write("Engine::GetVersion() faulted");
-    } else if (it.target->kind == gdc::targets::Kind::Data) {
-      std::uintptr_t v = 0;
-      if (read_ptr_guarded(addr, v))
-        gdc::log::printf("*%.*s = 0x%016llX%s", static_cast<int>(it.target->label.size()), it.target->label.data(),
-                         static_cast<unsigned long long>(v), v ? "" : " (not created yet at load time; normal)");
-      else
-        gdc::log::printf("*%.*s faulted", static_cast<int>(it.target->label.size()), it.target->label.data());
-    }
-  }
-
-  g_enabled = report.enabled();
-  if (report.enabled())
-    gdc::log::printf("STATUS: ENABLED (%zu optional target(s) missing)", report.optional_failed);
-  else
-    gdc::log::printf("STATUS: DISABLED (%zu required target(s) unresolved, see above)", report.required_failed);
-}
-
-__declspec(noinline) void run_noexcept() {
-  try {
-    run();
-  } catch (const std::exception& e) {
-    gdc::log::printf("STATUS: DISABLED (exception: %s)", e.what());
-    g_enabled = false;
-  } catch (...) {
-    gdc::log::write("STATUS: DISABLED (unknown exception)");
-    g_enabled = false;
-  }
+  run();
 }
 
 DWORD WINAPI worker(void*) {
+  DWORD code = 0;
+  std::uintptr_t addr = 0;
   __try {
-    run_noexcept();
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    start();
+  } __except (capture(GetExceptionInformation(), code, addr)) {
     g_enabled = false;
-    gdc::log::printf("STATUS: DISABLED (SEH exception 0x%08lX)", GetExceptionCode());
+    gdc::log::printf("STATUS: DISABLED (unguarded fault 0x%08lX at 0x%016llX)", code,
+                     static_cast<unsigned long long>(addr));
   }
   return 0;
 }
@@ -246,7 +397,6 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID) {
   if (reason == DLL_PROCESS_ATTACH) {
     g_self = inst;
     DisableThreadLibraryCalls(inst);
-    // Loader lock is held here: do nothing but start the worker.
     if (HANDLE t = CreateThread(nullptr, 0, worker, nullptr, 0, nullptr)) CloseHandle(t);
   }
   return TRUE;

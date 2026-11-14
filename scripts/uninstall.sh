@@ -3,8 +3,8 @@
 # since install, plus our log. Prints the launch options with dinput8 removed.
 # env: GD_DIR, GD_SUBDIR — as in deploy.sh
 set -euo pipefail
-
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(dirname "$(realpath "$0")")/.."
+ROOT="$PWD"
 STEAM="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 die() { echo "uninstall: $*" >&2; exit 1; }
 

@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# Build the adapter, install it + Ultimate ASI Loader into the game folder, print the
-# Steam launch options to paste. Never overwrites a file it did not install itself.
+# Build the adapter, install it + Ultimate ASI Loader (+ its dinput8.ini) into the game folder,
+# print the Steam launch options to paste. Never overwrites a file it did not install itself.
 #
+# usage: deploy.sh [--loader-only]
+#   --loader-only  install only the loader + ini and remove our .asi (safe-mode test, docs/BUILD.md)
 # env: GD_DIR     game root (default: found via Steam libraryfolders.vdf)
 #      GD_SUBDIR  folder the game runs from: compat (Steam "Compatibility Mode", default) or x64
 set -euo pipefail
+cd "$(dirname "$(realpath "$0")")/.."
+ROOT="$PWD"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOADER_ONLY=0
+case "${1:-}" in
+  "") ;;
+  --loader-only) LOADER_ONLY=1 ;;
+  *) echo "usage: $0 [--loader-only]" >&2; exit 2 ;;
+esac
 STEAM="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/gdcompare"
 MANIFEST_NAME="GDCompare.installed"
@@ -33,13 +42,16 @@ find_game() {
 }
 
 # 1. Build
-if [[ -z "${IN_NIX_SHELL:-}" ]]; then
-  nix-shell "$ROOT/shell.nix" --run "cmake --workflow --preset adapter"
-else
-  cmake --workflow --preset adapter
-fi
 ASI="$ROOT/build/adapter/adapter/GDCompare.asi"
-[[ -f "$ASI" ]] || die "build produced no $ASI"
+UAL_INI="$ROOT/adapter/ual/dinput8.ini"
+if [[ $LOADER_ONLY == 0 ]]; then
+  if [[ -z "${IN_NIX_SHELL:-}" ]]; then
+    nix-shell "$ROOT/shell.nix" --run "cmake --workflow --preset adapter"
+  else
+    cmake --workflow --preset adapter
+  fi
+  [[ -f "$ASI" ]] || die "build produced no $ASI"
+fi
 
 # 2. Locate game
 GAME="$(find_game)"
@@ -80,13 +92,23 @@ install_file() {  # src name
 }
 : > "$MANIFEST.new"
 install_file "$UAL_DLL" dinput8.dll
-install_file "$ASI" GDCompare.asi
+install_file "$UAL_INI" dinput8.ini
+if [[ $LOADER_ONLY == 0 ]]; then
+  install_file "$ASI" GDCompare.asi
+elif [[ -e "$TARGET/GDCompare.asi" ]]; then
+  [[ -n "${OWNED[GDCompare.asi]:-}" ]] || die "$TARGET/GDCompare.asi exists and was not installed by us"
+  rm -f "$TARGET/GDCompare.asi" "$TARGET/GDCompare.log"
+  echo "removed $TARGET/GDCompare.asi (loader-only)"
+fi
 mv -f "$MANIFEST.new" "$MANIFEST"
 
 # 5. Launch options
 echo
 echo "Steam → Grim Dawn → Properties → Launch Options:"
-python3 -I "$ROOT/scripts/launch_options.py" add "$STEAM"
+python3 -I "$ROOT/scripts/launch_options.py" add "$STEAM" "$TARGET"
 echo
 echo "Launch with the 'Compatibility Mode' entry (runs compat/Grim Dawn.exe)."
-echo "Log: $TARGET/GDCompare.log"
+if [[ $LOADER_ONLY == 0 ]]; then
+  echo "Log: $TARGET/GDCompare.log"
+  echo "Kill switch: touch \"$TARGET/GDCompare.disable\" (or launch option GDCOMPARE_DISABLE=1)"
+fi

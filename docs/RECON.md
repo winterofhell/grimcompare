@@ -25,16 +25,10 @@ Consequences:
 - `compat/` also ships `Game.lib/.exp` and `Engine.lib/.exp` (full import libraries). They are not needed now; we resolve by name at runtime (`GetProcAddress` on mangled names).
 - The exe's `FileVersion` resource reads `0.3.0.0`, which is useless. Use `Engine::GetVersion()` (exported) plus module hashes.
 
-### Already installed in `compat/` (do not touch)
-- `dxgi.dll` = **OptiScaler 0.9.4** (launch options: `WINEDLLOVERRIDES="dxgi=n,b"`). `OptiScaler.ini` → `[Plugins] LoadAsiPlugins = true`, `LoadReshade = true`.
-- `ReShade64.dll` + `renodx-grimdawn.addon64`, `fakenvapi.dll`, FidelityFX DLLs. These are managed by a tool that keeps `.rhi-linux/manifest.json` with backups.
-- No `dinput8.dll` or `winmm.dll` anywhere, so there is no ASI loader and no DPYes. gd-uniquetab is not installed.
-
-Current launch options: `WINEDLLOVERRIDES="dxgi=n,b" LD_PRELOAD="" AMD_USERQ=1 PROTON_ENABLE_WAYLAND=1 DXVK_HDR=1 gamemoderun %command%`
-
 ### Loader plan
-- `compat/DirectInput.dll` imports `DINPUT8.dll` (winedump), so **Ultimate ASI Loader x64 as `compat/dinput8.dll`** gets loaded. Launch options become `WINEDLLOVERRIDES="dxgi,dinput8=n,b" …` (one variable; a second `WINEDLLOVERRIDES=` would override the first).
+- `compat/DirectInput.dll` imports `DINPUT8.dll` (winedump), so **Ultimate ASI Loader x64 as `compat/dinput8.dll`** gets loaded. Launch options became `WINEDLLOVERRIDES="dxgi,dinput8=n,b" …` (`launch_options.py add` never touches `dxgi`; it drops only `DXVK_HDR` when RenoDX is gone) (one variable; a second `WINEDLLOVERRIDES=` would override the first).
 - Timing [ref gd-uniquetab HANDOFF]: `dinput8.dll` loads *after* the engine reads its database, while `winmm` loads at process start. That is fine for us: we hook UI and read functions only.
+- **Late load needs `dontloadfromdllmain=0`** (crash 2026-11-14, minidump): with the UAL default the proxy's `DirectInput8Create` (`jmp [ptr]`) ran before the loader had loaded the system `dinput8.dll` → execute AV at 0x0, return address `DirectInput.dll+0x2E73` (`DirectInputDevice::Initialize`). `GDCompare.asi` was not loaded yet. Fix: `adapter/ual/dinput8.ini`. That crash ran with OptiScaler/ReShade loaded; they were removed afterwards, so later runs are not comparable 1:1.
 - Fallback: OptiScaler's own ASI loading (`LoadAsiPlugins=true`, default folder `.\OptiScaler\plugins\` per the ini comment) **[unverified: path resolution with `OptiDllPath=auto`]**. It avoids a new proxy DLL but ties us to OptiScaler. Not chosen.
 - `winmm.dll` stays free for DPYes/Riftgate if you ever install them.
 
@@ -121,14 +115,14 @@ Override order base → gdx1 → gdx2 → gdx3 (e.g. `playerlevels.dbr` exists i
 | 4 | `GameTextLineToString` | detour | append our lines via borrowed array; any failure → pass original | 4 |
 | 5 | Hotkeys | `GetAsyncKeyState` polled from the hook/tick, no WndProc hook | snapshot dump, preset cycle | 2/5 |
 
-Game-thread tick for snapshot work: hooks 3/4 already run on the game/UI thread. A separate tick (`GameEngine::Update`, as in gd-uniquetab) is added only if the hotkey dump needs it.
+Game-thread tick for snapshot work: `GameEngine::Update(int)` (0x2D54B0, no ICF alias) is detoured in Phase 2 — the hotkey dump needs a tick outside tooltip building. Phase 2 also detours `ItemEquipment/ItemArtifact::GetUIDisplayText`, only to record the item id (hook 3's identification part).
 
-Build: clang-cl + lld-link + xwin SDK/CRT, **`/MD`** (see risk 1), MinHook pinned (added when the first hook lands). All engine reads go through SEH-guarded helpers; no locks inside SEH frames.
+Build: clang-cl + lld-link + xwin SDK/CRT, **`/MD`** (see risk 1), MinHook 1.3.4 vendored in `third_party/minhook`. All engine reads go through SEH-guarded helpers; no locks inside SEH frames.
 
 ## 7. Risks
 1. **Allocator boundary**: the game uses dynamic CRT (Game.dll imports `malloc`/`free` from api-ms-win-crt-heap → ucrtbase, plus `MSVCP140`/`VCRUNTIME140`), so the adapter is built **`/MD`** and shares that heap: `std::string`/`std::allocator` memory the game returns can be freed by us. **Open:** `mem::vector`/`mem::list` carry no allocator in their mangled names; whether they use `operator new`/`malloc` or a private pool is unverified (Ghidra) — until then never free or grow `mem::` containers. The borrowed-array technique keeps ownership on our side. Lines built with the game's `GameTextLine` ctor contain **game-allocated** strings and no dtor is exported. Options: (a) build `GameTextLine` ourselves with our own string storage (layout validated against one ctor-built line), or (b) build lines once and keep them alive. Decide in Phase 4.
 2. **Engine.dll differs between launch options**, so the known-build list (`core/include/gdc/known_builds.h`) has both. Game.dll is shared.
-3. **OptiScaler/ReShade coexistence**: our `dinput8.dll` must not collide; the launch-option merge must keep `dxgi=n,b`.
+3. **dxgi coexistence**: OptiScaler removed 2026-11-14; the user now runs a DLSS mod as ReShade `compat/dxgi.dll` (dlssnr-amd). `deploy.sh`/`launch_options.py` never remove the `dxgi` override and never touch `dxgi.dll`.
 4. **Sheet values without an exported sheet**: some displayed values (OA/DA, crit, resist with overcap) may only exist inside unexported UI code. Mitigation: Ghidra on Game.dll (not the exe, which has the SteamStub DRM; .text is encrypted on disk [ref gd-uniquetab]).
 5. **Accumulator layouts** (`CombatAttributeAccumulator` etc.) are opaque. We construct them via exported ctors and read them via exported getters where available, otherwise SEH-guarded offsets validated at startup.
 6. **ICF-folded exports**: guard with an alias-count check before hooking.
@@ -136,7 +130,10 @@ Build: clang-cl + lld-link + xwin SDK/CRT, **`/MD`** (see risk 1), MinHook pinne
 8. Multiplayer: hooks are client-side UI/read only; no packets, no writes.
 
 ## 8. Open questions (resolve in Phase 1–3)
-- `ObjectManager` id→object lookup (inlined template).
+- ~~`ObjectManager` id→object lookup~~ resolved in Phase 2: unexported `ObjectFromId(ObjectManager*, u32)` at RVA 0x19D40, located at runtime from its call in `Character::GetEquipCharAttributes` (+0x82) and checked against the `Singleton<ObjectManager>::Get` IAT slot (0x609098). Takes a critical section at `om+0x18`. See `docs/SNAPSHOT.md`.
+- ~~ItemReplicaInfo field names~~ resolved: `Item+0x538`, offsets from `ItemReplicaInfo::StreamProperties` (0x585840), table in `docs/SNAPSHOT.md`.
+- ~~Item stat getter slots~~ resolved: Object-subobject vftable slots 0x498/0x4A0/0x4A8/0x4B0/0x4B8/0x4C0/0x4C8/0x4D0/0x4D8, checked against the exported `{for GAME::Object}` vftables. The float parameter of 0x4A8/0x4B8 is unknown.
+- `mem::map` node layout (needed for stash via `InventorySack::GetInventory`).
 - OA/DA, crit chance/damage, and "resist incl. overcap" getters.
 - GameTextClass numeric values and inline `{^X}` support in tooltip lines.
 - Difficulty-penalty array indexing.

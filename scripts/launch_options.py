@@ -2,8 +2,10 @@
 """Grim Dawn (app 219990) Steam launch options with `dinput8=n,b` merged into / removed from
 WINEDLLOVERRIDES. Reads the current options from every Steam user's localconfig.vdf and prints
 the exact string to paste. Never writes Steam files (Steam overwrites them while running).
+`add` with a game folder also drops DXVK_HDR without a renodx-*.addon64 (RenoDX HDR).
+Every other override (e.g. `dxgi` for a ReShade/DLSS mod) is always kept as is.
 
-usage: launch_options.py add|remove [steam_root]
+usage: launch_options.py add|remove [steam_root] [game_folder]
 """
 import re
 import sys
@@ -13,6 +15,7 @@ APP_ID = "219990"
 DLL = "dinput8"
 MODE = "n,b"
 _OVR = re.compile(r'WINEDLLOVERRIDES=("[^"]*"|\S*)')
+_HDR = re.compile(r'(?<!\S)DXVK_HDR=\S*\s*')
 
 
 def _parse_overrides(value: str) -> list[tuple[list[str], str]]:
@@ -32,12 +35,14 @@ def _format_overrides(entries) -> str:
     return ";".join(parts)
 
 
-def _rewrite(opts: str, add: bool) -> str:
+def _rewrite(opts: str, add: bool, present: set[str] | None = None) -> str:
+    """present: lowercase file names in the game folder; None = don't drop stale mod options."""
+    if present is not None and not any(f.startswith("renodx") and f.endswith(".addon64") for f in present):
+        opts = _HDR.sub("", opts)
     m = _OVR.search(opts)
     entries = _parse_overrides(m.group(1).strip('"')) if m else []
     for dlls, _ in entries:
-        while DLL in (d.lower() for d in dlls):
-            dlls[:] = [d for d in dlls if d.lower() != DLL]
+        dlls[:] = [d for d in dlls if d.lower() != DLL]
     if add:
         target = next((e for e in entries if e[1] == MODE and e[0]), None)
         if target:
@@ -56,8 +61,8 @@ def _rewrite(opts: str, add: bool) -> str:
     return opts
 
 
-def merge(opts: str) -> str:
-    return _rewrite(opts, add=True)
+def merge(opts: str, present: set[str] | None = None) -> str:
+    return _rewrite(opts, add=True, present=present)
 
 
 def remove(opts: str) -> str:
@@ -119,8 +124,9 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[1] not in ("add", "remove"):
         print(__doc__, file=sys.stderr)
         return 2
-    fn = merge if argv[1] == "add" else remove
     steam = Path(argv[2]) if len(argv) > 2 else Path.home() / ".local/share/Steam"
+    present = {f.name.lower() for f in Path(argv[3]).iterdir()} if len(argv) > 3 else None
+    fn = (lambda o: merge(o, present)) if argv[1] == "add" else remove
     found = False
     for cfg in sorted(steam.glob("userdata/*/config/localconfig.vdf")):
         opts = current_options(cfg)
