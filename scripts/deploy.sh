@@ -79,7 +79,7 @@ fi
 MANIFEST="$TARGET/$MANIFEST_NAME"
 declare -A OWNED=()
 if [[ -f "$MANIFEST" ]]; then
-  while IFS=$'\t' read -r name _; do [[ -n "$name" ]] && OWNED["$name"]=1; done < "$MANIFEST"
+  while IFS=$'\t' read -r name hash; do [[ -n "$name" ]] && OWNED["$name"]="${hash:-?}"; done < "$MANIFEST"
 fi
 install_file() {  # src name
   local src="$1" dst="$TARGET/$2"
@@ -90,11 +90,46 @@ install_file() {  # src name
   printf '%s\t%s\n' "$2" "$(sha "$dst")" >> "$MANIFEST.new"
   echo "installed $dst"
 }
+install_preset() {  # src name: like install_file, but a copy you edited since we installed it is kept
+  local src="$1" dst="$TARGET/$2"
+  if [[ -e "$dst" && "$(sha "$dst")" != "$(sha "$src")" && "${OWNED[$2]:-}" != "$(sha "$dst")" ]]; then
+    echo "kept $dst (edited; shipped version: $src)"
+    if [[ -n "${OWNED[$2]:-}" ]]; then printf '%s\t%s\n' "$2" "${OWNED[$2]}" >> "$MANIFEST.new"; fi
+    return 0
+  fi
+  install_file "$src" "$2"
+}
 : > "$MANIFEST.new"
 install_file "$UAL_DLL" dinput8.dll
 install_file "$UAL_INI" dinput8.ini
 if [[ $LOADER_ONLY == 0 ]]; then
   install_file "$ASI" GDCompare.asi
+  # Score preset: yours once copied (edited in place, hot-reloaded), not in the manifest. Replaced only while it
+  # is byte-identical to a presets/default.toml some commit shipped (never edited: an old default may no longer
+  # parse); an edited copy is never overwritten.
+  preset="$TARGET/GDCompare.preset.toml"
+  shipped_default() {
+    local have c
+    have="$(sha "$preset")"
+    for c in $(git -C "$ROOT" log --format=%H -- presets/default.toml 2>/dev/null); do
+      [[ "$(git -C "$ROOT" show "$c:presets/default.toml" 2>/dev/null | sha256sum | cut -d' ' -f1)" == "$have" ]] && return 0
+    done
+    return 1
+  }
+  if [[ ! -e "$preset" ]]; then
+    cp "$ROOT/presets/default.toml" "$preset"
+    echo "installed $preset (default preset)"
+  elif [[ "$(sha "$preset")" != "$(sha "$ROOT/presets/default.toml")" ]] && shipped_default; then
+    cp "$ROOT/presets/default.toml" "$preset"
+    echo "updated $preset (it was an unedited earlier default)"
+  else
+    echo "kept $preset (defaults: presets/default.toml)"
+  fi
+  # Named presets (Auto picks the one made for the character): every presets/*.toml but the default.
+  mkdir -p "$TARGET/GDCompare.presets"
+  for src in "$ROOT"/presets/*.toml; do
+    [[ "$(basename "$src")" == default.toml ]] || install_preset "$src" "GDCompare.presets/$(basename "$src")"
+  done
 elif [[ -e "$TARGET/GDCompare.asi" ]]; then
   [[ -n "${OWNED[GDCompare.asi]:-}" ]] || die "$TARGET/GDCompare.asi exists and was not installed by us"
   rm -f "$TARGET/GDCompare.asi" "$TARGET/GDCompare.log"

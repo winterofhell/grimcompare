@@ -61,6 +61,7 @@ const Rule kRules[] = {
        const auto a = num_or_str(e, "skill_id"), b = num_or_str(e, "modifier_id");
        return a.empty() || b.empty() ? std::string{} : a + ":" + b;
      }},
+    {"item_skills", [](const J& e) { return num_or_str(e, "id"); }},  // two items can grant one record
     {"equipped", [](const J& e) { return num_or_str(e, "location"); }},
     {"inventory", [](const J& e) { return num_or_str(e, "id"); }},
 };

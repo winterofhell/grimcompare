@@ -1,0 +1,38 @@
+# physical-melee: weapon attacks (Skill_Attack* with weaponDamagePct, weapon pool skills) with a melee weapon,
+# mostly Physical / Internal Trauma.
+# Generic template, not a guide build: every number below is a DESIGN CHOICE (docs/PRESETS.md), chosen offline
+# from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
+# Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
+# "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
+# Limitation: weapon pool skills (Cadence, Fire Strike, Savagery, ...) count for the archetype but are not
+# main skills, so their damage is not in [match] damage; a build whose only attack is one has no main
+# damage skill and does not match.
+
+[preset]
+name = "physical-melee"
+
+[match]
+masteries = [
+  "records/skills/playerclass01/_classtraining_class01.dbr",  # Soldier
+  "records/skills/playerclass02/_classtraining_class02.dbr",  # Demolitionist
+  "records/skills/playerclass03/_classtraining_class03.dbr",  # Occultist
+  "records/skills/playerclass04/_classtraining_class04.dbr",  # Nightblade
+  "records/skills/playerclass05/_classtraining_class05.dbr",  # Arcanist
+  "records/skills/playerclass06/_classtraining_class06.dbr",  # Shaman
+  "records/skills/playerclass07/_classtraining_class07.dbr",  # Inquisitor
+  "records/skills/playerclass08/_classtraining_class08.dbr",  # Necromancer
+  "records/skills/playerclass09/_classtraining_class09.dbr",  # Oathkeeper
+  "records/skills/playerclass10/_classtraining_class10.dbr",  # Berserker
+]
+archetype = "melee"
+damage = ["physical", "internal_trauma"]
+min_share = 0.5   # design choice
+
+[damage]
+skill_weights = "points"
+conversion_warn = ["physical->*"]             # converting Physical away breaks the build's type
+
+[other]
+life_leech = 0.6                              # design choice: melee lives on attack leech (default 0.3)
+retaliation = 0
+retaliation_modifier = 0

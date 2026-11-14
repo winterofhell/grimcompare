@@ -26,10 +26,21 @@ constexpr Target kPlanned[] = {
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",
      "?GetUIDisplayText@ItemArtifact@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x32a570
-    {Module::Game, Kind::Detour, true, "tooltip", "GameTextLineToString",
-     "?GameTextLineToString@GAME@@YAXAEBV?$vector@UGameTextLine@GAME@@@mem@@AEAV?$list@UGameTextString@GAME@@@3@@Z"},  // 0x316eb0
+    // Tooltip lines are appended with the engine's own (unexported) push_back, found through
+    // ItemEquipment::GetUIDisplayText (gdc::scan::line_push_back_call). GameTextLineToString (0x316EB0) is
+    // never called or referenced in Game.dll 1.3.1.1, so it is not a draw hook.
+    // Item::GenerateSearchText calls GetUIDisplayText (vt+0x458, call at +0xB8) for stash search text: the
+    // tooltip detours skip that caller.
+    {Module::Game, Kind::Call, false, "tooltip", "Item::GenerateSearchText", "?GenerateSearchText@Item@GAME@@QEAAXXZ"},  // 0x329370
     {Module::Game, Kind::Call, false, "tooltip", "GameTextLine::GameTextLine(u16string)",
      "??0GameTextLine@GAME@@QEAA@W4GameTextClass@1@AEBV?$basic_string@GU?$char_traits@G@std@@V?$allocator@G@2@@std@@_NPEBVGraphicsTexture@1@M@Z"},  // 0x313030
+    // Item::GetItemType is virtual slot 0x550 of the Object-subobject vftable (adapter tooltip, checked in
+    // snapshot_init against these: each class's slot is a folded `mov eax, imm; ret` stub).
+    {Module::Game, Kind::Call, false, "tooltip", "Item::GetItemType", "?GetItemType@Item@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x167e0
+    {Module::Game, Kind::Call, false, "tooltip", "ArmorJewelry_Ring::GetItemType",
+     "?GetItemType@ArmorJewelry_Ring@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x2de70
+    {Module::Game, Kind::Data, false, "tooltip", "ArmorJewelry_Ring::vftable{Object}",
+     "??_7ArmorJewelry_Ring@GAME@@6BObject@1@@"},  // 0x6d7658
     {Module::Game, Kind::Call, true, "item", "ItemEquipment::GetCharAttributes",
      "?GetCharAttributes@ItemEquipment@GAME@@UEBAXAEAVCharAttributeAccumulator@2@@Z"},  // 0x340830
     {Module::Game, Kind::Call, true, "item", "ItemEquipment::GetDefenseAttributes",
@@ -299,6 +310,10 @@ constexpr Target kPlanned[] = {
      "?GetInventoryItems@Character@GAME@@QEBAAEBV?$vector@I@mem@@XZ"},  // 0x63b80
     {Module::Game, Kind::Call, true, "skills", "SkillManager::GetSkillList",
      "?GetSkillList@SkillManager@GAME@@QEBAAEBV?$vector@PEAVSkill@GAME@@@mem@@XZ"},  // 0x8ef90
+    {Module::Game, Kind::Call, true, "skills", "SkillManager::GetItemSkillList",
+     "?GetItemSkillList@SkillManager@GAME@@QEBAAEBV?$vector@PEAVSkill@GAME@@@mem@@XZ"},  // 0x531730
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetItemSkillItemId",
+     "?GetItemSkillItemId@Skill@GAME@@QEBAIXZ"},  // 0x31d500
     {Module::Game, Kind::Call, true, "skills", "SkillManager::GetNumDevotionPointsSpent",
      "?GetNumDevotionPointsSpent@SkillManager@GAME@@QEBAIXZ"},  // 0x534d40
     {Module::Game, Kind::Call, true, "skills", "Skill::GetSkillLevel",

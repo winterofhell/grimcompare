@@ -79,6 +79,21 @@ TEST_CASE("keyed form round-trips a real snapshot and patches stay small") {
   CHECK(store::diff(ka, ka) == "{}");
 }
 
+TEST_CASE("keyed form: item skills by id, so two items granting one record both stay") {
+  snap::Snapshot s;
+  snap::Skill a;
+  a.id = 7;
+  a.record = "records/skills/itemskills/item_doombolt.dbr";
+  snap::Skill b = a;
+  b.id = 9;
+  s.item_skills = {a, b};
+  const auto j = nlohmann::json::parse(store::keyed(s));
+  CHECK(j.at("item_skills").is_object());
+  CHECK(j.at("item_skills").contains("7"));
+  CHECK(j.at("item_skills").contains("9"));
+  CHECK(store::from_keyed(store::keyed(s)).item_skills.size() == 2);
+}
+
 TEST_CASE("merge patch: removal, nested change, non-object replace") {
   const std::string a = R"({"x":1,"o":{"k":1,"gone":2},"arr":[1,2]})";
   const std::string b = R"({"o":{"k":3},"arr":[1],"new":"v"})";

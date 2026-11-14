@@ -10,12 +10,19 @@ target_include_directories(minhook PUBLIC ${PROJECT_SOURCE_DIR}/third_party/minh
 
 add_library(gdcompare SHARED
   src/dllmain.cpp
+  src/calibration.cpp
   src/log.cpp
   src/seh.cpp
   src/snapshot.cpp
   src/hooks.cpp
+  src/tooltip.cpp
 )
 set_target_properties(gdcompare PROPERTIES OUTPUT_NAME GDCompare SUFFIX .asi)
 target_link_libraries(gdcompare PRIVATE gdc_core minhook bcrypt)
 target_compile_definitions(gdcompare PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE PSAPI_VERSION=2)
 target_compile_options(gdcompare PRIVATE /W4)
+find_program(LLVM_READOBJ llvm-readobj REQUIRED)
+add_custom_command(TARGET gdcompare POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -DREADOBJ=${LLVM_READOBJ} -DFILE=$<TARGET_FILE:gdcompare>
+          -P ${PROJECT_SOURCE_DIR}/cmake/check_imports.cmake
+  VERBATIM)

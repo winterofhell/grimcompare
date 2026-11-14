@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "game_db.h"
 #include "gdc/calibrate.h"
 #include "gdc/stat_model.h"
 
@@ -27,17 +28,6 @@ snap::Snapshot fixture(const char* name) {
 }
 
 // The installed game database, or null (tests then expect the "no database" warning).
-const arz::Database* game_db() {
-  static const std::unique_ptr<arz::Database> db = []() -> std::unique_ptr<arz::Database> {
-    fs::path dir;
-    if (const char* d = std::getenv("GD_DIR")) dir = d;
-    else if (const char* h = std::getenv("HOME")) dir = fs::path(h) / ".local/share/Steam/steamapps/common/Grim Dawn";
-    if (dir.empty() || !fs::exists(dir / "database" / "database.arz")) return nullptr;
-    return std::make_unique<arz::Database>(arz::Database::open_game(dir));
-  }();
-  return db.get();
-}
-
 const snap::Item& at(const snap::Snapshot& s, int location) {
   for (const auto& it : s.equipped)
     if (it.location == location) return it;
@@ -84,16 +74,17 @@ TEST_CASE("swap model: synthetic attribute, resist, absorption and set bookkeepi
   s.level = 50;
   s.defense_cap = 80;
   s.char_attributes = {{3, 110, 10, 50, 0}, {4, 1250, 25, 300, 0}, {5, 300, 0, 250, 0}};
-  s.defense = {{6, 70, 0, 0, 0, 0, 70, 0, true}, {39, 70, 20, 0, 0, 0, 84, 0}};
+  s.defense = {{6, 70, 0, 0, 0, 0, 70, 0, true}, {38, 200, 0, 0, 0, 0, 200, 0}, {39, 70, 20, 0, 0, 0, 84, 0}};
   snap::Item old;
   old.location = 4;
   old.record = "records/a.dbr";
   old.set = "records/sets/s.dbr";
   old.stats = snap::ItemStats{};
-  old.stats->defense = {{39, 70, 20, 0, 0, 0}};
+  old.stats->defense = {{38, 100, 0, 0, 0, 0}, {39, 70, 20, 0, 0, 0}};
   snap::Item other = old;
   other.location = 5;
-  other.stats->defense = {{39, 70, 0, 0, 0, 0}};
+  other.record = "records/a2.dbr";  // a second copy of records/a.dbr would not count (sets::counts)
+  other.stats->defense = {{38, 100, 0, 0, 0, 0}, {39, 70, 0, 0, 0, 0}};
   s.equipped = {old, other};
   snap::Item cand;
   cand.record = "records/b.dbr";
@@ -111,15 +102,43 @@ TEST_CASE("swap model: synthetic attribute, resist, absorption and set bookkeepi
   CHECK(resist(sh, 6)->shown == 80);
   const auto ab = std::find_if(p.after.defense.begin(), p.after.defense.end(), [](auto& r) { return r.type == 39; });
   REQUIRE(ab != p.after.defense.end());
-  CHECK(ab->defense == 70);           // mean of the remaining piece
+  CHECK(ab->defense == 70);           // every armor entry carries the engine's 70; one piece still has armor
   CHECK(ab->defense_modifier == 0);   // the removed piece's +20%
   CHECK(ab->processed == 70);
   REQUIRE(p.sets.size() == 1);
   CHECK(p.sets[0].before == 2);
   CHECK(p.sets[0].after == 1);
-  CHECK(has_warning(p, "set bonuses"));
+  CHECK(has_warning(p, "set bonuses change (set record not in the database)"));
+  CHECK(!p.sets[0].modeled);
   CHECK(has_warning(p, "no database"));
   CHECK(at(p.after, 4).record == "records/b.dbr");
+
+  // No armor left: absorption 0.
+  const auto q = model::swap(p.after, cand, 5, nullptr);
+  const auto ab2 = std::find_if(q.after.defense.begin(), q.after.defense.end(), [](auto& r) { return r.type == 39; });
+  REQUIRE(ab2 != q.after.defense.end());
+  CHECK(ab2->defense == 0);
+}
+
+TEST_CASE("swap model: the first absorption modifier gets the engine's per-entry absorption") {
+  // Low-level snapshot: armor but no type-39 row (winterpoison store). An item adding +10% absorption.
+  snap::Snapshot s;
+  s.level = 12;
+  s.defense_cap = 80;
+  s.defense = {{6, 10, 0, 0, 0, 0, 10, 0, true}, {38, 300, 0, 0, 0, 0, 300, 0}};
+  snap::Item cand;
+  cand.record = "records/b.dbr";
+  cand.stats = snap::ItemStats{};
+  cand.stats->defense = {{39, 0, 10, 0, 0, 0}};
+  const auto p = model::swap(s, cand, 2, nullptr);
+  CHECK(has_warning(p, "absorption base unknown"));
+  if (const arz::Database* db = game_db()) {
+    const auto q = model::swap(s, cand, 2, db);
+    const auto ab = std::find_if(q.after.defense.begin(), q.after.defense.end(), [](auto& r) { return r.type == 39; });
+    REQUIRE(ab != q.after.defense.end());
+    CHECK(ab->defense == 70);  // gameengine.dbr armorDefensiveAbsorption
+    CHECK(near(model::sheet(q.after).absorption, 77));
+  }
 }
 
 TEST_CASE("swap model: ring swap fixture (c031_ring -> b201e_ring, finger 2)") {
@@ -242,6 +261,34 @@ TEST_CASE("calibrate: schema-4 swaps from the auto-snapshot store pass") {
   CHECK(calibrate::check(r1, r1, game_db()).skipped == "no equipment change");
 }
 
+TEST_CASE("calibrate: a timed buff cast between two snapshots is told from a swap error") {
+  // winterpoison store 20261114-174229-629 #21 -> #22 (feet a02_feet01 -> a04_feet01). Blood of Dreeg
+  // (bloodofdreeg1, Skill_BuffRadius, level 3) was cast in between: its buff record gives OA 26 and life regen
+  // 26 (x 1.24 regen modifier = 32.24), the necklace's item skill modifier necklace_b001_bloodofdreeg crit
+  // damage +15% and Elemental -> Poison 45%, Aether -> Poison 100% while it runs. Nothing in the snapshot
+  // shows the buff.
+  const auto before = fixture("lvl15-wp-before-feet.json"), after = fixture("lvl15-wp-after-feet-dreeg-on.json");
+  const auto c = calibrate::check(before, after, game_db());
+  CHECK(c.skipped.empty());
+  CHECK(calibrate::swapped(c, before, after) == "Feet(12) a02_feet01 -> a04_feet01");
+  if (!game_db()) return;
+  for (const auto& d : c.diffs) CHECK_MESSAGE(false, d.stat << " " << d.predicted << " vs " << d.actual);
+  CHECK(c.buff == "records/skills/playerclass03/bloodofdreeg1.dbr switched on");
+
+  // Reversed (feet back, the buff ran out): the same buff, switched off.
+  const auto back = calibrate::check(after, before, game_db());
+  CHECK(back.diffs.empty());
+  CHECK(back.buff == "records/skills/playerclass03/bloodofdreeg1.dbr switched off");
+
+  // A difference the buff does not explain stays a failure.
+  auto off = after;
+  for (auto& a : off.char_attributes)
+    if (a.type == 21) a.total += 10;  // OA
+  const auto bad = calibrate::check(before, off, game_db());
+  CHECK(bad.buff.empty());
+  CHECK_FALSE(bad.diffs.empty());
+}
+
 TEST_CASE("swap model: a learned modifier's level change goes through its parent") {
   if (!game_db()) return;
   // c031_ring moves bloodofdreeg2 (Skill_Modifier; defensivePoison 120@15 -> 105@12, defensivePhysical
@@ -297,4 +344,63 @@ TEST_CASE("swap model: removing an item drops its item skill modifiers from an a
   CHECK(std::none_of(p.after.item_skill_modifiers.begin(), p.after.item_skill_modifiers.end(),
                      [](const auto& m) { return m.location == 0; }));
   for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);
+}
+
+TEST_CASE("swap model: +1 Occultist (d016_relic) on a timed buff between casts, unused skills, the mastery bar") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 96;
+  s.defense_cap = 80;
+  s.char_attributes = {{21, 2000, 0, 0, 0}, {6, 50, 0, 0, 0}};
+  s.defense = {{7, 50}};
+  auto skill = [&](std::uint32_t id, const char* tail, std::uint32_t level, std::uint32_t aug) {
+    snap::Skill k;
+    k.id = id;
+    k.record = std::string("records/skills/playerclass03/") + tail;
+    k.level = level;
+    k.augmented_level = aug;
+    k.current_level = level ? std::min(level + aug, 26u) : 0;
+    k.mastery_id = id == 1 ? 0 : 1;
+    k.passive = snap::ItemStats{};  // all inactive: the buff is down, the modifier with it
+    return k;
+  };
+  s.skills = {skill(1, "_classtraining_class03.dbr", 50, 0), skill(2, "bloodofdreeg1.dbr", 6, 5),
+              skill(3, "bloodofdreeg2.dbr", 11, 0), skill(4, "evileye1.dbr", 0, 0)};
+  s.skills[1].modifier_ids = {3};
+  snap::Item relic;
+  relic.id = 9;
+  relic.record = "records/items/gearrelic/d016_relic.dbr";
+  relic.stats = snap::ItemStats{};
+  auto row = [](const std::vector<snap::CharAttribute>& v, int t) {
+    for (const auto& a : v)
+      if (a.type == t) return static_cast<double>(a.total);
+    return 0.0;
+  };
+  auto def = [](const std::vector<snap::CombatTotals>& v, int t) {
+    for (const auto& a : v)
+      if (a.type == t) return static_cast<double>(a.defense);
+    return 0.0;
+  };
+
+  // Engine: the buff is down, so the totals do not move.
+  const auto engine = model::swap(s, relic, 13, db);
+  for (const auto& w : engine.warnings) CHECK_MESSAGE(false, w);
+  CHECK(row(engine.after.char_attributes, 21) == 2000);
+  CHECK(def(engine.after.defense, 7) == 50);
+
+  // Expected: bloodofdreeg1_buff.dbr 11 -> 12 (60 s / 12 s cooldown: up 100%): OA 93 -> 102, life regen 94 -> 104;
+  // bloodofdreeg2.dbr 11 -> 12: defensivePoison 92 -> 100.
+  const auto p = model::swap(s, relic, 13, db, model::Mode::Expected);
+  for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);
+  CHECK(row(p.after.char_attributes, 21) == doctest::Approx(2009));
+  CHECK(row(p.after.char_attributes, 6) == doctest::Approx(60));
+  CHECK(def(p.after.defense, 7) == doctest::Approx(58));
+  REQUIRE(p.inactive.size() == 2);
+  CHECK(p.inactive[0].uptime == 1);
+  // The mastery bar takes no item bonus; Dreeg's Evil Eye has no points: unused, 0 -> 1 bonus level.
+  CHECK(std::none_of(p.skills.begin(), p.skills.end(), [](const auto& k) { return k.record.ends_with("_classtraining_class03.dbr"); }));
+  REQUIRE(p.unused.size() == 1);
+  CHECK(p.unused[0].record.ends_with("evileye1.dbr"));
+  CHECK(p.unused[0].after == 1);
 }

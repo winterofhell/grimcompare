@@ -129,7 +129,117 @@ constexpr std::pair<std::string_view, Target> kTable[] = {
     {"defensiveTrap", {kDefense, 44, false}},
 };
 
+constexpr Kind kDamage = Kind::Damage;
+
+// Sorted by field name; generated from re/CombatAttributeType.tsv (see the header).
+constexpr std::pair<std::string_view, Target> kDamageMods[] = {
+    {"offensiveAetherModifier", {kDamage, 11, false}},
+    {"offensiveBleedingModifier", {kDamage, 15, false}},
+    {"offensiveChaosModifier", {kDamage, 10, false}},
+    {"offensiveColdModifier", {kDamage, 5, false}},
+    {"offensiveElementalModifier", {kDamage, 58, false}},
+    {"offensiveFireModifier", {kDamage, 6, false}},
+    {"offensiveLifeModifier", {kDamage, 9, false}},
+    {"offensiveLightningModifier", {kDamage, 8, false}},
+    {"offensivePhysicalModifier", {kDamage, 2, false}},
+    {"offensivePierceModifier", {kDamage, 4, false}},
+    {"offensivePoisonModifier", {kDamage, 7, false}},
+    {"offensiveSlowAetherModifier", {kDamage, 11, true}},
+    {"offensiveSlowBleedingModifier", {kDamage, 15, true}},
+    {"offensiveSlowChaosModifier", {kDamage, 10, true}},
+    {"offensiveSlowColdModifier", {kDamage, 5, true}},
+    {"offensiveSlowFireModifier", {kDamage, 6, true}},
+    {"offensiveSlowLifeModifier", {kDamage, 9, true}},
+    {"offensiveSlowLightningModifier", {kDamage, 8, true}},
+    {"offensiveSlowPhysicalModifier", {kDamage, 2, true}},
+    {"offensiveSlowPoisonModifier", {kDamage, 7, true}},
+    {"offensiveTotalDamageModifier", {kDamage, 60, false}},
+};
+
+constexpr FlatDamage kFlat[] = {
+    {"offensivePhysicalMin", "offensivePhysicalMax", "", "offensivePhysicalChance", 2},
+    {"offensiveBonusPhysicalMin", "offensiveBonusPhysicalMax", "", "offensiveBonusPhysicalChance", 2},
+    {"offensiveSlowPhysicalMin", "offensiveSlowPhysicalMax", "offensiveSlowPhysicalDurationMin", "offensiveSlowPhysicalChance", 2},
+    {"offensivePierceMin", "offensivePierceMax", "", "offensivePierceChance", 4},
+    {"offensiveBaseColdMin", "offensiveBaseColdMax", "", "offensiveBaseColdChance", 5},
+    {"offensiveColdMin", "offensiveColdMax", "", "offensiveColdChance", 5},
+    {"offensiveSlowColdMin", "offensiveSlowColdMax", "offensiveSlowColdDurationMin", "offensiveSlowColdChance", 5},
+    {"offensiveBaseFireMin", "offensiveBaseFireMax", "", "offensiveBaseFireChance", 6},
+    {"offensiveFireMin", "offensiveFireMax", "", "offensiveFireChance", 6},
+    {"offensiveSlowFireMin", "offensiveSlowFireMax", "offensiveSlowFireDurationMin", "offensiveSlowFireChance", 6},
+    {"offensiveBasePoisonMin", "offensiveBasePoisonMax", "", "offensiveBasePoisonChance", 7},
+    {"offensivePoisonMin", "offensivePoisonMax", "", "offensivePoisonChance", 7},
+    {"offensiveSlowPoisonMin", "offensiveSlowPoisonMax", "offensiveSlowPoisonDurationMin", "offensiveSlowPoisonChance", 7},
+    {"offensiveBaseLightningMin", "offensiveBaseLightningMax", "", "offensiveBaseLightningChance", 8},
+    {"offensiveLightningMin", "offensiveLightningMax", "", "offensiveLightningChance", 8},
+    {"offensiveSlowLightningMin", "offensiveSlowLightningMax", "offensiveSlowLightningDurationMin", "offensiveSlowLightningChance", 8},
+    {"offensiveBaseLifeMin", "offensiveBaseLifeMax", "", "offensiveBaseLifeChance", 9},
+    {"offensiveLifeMin", "offensiveLifeMax", "", "offensiveLifeChance", 9},
+    {"offensiveSlowLifeMin", "offensiveSlowLifeMax", "offensiveSlowLifeDurationMin", "offensiveSlowLifeChance", 9},
+    {"offensiveBaseChaosMin", "offensiveBaseChaosMax", "", "offensiveBaseChaosChance", 10},
+    {"offensiveChaosMin", "offensiveChaosMax", "", "offensiveChaosChance", 10},
+    {"offensiveSlowChaosMin", "offensiveSlowChaosMax", "offensiveSlowChaosDurationMin", "offensiveSlowChaosChance", 10},
+    {"offensiveBaseAetherMin", "offensiveBaseAetherMax", "", "offensiveBaseAetherChance", 11},
+    {"offensiveAetherMin", "offensiveAetherMax", "", "offensiveAetherChance", 11},
+    {"offensiveSlowAetherMin", "offensiveSlowAetherMax", "offensiveSlowAetherDurationMin", "offensiveSlowAetherChance", 11},
+    {"offensiveSlowBleedingMin", "offensiveSlowBleedingMax", "offensiveSlowBleedingDurationMin", "offensiveSlowBleedingChance", 15},
+    {"offensiveElementalMin", "offensiveElementalMax", "", "offensiveElementalChance", 58},
+};
+
+constexpr int kAllDirect[] = {2, 4, 5, 6, 7, 8, 9, 10, 11};
+constexpr int kAllDot[] = {2, 5, 6, 7, 8, 9, 10, 11, 15};
+constexpr int kElemental[] = {5, 6, 8};
+
 }  // namespace
+
+const Target* damage_modifier(std::string_view field) {
+  const auto it = std::lower_bound(std::begin(kDamageMods), std::end(kDamageMods), field,
+                                   [](const auto& e, std::string_view f) { return e.first < f; });
+  return it != std::end(kDamageMods) && it->first == field ? &it->second : nullptr;
+}
+
+std::span<const std::pair<std::string_view, Target>> damage_modifiers() { return kDamageMods; }
+
+const Target* lookup(std::string_view field, double& scale) {
+  static constexpr Target kCrit{Kind::Damage, 59, false};
+  scale = 1;
+  if (const Target* t = target(field)) return t;
+  if (const Target* t = damage_modifier(field)) return t;
+  if (field == "offensiveCritDamageModifier") {
+    scale = 0.01;
+    return &kCrit;
+  }
+  return nullptr;
+}
+
+std::span<const int> spread(int type, bool dot) {
+  if (type == 60) return dot ? std::span<const int>(kAllDot) : std::span<const int>(kAllDirect);
+  if (type == 58) return kElemental;
+  return {};
+}
+
+std::span<const FlatDamage> flat_damage() { return kFlat; }
+
+namespace {
+constexpr std::string_view kWeaponFlags[] = {
+    "Sword", "Axe", "Mace", "Dagger", "Scepter", "Axe2h", "Sword2h", "Mace2h", "Spear2h", "Spear", "Staff",
+    "Magical", "Shield", "Offhand", "Ranged1h", "Ranged2h", "dualWieldOnly", "dualRangedOnly",
+    "dualRangedOrRanged2hOnly", "dualRangedOrAllRangedOnly", "shieldNoRanged", "unarmedOnly"};
+}  // namespace
+
+bool weapon_flag(std::string_view field) {
+  return std::find(std::begin(kWeaponFlags), std::end(kWeaponFlags), field) != std::end(kWeaponFlags);
+}
+
+bool weapon_gated(const arz::Record& skill) {
+  return std::any_of(std::begin(kWeaponFlags), std::end(kWeaponFlags), [&](std::string_view f) { return skill.number(f) != 0; });
+}
+
+bool flat_damage_field(std::string_view field) {
+  return !field.empty() && std::any_of(std::begin(kFlat), std::end(kFlat), [&](const FlatDamage& f) {
+    return field == f.min || field == f.max || field == f.duration || field == f.chance;
+  });
+}
 
 const Target* target(std::string_view field) {
   const auto it = std::lower_bound(std::begin(kTable), std::end(kTable), field,

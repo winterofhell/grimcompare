@@ -1,0 +1,110 @@
+#include <doctest/doctest.h>
+
+#include "game_db.h"
+#include "gdc/utility.h"
+
+using namespace gdc;
+
+namespace {
+
+snap::Item item(std::uint32_t id, int location, const char* record) {
+  snap::Item it;
+  it.id = id;
+  it.location = location;
+  it.record = record;
+  it.stats = snap::ItemStats{};
+  return it;
+}
+
+}  // namespace
+
+TEST_CASE("utility: when conditions") {
+  utility::Context c;
+  c.shield = true;
+  c.weapon = "WeaponMelee_Sword";
+  c.stage = "94+";
+  CHECK(utility::holds("", c));
+  CHECK(utility::holds("shield", c));
+  CHECK_FALSE(utility::holds("!shield", c));
+  CHECK_FALSE(utility::holds("pets", c));
+  CHECK(utility::holds("weapon:WeaponMelee_Sword", c));
+  CHECK_FALSE(utility::holds("weapon:WeaponMelee_Axe", c));
+  CHECK(utility::holds("stage:94+", c));
+  CHECK(utility::valid_when("!stage:x"));
+  CHECK_FALSE(utility::valid_when("weapon:"));
+  CHECK_FALSE(utility::valid_when("always"));
+  CHECK(utility::stats().back().key == "default");
+}
+
+TEST_CASE("utility: avoidance, item cooldown reduction, experience, unlisted stats") {
+  snap::Snapshot s;
+  s.level = 50;
+  s.char_attributes = {{27, 12, 0, 0, 0}, {28, 8, 0, 0, 0}, {55, 10, 0, 0, 0}, {57, 30, 0, 0, 0}};
+  auto ring = item(1, 4, "records/items/x.dbr");
+  ring.stats->skill_attributes = {{1, 5, 0, 0, 0}, {2, 10, 0, 0, 0}, {3, 20, 0, 0, 0}};
+  ring.stats->offensive_damage = {{20, false, 3, 3}, {28, true, 15, 15, 3}};
+  s.equipped = {ring};
+  const auto v = utility::values(s, game_db());
+  // Dodge 12% of melee, deflect 8% of projectiles: at 75% melee 11%.
+  CHECK(utility::avoid(s, 0.75) == doctest::Approx(0.11));
+  CHECK(v.keys.at("cooldown_reduction") == doctest::Approx(0.05));
+  CHECK(v.keys.at("skill_cost_reduction") == doctest::Approx(0.10));
+  CHECK(v.keys.at("life_leech") == doctest::Approx(0.03));
+  CHECK_FALSE(v.keys.contains("damage_reduction"));
+  // The strongest "reduced target's damage" debuff only.
+  auto amulet = item(2, 2, "records/items/y.dbr");
+  amulet.stats->offensive_damage = {{28, true, 10, 10, 3}};
+  s.equipped.push_back(amulet);
+  CHECK(utility::damage_reduction(s) == doctest::Approx(0.15));
+  s.equipped.pop_back();
+  CHECK(v.unlisted.at("char 57 LightRadius") == doctest::Approx(0.30));
+  CHECK(v.unlisted.at("skill 3 ProjectileSpeedModifier") == doctest::Approx(0.20));
+  // playerlevels.dbr maxPlayerLevel 100: 10% at level 50 counts half, at 100 nothing.
+  if (game_db()) {
+    CHECK(v.keys.at("experience") == doctest::Approx(0.05));
+    s.level = 100;
+    CHECK(utility::values(s, game_db()).keys.at("experience") == 0);
+  }
+}
+
+TEST_CASE("utility: shield block from the shield record (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  // c009_shield: defensiveBlockChance 32, defensiveBlock 1275, blockRecoveryTime 0.85, blockAbsorption 100.
+  s.equipped = {item(1, 1, "records/items/awakened/gearweapons/shields/c009_shield.dbr")};
+  // 2 hits/s: at most 1 / (0.85 x 2) = 0.59 of them can be blocked > 0.32; 1275 of a 3760 hit.
+  CHECK(utility::block(s, db, 3760, 2) == doctest::Approx(0.32 * 1275 / 3760));
+  // A hit below the block amount loses hit x absorption (shieldDamageReductionEquationDLEB).
+  CHECK(utility::block(s, db, 500, 0) == doctest::Approx(0.32));
+  // +18% block chance (type 55, additive) and 50% faster recovery (char 25); 4 hits/s: recovery-bound.
+  s.defense = {{55, 18}};
+  s.char_attributes = {{25, 50, 0, 0, 0}};
+  CHECK(utility::block(s, db, 3760, 4) == doctest::Approx(0.50 * 1275 / 3760));
+  s.char_attributes.clear();
+  CHECK(utility::block(s, db, 3760, 4) == doctest::Approx(1 / (0.85 * 4) * 1275 / 3760).epsilon(1e-4));
+  const auto c = utility::context(s, db, "");
+  CHECK(c.shield);
+  CHECK(c.offhand == "WeaponArmor_Shield");
+  // No shield, no block (a caster off-hand: WeaponArmor_Offhand).
+  s.equipped = {item(1, 1, "records/items/awakened/gearweapons/focus/c012_focus.dbr")};
+  CHECK(utility::block(s, db, 3760, 2) == 0);
+}
+
+TEST_CASE("utility: pets context and pet bonus (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  snap::Skill raven;
+  raven.record = "records/skills/playerclass03/summon_raven1.dbr";  // Skill_TargetedSpawnPet
+  raven.level = raven.current_level = 1;
+  s.skills = {raven};
+  CHECK(utility::context(s, db, "").pets);
+  s.skills[0].current_level = 0;
+  CHECK_FALSE(utility::context(s, db, "").pets);
+  // b012a_medal: petBonusName item_petbonus_medal_halion_01 (characterOffensiveAbilityModifier 5,
+  // defensiveConvert 100): mean 52.5%.
+  s.equipped = {item(1, 3, "records/items/gearaccessories/medals/b012a_medal.dbr")};
+  CHECK(utility::values(s, db).keys.at("pet_bonus") == doctest::Approx(0.525));
+}

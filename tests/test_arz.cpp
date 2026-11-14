@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -122,6 +123,22 @@ TEST_CASE("arz: synthetic file parses, values typed, unknown names empty") {
   Database db;
   db.add(File(tiny_arz()));
   CHECK(db.record("records/a.dbr")->number("levelRequirement") == 68);
+  CHECK(db.record("records/a.dbr") == db.record("records/a.dbr"));  // decoded once, cached
+  CHECK(db.record("records/missing.dbr") == nullptr);
+  CHECK(db.record("records/missing.dbr") == nullptr);  // absent, cached as absent
+
+  // The same bytes from disk (memory-mapped).
+  const auto path = std::filesystem::temp_directory_path() / "gdc-test-tiny.arz";
+  {
+    const auto bytes = tiny_arz();
+    std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  {
+    const File m = File::open(path);
+    CHECK(m.record("records/a.dbr")->string("setName") == "records/sets/s.dbr");
+  }
+  std::filesystem::remove(path);
+  CHECK_THROWS_AS(File::open(path), std::runtime_error);
 }
 
 TEST_CASE("arz: malformed files throw") {

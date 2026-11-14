@@ -145,7 +145,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 6})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 8})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),
@@ -186,6 +186,33 @@ TEST_CASE("snapshot JSON: learned modifier ids (schema 5)") {
   Spares spare;  // recycling empties the list
   recycle(s, spare);
   CHECK(reuse(spare.skills).modifier_ids.empty());
+}
+
+TEST_CASE("snapshot JSON: item-granted skills with their item id (schema 6), keyed by id in the store") {
+  Snapshot s;
+  Skill a;
+  a.id = 7;
+  a.record = "records/skills/itemskills/legendary/item_harbingersgrasp.dbr";
+  a.current_level = 1;
+  a.item_id = 28753;
+  a.passive = ItemStats{{{23, 25, 0}}, {}, {}, {}};
+  Skill b = a;
+  b.id = 8;  // a second item granting the same record
+  b.item_id = 28754;
+  s.item_skills = {a, b};
+  const Snapshot r = from_json(to_json(s));
+  REQUIRE(r.item_skills.size() == 2);
+  CHECK(r.item_skills[0].item_id == 28753);
+  CHECK(r.item_skills[1].item_id == 28754);
+  REQUIRE(r.item_skills[0].passive);
+  CHECK(r.item_skills[0].passive->char_attributes.size() == 1);
+  CHECK(r.skills.empty());
+  const Snapshot old = from_json(R"({"schema": 5})");
+  CHECK(old.item_skills.empty());
+  Spares spare;
+  recycle(s, spare);
+  CHECK(s.item_skills.empty());
+  CHECK(reuse(spare.skills).item_id == 0);
 }
 
 TEST_CASE("recycle: default values, capacity and spare order kept") {

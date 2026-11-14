@@ -57,6 +57,7 @@ namespace gdc::adapter {
 namespace {
 
 using u32 = std::uint32_t;
+using u64 = std::uint64_t;
 
 // Item virtual slots in the Object-subobject vftable, as called by Character::GetEquipCharAttributes
 // (*0x498), GetEquipOffensiveModifierAttributes (*0x4B0), GetEquipRetaliationModifierAttributes
@@ -95,6 +96,15 @@ constexpr int kAbsorptionProtection = 38;  // CombatAttributeDefense_AbsorptionP
 // Skill+0x140 mem::vector<u32> of modifier skill ids: Skill::GetModifiers (0x3C5970) returns its address,
 // Skill::AddModifier (0x48FD00) appends to it, AddModifierDefenseAttributes (0x494970) walks it.
 constexpr std::size_t kSkillModifiers = 0x140;
+// Item::GetItemType: Object-subobject vftable slot (ArmorJewelry_Ring::vftable{Object} 0x6D7658 + 0x550 =
+// ArmorJewelry_Ring::GetItemType 0x2DE70; ItemEquipment's (0x76F718) = Item::GetItemType 0x167E0). Checked in init.
+constexpr std::size_t kSlotItemType = 0x550;
+// Requirement getters: ItemEquipment::AreRequirementsMet (0x343C30) calls this->vt+0x530 / 0x538 / 0x540 (Strength /
+// Dexterity / Intelligence requirement) and Item::AreRequirementsMet (0x326930) vt+0x528 (level); checked in init
+// against the ItemEquipment exports. The same function reads the item's reduction CharAttributeType ids at these
+// offsets (u32 each; per attribute the first is used always, the other two when non-zero).
+constexpr std::size_t kSlotReqLevel = 0x528, kSlotReqAttr[3] = {0x530, 0x538, 0x540};
+constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF0, 0xE08}, {0xE00, 0xDF4, 0xE0C}};
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
 
 struct Api {
@@ -132,6 +142,8 @@ struct Api {
   float (*defense_cap)(const void*) = nullptr;
 
   const void* (*skill_list)(const void*) = nullptr;
+  const void* (*item_skill_list)(const void*) = nullptr;
+  u32 (*item_skill_item_id)(const void*) = nullptr;
   u32 (*devotion_spent)(const void*) = nullptr;
   u32 (*skill_level)(const void*) = nullptr;
   u32 (*augmented_level)(const void*) = nullptr;
@@ -172,6 +184,9 @@ struct Api {
   const void* (*item_set_name)(const void*) = nullptr;  // returns const std::string&
   void* (*get_relic)(const void*) = nullptr;
   void* (*get_enchantment)(const void*) = nullptr;
+  bool (*requirements_met)(const void*, const void*) = nullptr;  // ItemEquipment::AreRequirementsMet(Character const*)
+  bool requirements_ok = false;  // kSlotReq* verified: requirements read
+  bool item_type_ok = false;  // kSlotItemType verified: snapshot_candidate available
 };
 
 Api g;
@@ -251,6 +266,16 @@ const char* kind_of(const void* obj) {
 void* lookup(u32 id) {
   void* om = g.om_get();
   return om ? g.object_from_id(om, id) : nullptr;
+}
+
+// Socketed component / augment object ids, (relic << 32) | augment; 0 for anything but ItemEquipment.
+// GetRelic / GetEnchantment read +0x1558 / +0x1560 (0x3429B0 / 0x343260), ItemEquipment only, as read_item.
+u64 fingerprint_of(const void* obj) {
+  if (!obj || !is_a(class_info(obj), g.ci_equipment)) return 0;
+  u32 relic = 0, augment = 0;
+  if (const void* r = g.get_relic(obj)) relic = g.object_id(r);
+  if (const void* e = g.get_enchantment(obj)) augment = g.object_id(e);
+  return (static_cast<u64>(relic) << 32) | augment;
 }
 
 using AccFn = void (*)(const void*, void*);
@@ -523,6 +548,22 @@ void component(const void* obj, void* player, bool with_stats, snap::Component& 
   if (with_stats && *kind_of(obj)) item_stats(obj, player, false, c.stats.emplace());
 }
 
+void requirements(const void* obj, const void* player, snap::Item& it) {
+  using ReqFn = u32 (*)(const void*);
+  snap::Requirements q;
+  q.level = rd<ReqFn>(rd<const void*>(obj), kSlotReqLevel)(obj);
+  for (int a = 0; a < 3; ++a) {
+    q.attribute[a] = rd<ReqFn>(rd<const void*>(obj), kSlotReqAttr[a])(obj);
+    for (int k = 0; k < 3; ++k) {
+      const u32 t = rd<u32>(obj, kReqReduction[a][k]);
+      if (t > static_cast<u32>(names::kCharAttributeMax)) return;  // not a CharAttributeType: layout differs, skip
+      q.reductions[a][k] = static_cast<int>(t);
+    }
+  }
+  if (player) q.met = g.requirements_met(obj, player);
+  it.requirements = q;
+}
+
 // Fills `it` (a default or recycled Item: optionals empty) from a live item object. Plain Items
 // (potions, materials) get identity only.
 void read_item(const void* obj, snap::Item& it, bool with_stats, void* player) {
@@ -536,6 +577,7 @@ void read_item(const void* obj, snap::Item& it, bool with_stats, void* player) {
     set_msvc_string(it.set, g.item_set_name(obj));
     if (const void* r = g.get_relic(obj)) component(r, player, with_stats, it.relic.emplace());
     if (const void* e = g.get_enchantment(obj)) component(e, player, with_stats, it.augment.emplace());
+    if (g.requirements_ok) requirements(obj, player, it);
   }
   if (with_stats && it.kind != "Item")
     item_stats(obj, player, it.kind == "ItemEquipment" || it.kind == "ItemArtifact", it.stats.emplace());
@@ -652,50 +694,66 @@ void sec_conversions(Ctx& c) {
   conversions(g.skill_manager(c.player), g.collect_conversions, c.s.conversions);
 }
 
+// One skill: identity, levels, linked modifiers and what its own passive collectors add now.
+snap::Skill read_skill(Ctx& c, const void* sk) {
+  snap::Skill s = snap::reuse(c.spare.skills);
+  s.id = g.object_id(sk);
+  set_cstr(s.record, g.object_name(sk));
+  s.type = static_cast<u32>(g.skill_type(sk));
+  s.level = g.skill_level(sk);
+  s.augmented_level = g.augmented_level(sk);
+  s.current_level = g.current_level(sk);
+  s.devotion_level = g.devotion_level(sk);
+  s.devotion_max_level = g.devotion_max_level(sk);
+  s.mastery_id = g.mastery_id(sk);
+  const Span mods = vec(static_cast<const char*>(sk) + kSkillModifiers, sizeof(u32));
+  s.modifier_ids.clear();
+  for (std::size_t m = 0; m < mods.count; ++m) s.modifier_ids.push_back(rd<u32>(mods.begin, m * sizeof(u32)));
+  // What it adds now, through its own collectors (the ones Skill_Passive / Skill_BuffSelfToggled
+  // override). Unlearned skills (current level 0) are skipped: they have nothing to add.
+  snap::ItemStats& p = s.passive.emplace();
+  if (s.current_level != 0) {
+    auto collect = [&] {
+      char_contributions(sk, slot(sk, kSlotSkillPassiveChar), p.char_attributes);
+      AccBuf buf;
+      void* acc = g.combat_acc_ctor(buf.bytes, kDisplayModifyProcs);
+      slot(sk, kSlotSkillPassiveDefense)(sk, acc);
+      combat_totals(acc, c.player, p.defense);
+      g.combat_acc_dtor(acc);
+    };
+    seh::Fault f;
+    if (!seh::run(collect, f)) {  // this skill only; the snapshot keeps the rest
+      char buf[200];
+      std::snprintf(buf, sizeof buf, "skill %s passive: FAULT 0x%08lX at 0x%016llX", s.record.c_str(), f.code,
+                    static_cast<unsigned long long>(f.addr));
+      c.s.errors.emplace_back(buf);
+      c.s.complete = false;
+      log::printf("snapshot: %s", buf);
+      s.passive.reset();
+    }
+  }
+  return s;
+}
+
 void sec_skills(Ctx& c) {
   const void* sm = g.skill_manager(c.player);
   c.s.devotion_current_level_sum = g.devotion_spent(sm);
   const Span list = vec(g.skill_list(sm), sizeof(void*));
   for (std::size_t i = 0; i < list.count; ++i) {
     const void* sk = rd<const void*>(list.begin, i * sizeof(void*));
+    if (sk) c.s.skills.push_back(read_skill(c, sk));
+  }
+}
+
+// Skills granted by equipped items (SkillManager+0x258, docs/SNAPSHOT.md `item_skills[]`).
+void sec_item_skills(Ctx& c) {
+  const Span list = vec(g.item_skill_list(g.skill_manager(c.player)), sizeof(void*));
+  for (std::size_t i = 0; i < list.count; ++i) {
+    const void* sk = rd<const void*>(list.begin, i * sizeof(void*));
     if (!sk) continue;
-    snap::Skill s = snap::reuse(c.spare.skills);
-    s.id = g.object_id(sk);
-    set_cstr(s.record, g.object_name(sk));
-    s.type = static_cast<u32>(g.skill_type(sk));
-    s.level = g.skill_level(sk);
-    s.augmented_level = g.augmented_level(sk);
-    s.current_level = g.current_level(sk);
-    s.devotion_level = g.devotion_level(sk);
-    s.devotion_max_level = g.devotion_max_level(sk);
-    s.mastery_id = g.mastery_id(sk);
-    const Span mods = vec(static_cast<const char*>(sk) + kSkillModifiers, sizeof(u32));
-    s.modifier_ids.clear();
-    for (std::size_t m = 0; m < mods.count; ++m) s.modifier_ids.push_back(rd<u32>(mods.begin, m * sizeof(u32)));
-    // What it adds now, through its own collectors (the ones Skill_Passive / Skill_BuffSelfToggled
-    // override). Unlearned skills (current level 0) are skipped: they have nothing to add.
-    snap::ItemStats& p = s.passive.emplace();
-    if (s.current_level != 0) {
-      auto collect = [&] {
-        char_contributions(sk, slot(sk, kSlotSkillPassiveChar), p.char_attributes);
-        AccBuf buf;
-        void* acc = g.combat_acc_ctor(buf.bytes, kDisplayModifyProcs);
-        slot(sk, kSlotSkillPassiveDefense)(sk, acc);
-        combat_totals(acc, c.player, p.defense);
-        g.combat_acc_dtor(acc);
-      };
-      seh::Fault f;
-      if (!seh::run(collect, f)) {  // this skill only; the snapshot keeps the rest
-        char buf[200];
-        std::snprintf(buf, sizeof buf, "skill %s passive: FAULT 0x%08lX at 0x%016llX", s.record.c_str(), f.code,
-                      static_cast<unsigned long long>(f.addr));
-        c.s.errors.emplace_back(buf);
-        c.s.complete = false;
-        log::printf("snapshot: %s", buf);
-        s.passive.reset();
-      }
-    }
-    c.s.skills.push_back(std::move(s));
+    snap::Skill s = read_skill(c, sk);
+    s.item_id = g.item_skill_item_id(sk);
+    c.s.item_skills.push_back(std::move(s));
   }
 }
 
@@ -856,6 +914,8 @@ bool snapshot_init(const Resolve& r) {
   b(g.run_speed, "Character::GetRunSpeed");
   b(g.defense_cap, "Player::GetDefenseAttributeCap");
   b(g.skill_list, "SkillManager::GetSkillList");
+  b(g.item_skill_list, "SkillManager::GetItemSkillList");
+  b(g.item_skill_item_id, "Skill::GetItemSkillItemId");
   b(g.devotion_spent, "SkillManager::GetNumDevotionPointsSpent");
   b(g.skill_level, "Skill::GetSkillLevel");
   b(g.augmented_level, "Skill::GetAugmentedLevel");
@@ -893,6 +953,7 @@ bool snapshot_init(const Resolve& r) {
   b(g.item_set_name, "ItemEquipment::GetItemSetName");
   b(g.get_relic, "ItemEquipment::GetRelic");
   b(g.get_enchantment, "ItemEquipment::GetEnchantment");
+  b(g.requirements_met, "ItemEquipment::AreRequirementsMet");
   if (!ok) return false;
 
   // The id lookup: decode the call in GetEquipCharAttributes, accept it only if its first call
@@ -939,6 +1000,21 @@ bool snapshot_init(const Resolve& r) {
     g_pass_vft[p][1 + kSlotChanceMultiplier / 8] = reinterpret_cast<const void*>(mult[p]);
   }
   log::write("snapshot: item vtable slots verified");
+  {
+    const void* ring_vft = r("ArmorJewelry_Ring::vftable{Object}");
+    const void* ring_type = r("ArmorJewelry_Ring::GetItemType");
+    const void* item_type = r("Item::GetItemType");
+    const void* eq_vft = r("ItemEquipment::vftable{Object}");
+    g.item_type_ok = ring_vft && ring_type && item_type && rd<const void*>(ring_vft, kSlotItemType) == ring_type &&
+                     rd<const void*>(eq_vft, kSlotItemType) == item_type;
+    if (!g.item_type_ok) log::write("snapshot: Item::GetItemType slot 0x550 not verified; tooltip block off");
+    const void* req[] = {r("ItemEquipment::GetLevelRequirement"), r("ItemEquipment::GetStrengthRequirement"),
+                         r("ItemEquipment::GetDexterityRequirement"), r("ItemEquipment::GetIntelligenceRequirement")};
+    const std::size_t slots[] = {kSlotReqLevel, kSlotReqAttr[0], kSlotReqAttr[1], kSlotReqAttr[2]};
+    g.requirements_ok = eq_vft != nullptr;
+    for (int i = 0; i < 4 && g.requirements_ok; ++i) g.requirements_ok = req[i] && rd<const void*>(eq_vft, slots[i]) == req[i];
+    if (!g.requirements_ok) log::write("snapshot: requirement getter slots 0x528..0x540 not verified; requirements not read");
+  }
   g_ready = true;
   return true;
 }
@@ -971,6 +1047,7 @@ Take snapshot_take(snap::Snapshot& s, snap::Spares& spare, const std::vector<std
   ok = guarded("conversions", sec_conversions, c) && ok;
   ok = guarded("skills", sec_skills, c) && ok;
   ok = guarded("item_skill_modifiers", sec_item_skill_modifiers, c) && ok;
+  ok = guarded("item_skills", sec_item_skills, c) && ok;
   ok = guarded("equipped", sec_equipped, c) && ok;
   ok = guarded("tooltip", sec_tooltip, c) && ok;
   if (with_inventory) ok = guarded("inventory", sec_inventory, c) && ok;
@@ -1000,14 +1077,9 @@ Take snapshot_probe(Probe& out) {
       mix(id);
       mix(rd<u32>(items.begin, i * 12 + 4));  // location (EquipManagerContainer, see top)
       // Component / augment object ids (0 = none): socketing changes neither the item id nor its slot.
-      // GetRelic / GetEnchantment read +0x1558 / +0x1560 (0x3429B0 / 0x343260), ItemEquipment only, as read_item.
-      u32 relic = 0, augment = 0;
-      if (const void* obj = lookup(id); obj && is_a(class_info(obj), g.ci_equipment)) {
-        if (const void* r = g.get_relic(obj)) relic = g.object_id(r);
-        if (const void* e = g.get_enchantment(obj)) augment = g.object_id(e);
-      }
-      mix(relic);
-      mix(augment);
+      const u64 fp = fingerprint_of(lookup(id));
+      mix(static_cast<u32>(fp >> 32));
+      mix(static_cast<u32>(fp));
     }
     out.equip_hash = h;
   };
@@ -1017,6 +1089,68 @@ Take snapshot_probe(Probe& out) {
     return Take::Faulted;
   }
   return out.player ? Take::Ok : Take::NoPlayer;
+}
+
+namespace {
+// `id` 0: the object id of `item`.
+Take candidate(const void* item, u32 id, snap::Item& out, int& item_type) {
+  if (!g_ready || !g.item_type_ok) return Take::NoPlayer;
+  bool found = false;
+  auto read = [&] {
+    void* engine = const_cast<void*>(*g.engine_var);
+    void* player = engine ? g.main_player(engine) : nullptr;
+    if (!player) return;
+    const void* obj = lookup(id ? id : g.object_id(item));
+    if (!obj || !is_a(class_info(obj), g.ci_item)) return;
+    using TypeFn = int (*)(const void*);
+    item_type = rd<TypeFn>(rd<const void*>(obj), kSlotItemType)(obj);
+    read_item(obj, out, true, player);
+    found = true;
+  };
+  seh::Fault f;
+  if (!seh::run(read, f)) {
+    log::printf("tooltip candidate: FAULT 0x%08lX at 0x%016llX", f.code, static_cast<unsigned long long>(f.addr));
+    return Take::Faulted;
+  }
+  return found ? Take::Ok : Take::NoPlayer;
+}
+}  // namespace
+
+Take snapshot_candidate(const void* item, snap::Item& out, int& item_type) { return candidate(item, 0, out, item_type); }
+
+Take snapshot_candidate_id(std::uint32_t id, snap::Item& out, int& item_type) {
+  return id ? candidate(nullptr, id, out, item_type) : Take::NoPlayer;
+}
+
+Take snapshot_bag(std::vector<BagItem>& out) {
+  out.clear();
+  if (!g_ready) return Take::NoPlayer;
+  bool player_found = false;
+  auto read = [&] {
+    void* engine = const_cast<void*>(*g.engine_var);
+    void* player = engine ? g.main_player(engine) : nullptr;
+    if (!player) return;
+    player_found = true;
+    const Span ids = vec(g.inventory_items(player), sizeof(u32));
+    for (std::size_t i = 0; i < ids.count && out.size() < out.capacity(); ++i) {  // no allocation here
+      const u32 id = rd<u32>(ids.begin, i * sizeof(u32));
+      if (const void* obj = lookup(id)) out.push_back({id, fingerprint_of(obj)});
+    }
+  };
+  seh::Fault f;
+  if (!seh::run(read, f)) {
+    log::printf("tooltip bag: FAULT 0x%08lX at 0x%016llX", f.code, static_cast<unsigned long long>(f.addr));
+    return Take::Faulted;
+  }
+  return player_found ? Take::Ok : Take::NoPlayer;
+}
+
+std::uint64_t item_fingerprint(const void* item) {
+  if (!g_ready || !item) return 0;
+  u64 fp = 0;
+  auto read = [&] { fp = fingerprint_of(lookup(g.object_id(item))); };
+  seh::Fault f;
+  return seh::run(read, f) ? fp : 0;
 }
 
 std::uint32_t object_id(const void* obj) {

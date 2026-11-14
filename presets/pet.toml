@@ -1,0 +1,40 @@
+# pet: most class skill points in summons whose spawned record has Class Pet (Hellhound, Raven, Briarthorn,
+# Manticore, Blight Fiend, Skeletons, ...; not mines, totems, seals or Wind Devils, which scale with the
+# player: Class PetPlayerScaling).
+# Generic template, not a guide build: every number below is a DESIGN CHOICE (docs/PRESETS.md), chosen offline
+# from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
+# Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
+# "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
+# Limitation: pet damage is scored only next to main skills and only with pet_attack_rate > 0, which the
+# database does not give (presets/default.toml). Until then pets' damage and RR show as "+? unscored", and
+# pet bonuses count through [other] pet_bonus.
+
+[preset]
+name = "pet"
+
+[match]
+masteries = [
+  "records/skills/playerclass01/_classtraining_class01.dbr",  # Soldier
+  "records/skills/playerclass02/_classtraining_class02.dbr",  # Demolitionist
+  "records/skills/playerclass03/_classtraining_class03.dbr",  # Occultist
+  "records/skills/playerclass04/_classtraining_class04.dbr",  # Nightblade
+  "records/skills/playerclass05/_classtraining_class05.dbr",  # Arcanist
+  "records/skills/playerclass06/_classtraining_class06.dbr",  # Shaman
+  "records/skills/playerclass07/_classtraining_class07.dbr",  # Inquisitor
+  "records/skills/playerclass08/_classtraining_class08.dbr",  # Necromancer
+  "records/skills/playerclass09/_classtraining_class09.dbr",  # Oathkeeper
+  "records/skills/playerclass10/_classtraining_class10.dbr",  # Berserker
+]
+archetype = "pet"
+
+[score]
+damage = 0.3      # design choice: the player's own attacks are a small part of a pet build's damage
+other = 0.5       # design choice: pet_bonus below carries the pets' damage
+
+[damage]
+skill_weights = "points"
+
+[other]
+pet_bonus = { weight = 2.0, when = "pets" }   # design choice: 10x default; per 100% mean bonus to pets
+retaliation = 0
+retaliation_modifier = 0

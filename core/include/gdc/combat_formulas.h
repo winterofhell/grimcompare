@@ -27,6 +27,23 @@ double probability_to_hit(double oa, double da);
 // pth against the target's DA; the sheet's "Chance to Crit" uses the last attacked monster.
 double critical_chance(double pth, const snap::PthTable& t);
 
+// One attack against a target, as CombatManager::TakeAttack (0x11D950) resolves it through
+// CombatManager::CalculateDamageModifier (0x120B10), Game.dll 1.3.1.1:
+//   pth = max(probabilityToHitEquation, pthMinimum)   (DesignerCalculateProbabilityToHit 0x121790)
+//   x   = uniform roll x max(CombatManager+0x27C, pth);  x > pth: miss (only possible below 100)
+//   pth <= pthThreshold1: damage x normalPTHEquation (probabilityToHitDV/70, combatformulas.dbr)
+//   else damage x pthDamageModifier of the highest threshold k in 2..6 with x > pthThreshold_k (1 below
+//   threshold 2). So pth past the last threshold only adds top-tier crits.
+//   A modifier above 1 gets the attacker's crit damage bonus added (TakeAttack 0x11ECBD: xmm10 > 1.0 ->
+//   += ParametersCombat+0xA0), i.e. the bonus is added to every crit tier.
+// A table without thresholds (tests) has no tiers: multiplier = chance.
+struct Hit {
+  double chance = 0;       // P(not missed)
+  double crit_chance = 0;  // P(x > pthThreshold2) = DesignerCalculateCriticalChance
+  double multiplier = 0;   // expected damage factor per attack: misses 0, glancing, crit tiers + crit_bonus
+};
+Hit expected_hit(double pth, const snap::PthTable& t, double crit_bonus);
+
 // records/game/playerresourcebehavior.dbr, per second (elapsedTime = 1):
 //   lifeRegenEquation (lifeRegen + ((physique-50)/25)) * elapsedTime
 //   manaRegenEquation (((manaRegen*((intelligence/384)+1))+((intelligence-50)/100))+6.5) * elapsedTime

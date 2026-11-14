@@ -21,6 +21,7 @@ nix-shell --run 'cmake --workflow --preset core'
 nix-shell --run 'cmake --workflow --preset adapter'   # → build/adapter/adapter/GDCompare.asi
 ```
 CRT: `/MD` (dynamic), because Game.dll/Engine.dll import MSVCP140/VCRUNTIME140/ucrt. The prefix's `msvcp140.dll` is from 2016, so after changing STL usage check that every import of the `.asi` exists there (`winedump -j import`). Avoid `std::mutex` (newer headers need a newer msvcp140); use SRWLOCK.
+The build fails if the `.asi` imports `_Mtx_*` / `_Cnd_*` (`cmake/check_imports.cmake`): `std::mutex` from current headers faulted on its first lock against that 2016 DLL (adapter 0.4.0, `arz::Database` cache).
 
 ## Deploy / uninstall
 ```sh

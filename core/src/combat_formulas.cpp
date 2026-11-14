@@ -34,6 +34,32 @@ double critical_chance(double pth, const snap::PthTable& t) {
   return std::max(0.0, (pth - t.threshold[1]) / std::max<double>(t.crit_divisor_min, pth));
 }
 
+Hit expected_hit(double pth, const snap::PthTable& t, double crit_bonus) {
+  pth = std::max<double>(pth, t.minimum);
+  const double span = std::max<double>(t.crit_divisor_min, pth);
+  if (span <= 0) return {};
+  Hit h;
+  h.chance = std::min(pth, span) / span;
+  if (t.threshold[0] <= 0) {  // no table
+    h.multiplier = h.chance;
+    return h;
+  }
+  if (pth <= t.threshold[0]) {
+    h.multiplier = h.chance * pth / t.threshold[0];
+    return h;
+  }
+  h.crit_chance = std::max(0.0, pth - t.threshold[1]) / span;
+  // Bands of x up to pth: [0, threshold 2] at modifier 1, then one per threshold reached.
+  double from = 0, modifier = t.damage_modifier[0], sum = 0;
+  for (int k = 1; k < 6 && t.threshold[k] > 0 && t.threshold[k] < pth; ++k) {
+    sum += (t.threshold[k] - from) * modifier;
+    from = t.threshold[k];
+    modifier = t.damage_modifier[k] + (t.damage_modifier[k] > 1 ? crit_bonus : 0);
+  }
+  h.multiplier = (sum + (pth - from) * modifier) / span;
+  return h;
+}
+
 double life_regen(const snap::Snapshot& s) { return attr(s, 6) + (attr(s, 1) - 50) / 25; }
 
 double mana_regen(const snap::Snapshot& s) {

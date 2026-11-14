@@ -17,6 +17,16 @@ add_library(gdc_core STATIC
   src/db_fields.cpp
   src/store.cpp
   src/calibrate.cpp
+  src/tooltip.cpp
+  src/text.cpp
+  src/labels.cpp
+  src/components.cpp
+  src/requirements.cpp
+  src/score.cpp
+  src/sets.cpp
+  src/effects.cpp
+  src/utility.cpp
+  src/enemy.cpp
 )
 target_link_libraries(gdc_core PRIVATE miniz)
 target_include_directories(gdc_core PUBLIC include)

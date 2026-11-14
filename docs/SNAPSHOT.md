@@ -9,10 +9,14 @@ Key: `GDCompare.ini` next to `GDCompare.asi`:
 ```ini
 [snapshot]
 key=120   ; Windows virtual-key code, decimal (F9 = 120). Out of 1..254 → F9.
+[freeze]
+key=121   ; freeze the preset in use (docs/PRESETS.md); F10 = 121, 0 = off; the snapshot key → off
 ```
 
-The key is ignored unless the game window has focus. F9 is not bound in vanilla on this install
-(checked 2026-11-14: DIK 67 unbound in the user's options).
+Keys are ignored unless the game window has focus. Neither F9 nor F10 is bound in the game on this install
+(checked 2026-11-14: `Settings/keybindings.txt` and `alternate_keybindings.txt` bind DIK 59..65 = F1..F7 only;
+DIK 67 / 68 unbound). F10 was picked for freeze because KDE's default global shortcuts take Ctrl+F1..F12
+(Ctrl+F9 = Present Windows, the old freeze chord) and Alt+F-keys, and Steam takes F12.
 
 ## Rules
 
@@ -31,7 +35,7 @@ All RVAs: Game.dll 1.3.1.1 (`re/Game.exports.tsv`). Labels are the entries in
 
 | JSON | Source |
 |---|---|
-| `schema` | 4 (1 → 2: `devotion_points_spent` renamed, `character.pth` added; 2 → 3: chance fields below, item type-38 `reduction` dropped; 3 → 4: `skills[].passive`; 4 → 5: `skills[].modifier_ids`). Readers accept 2..5; 2 has no chance data, 2..3 no `passive`, 2..4 no `modifier_ids` |
+| `schema` | 6 (1 → 2: `devotion_points_spent` renamed, `character.pth` added; 2 → 3: chance fields below, item type-38 `reduction` dropped; 3 → 4: `skills[].passive`; 4 → 5: `skills[].modifier_ids`; 5 → 6: `item_skills[]`). Readers accept 2..6; 2 has no chance data, 2..3 no `passive`, 2..4 no `modifier_ids`, 2..5 no `item_skills` |
 | `mod_version`, `game_build` | adapter constant; known-build table (`core/include/gdc/known_builds.h`) |
 | `complete`, `errors` | see Rules |
 | `character.level` | `Character::GetCharLevel` |
@@ -54,6 +58,7 @@ All RVAs: Game.dll 1.3.1.1 (`re/Game.exports.tsv`). Labels are the entries in
 | `skills[].modifier_ids` | schema 5: Skill+0x140 `mem::vector<u32>` — `Skill::GetModifiers` (0x3C5970) returns its address, `Skill::AddModifier` (0x48FD00) appends to it, `Skill::AddModifierDefenseAttributes` (0x494970) walks it (then the item skill modifiers at +0x158) and adds each object that is-a `Skill_Modifier` through vt+0x6A8. Ids of learned modifiers / transmuters attached to this skill; omitted when empty |
 | `skills[].passive` | schema 4, skills with current level > 0: the skill's own vt+0x408 `CollectPassiveCharAttributes` (CharAttributeAccumulator) and vt+0x438 `CollectPassiveDefenseAttributes` (CombatDisplayAccumulator(true), like `defense`). Slots checked against `Skill_Passive`'s vftable (0x711BA0: 0x5011D0 / 0x4FB690); `Skill_BuffSelfToggled`'s overrides sit at the same slots (0x707B80 / 0x707BB0), and its defense collector adds only while toggled on (`+0xDC` set, `+0x618` clear, 0x4EC59A..0x4EC5B0) at `GetCurrentLevel`. Omitted = contributes nothing now. A fault in one skill drops only that skill's `passive` (logged, `complete` false) |
 | `item_skill_modifiers[]` | per skill, the 0x30-byte entries of the vector at `Skill+0x158` (`Skill::AddToItemSkillModifiers` 0x48FD30, `GetItemSkillModifiers` 0x48FFD0): `{u32 modifier skill id, EquipLocations +4, std::string set +8, bool relic +0x28, bool augment +0x29}`. The modifier id → object lookup; `stats` only if its class is exactly `Skill_Modifier` (`Skill_Modifier::classInfo`): `CollectModifierOffensiveDamageAttributes(acc, 1.0)`, `…OffensiveModifierAttributes`, `…SkillAttributes`, `…ConversionAttributes` |
+| `item_skills[]` | schema 6: `SkillManager::GetItemSkillList` (0x531730, `SkillManager+0x258`): the skills equipped items grant (`itemSkillName`), each read like `skills[]` (incl. `passive`) plus `item_id` = `Skill::GetItemSkillItemId` (0x31D500, `Skill+0x350`). `SkillManager::GetCharAttributes` (0x52F920), `GetDefenseAttributes` (0x530C10) and `GetOffensiveModifierAttributes` (0x52FDA0) walk this list after the learned skills and call vt+0x408 / +0x438 / +0x420 on each skill whose vt+0x1C8 (`Skill::GetCurrentLevel`) is non-zero, so `passive` is what it adds to the totals. Keyed by `id` in the store (two items may grant one record) |
 | `equipped[]` | ids from `Character::GetAttachedItems` (`Character+0x5D0`, 12-byte `EquipManagerContainer {id, location, flags}`) → object lookup (below). `location`, `location_name`: `EquipLocations`, names from `LocationToString` (0x286480): 0 R Hand, 1 L Hand, 2 Neck, 3 Medal, 4/5 Finger, 6 Waist, 7 Head, 8 Chest, 9 Shoulders, 10 Hands, 11 Legs, 12 Feet, 13 Artifact, 14 Clothing |
 | `tooltip_items[]`, `tooltip_age_ms` | ids latched by the `ItemEquipment/ItemArtifact::GetUIDisplayText` detours in the latest game tick that built a tooltip; age since then |
 | `inventory[]` | `Character::GetInventoryItems` ids → lookup; identity + replica only, no stats |
@@ -76,6 +81,7 @@ Per item (`equipped`, `tooltip_items`, `inventory`):
 | `stats.offensive_damage[].chance`, `raw_min`, `raw_max` | chance-based entries only ("X% chance of …"): chance in percent and min/max at 100%. `min`/`max` stay the expected values the engine computes. From the chance passes below; entries matched by index |
 | `stats.defense/offensive_modifiers/retaliation_modifiers[].proc` | types with a chance-based part: `{chance, defense, defense_modifier, reduction, damage_modifier, dot_modifier}` = that part at 100% (raw − excluded pass); `chance` = (probe − excluded) / (raw − excluded) for the first field that has one. Exact for one chance stat per type, a raw-weighted mean for several. Same for `item_skill_modifiers[].stats.offensive_modifiers` / `offensive_damage` |
 | `relic`, `augment` | `ItemEquipment::GetRelic` / `GetEnchantment` → same stats on the component object (no damage slots) |
+| `requirements` (schema 7, ItemEquipment) | `level`, `physique` / `cunning` / `spirit`: the item's own virtual getters vt+0x528 / 0x530 / 0x538 / 0x540 (verified against `ItemEquipment::Get*Requirement` at init; each the max of item, relic, augment). `reductions`: per attribute the three CharAttributeType ids at +0xDF8/+0xDEC/+0xE04, +0xDFC/+0xDF0/+0xE08, +0xE00/+0xDF4/+0xE0C, as `ItemEquipment::AreRequirementsMet` (0x343C30) reads them. `met`: that function called with the player. Formula: `gdc/requirements.h` |
 
 Component stats are **already included** in the parent's `stats`: `ItemEquipment`'s `GetCharAttributes`,
 `GetSkillAttributes`, `GetConversionAttributes`, `GetRetaliationAttributes` and

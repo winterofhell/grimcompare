@@ -1,0 +1,31 @@
+# retaliation: at least as many class skill points in skills with retaliation (e.g. Presence of Virtue,
+# Counter Strike, Ascension, Overguard) as in attacks.
+# Generic template, not a guide build: every number below is a DESIGN CHOICE (docs/PRESETS.md), chosen offline
+# from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
+# Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
+# "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
+
+[preset]
+name = "retaliation"
+
+[match]
+masteries = [
+  "records/skills/playerclass01/_classtraining_class01.dbr",  # Soldier
+  "records/skills/playerclass02/_classtraining_class02.dbr",  # Demolitionist
+  "records/skills/playerclass03/_classtraining_class03.dbr",  # Occultist
+  "records/skills/playerclass04/_classtraining_class04.dbr",  # Nightblade
+  "records/skills/playerclass05/_classtraining_class05.dbr",  # Arcanist
+  "records/skills/playerclass06/_classtraining_class06.dbr",  # Shaman
+  "records/skills/playerclass07/_classtraining_class07.dbr",  # Inquisitor
+  "records/skills/playerclass08/_classtraining_class08.dbr",  # Necromancer
+  "records/skills/playerclass09/_classtraining_class09.dbr",  # Oathkeeper
+  "records/skills/playerclass10/_classtraining_class10.dbr",  # Berserker
+]
+archetype = "retaliation"
+
+[damage]
+skill_weights = "points"
+
+[other]
+retaliation = 0.5                             # design choice: 25x default; per 1000 retaliation damage
+retaliation_modifier = 0.5                    # design choice: 25x default; per 100% retaliation damage

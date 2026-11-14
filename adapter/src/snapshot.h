@@ -44,6 +44,27 @@ struct Probe {
 // Game thread only. NoPlayer: menu / loading (out.player null). Faulted: logged.
 Take snapshot_probe(Probe& out);
 
+// The hovered item for the tooltip block, read like an equipped item (with stats), and its engine
+// type (Item::GetItemType). Game thread. `out`: a default Item. NoPlayer: no player, not an item, or the
+// type slot was not verified at init. Faulted: logged.
+Take snapshot_candidate(const void* item, snap::Item& out, int& item_type);
+
+// snapshot_candidate for the item with object id `id`. Game thread.
+Take snapshot_candidate_id(std::uint32_t id, snap::Item& out, int& item_type);
+
+// One inventory item: its object id and item_fingerprint.
+struct BagItem {
+  std::uint32_t id = 0;
+  std::uint64_t fingerprint = 0;
+};
+// Game thread. The main player's inventory items (Character::GetInventoryItems), at most out.capacity()
+// (no allocation). NoPlayer: no player. Faulted: logged.
+Take snapshot_bag(std::vector<BagItem>& out);
+
+// Object ids of the item's socketed component and augment, (relic << 32) | augment; 0 when it has none,
+// is not ItemEquipment, or on a fault. Socketing changes neither the item id nor its slot. Game thread.
+std::uint64_t item_fingerprint(const void* item);
+
 // Object::GetObjectId under SEH; 0 on a fault. Used by the tooltip detours.
 std::uint32_t object_id(const void* obj);
 

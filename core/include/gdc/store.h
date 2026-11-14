@@ -23,7 +23,7 @@ std::string gunzip(std::string_view gz);
 
 // Snapshot JSON with these top-level arrays turned into objects keyed by identity, so a patch touches only
 // what changed: char_attributes, defense, damage_modifiers (by type), conversions ("from>to"), skills (by
-// record), item_skill_modifiers ("skill_id:modifier_id"), equipped (by location), inventory (by id).
+// record), item_skill_modifiers ("skill_id:modifier_id"), item_skills (by id), equipped (by location), inventory (by id).
 // Keyed entries are in key order (numeric if all keys are), so the engine's list order is not kept.
 // An array whose key is missing or repeated stays an array. Compact text.
 std::string keyed(const snap::Snapshot& s);

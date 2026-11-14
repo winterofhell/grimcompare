@@ -32,7 +32,7 @@
 
 namespace {
 
-constexpr const char* kModVersion = "0.3.2 (learned modifier ids, schema 5)";
+constexpr const char* kModVersion = "0.9.0 (accuracy pass: engine defense pipeline, crit tiers, monster table, top-3 parts)";
 constexpr DWORD kPollMs = 250;
 // shortcut: generous fixed waits, no source for real load times — revisit when the Phase 1 log
 // shows how long modules / gGameEngine actually take.

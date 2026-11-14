@@ -16,7 +16,9 @@ namespace gdc::snap {
 //    item AbsorptionProtection reduction no longer written. Schema 2 still reads (no chance data).
 // 4: Skill::passive, character.name. Schemas 2..3 still read (passive absent).
 // 5: Skill::modifier_ids. Schemas 2..4 still read (modifier links unknown; check `schema` before use).
-inline constexpr int kSchema = 5;
+// 6: Snapshot::item_skills, Skill::item_id. Schemas 2..5 still read (granted skills unknown).
+// 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
+inline constexpr int kSchema = 7;
 inline constexpr int kMinSchema = 2;
 
 // Character::GetTotalCharAttribute / GetTotalCharModifier / GetBaseCharAttribute,
@@ -108,6 +110,18 @@ struct Component {
   std::optional<ItemStats> stats;
 };
 
+// An ItemEquipment's requirements as ItemEquipment::AreRequirementsMet (0x343C30) reads them (Game.dll 1.3.1.1):
+// raw values from the item's virtual getters (each the max of the item, its relic and its augment:
+// GetIntelligenceRequirement 0x343BD0), and per attribute the item's three CharAttributeType ids whose
+// character totals reduce it (0 = none; gdc/requirements.h has the formula).
+struct Requirements {
+  std::uint32_t level = 0;                        // vt+0x528 GetLevelRequirement
+  std::uint32_t attribute[3] = {};                // vt+0x530 / 0x538 / 0x540: Physique, Cunning, Spirit
+  int reductions[3][3] = {};                      // Physique +0xDF8/+0xDEC/+0xE04, Cunning +0xDFC/+0xDF0/+0xE08,
+                                                  // Spirit +0xE00/+0xDF4/+0xE0C
+  std::optional<bool> met;                        // ItemEquipment::AreRequirementsMet(player) when read
+};
+
 struct Item {
   std::uint32_t id = 0;           // Object::GetObjectId
   int location = -1;              // EquipLocations from EquipManagerContainer+4; -1 = not equipped
@@ -117,6 +131,7 @@ struct Item {
   std::optional<Replica> replica;
   std::optional<ItemStats> stats;
   std::optional<Component> relic, augment;  // ItemEquipment::GetRelic / GetEnchantment
+  std::optional<Requirements> requirements;  // ItemEquipment only; schema 7
 };
 
 struct Skill {
@@ -139,6 +154,8 @@ struct Skill {
   // (Skill::AddModifierDefenseAttributes 0x494970 walks it, then the item skill modifiers at +0x158).
   // Schema 5; empty before.
   std::vector<std::uint32_t> modifier_ids;
+  // Item skills only: Skill::GetItemSkillItemId (0x31D500, Skill+0x350), the granting item's object id.
+  std::uint32_t item_id = 0;
 };
 
 // An item skill modifier attached to a skill (Skill+0x158 entry, Skill::AddToItemSkillModifiers).
@@ -191,6 +208,12 @@ struct Snapshot {
   std::vector<Conversion> conversions;         // SkillManager::CollectAvailableConversionAttributes
   std::vector<Skill> skills;
   std::vector<ItemSkillModifier> item_skill_modifiers;
+  // Skills granted by equipped items (itemSkillName): SkillManager::GetItemSkillList (0x531730,
+  // SkillManager+0x258). SkillManager::GetCharAttributes (0x52F920) / GetDefenseAttributes (0x530C10) /
+  // GetOffensiveModifierAttributes (0x52FDA0) add each one's collectors (vt+0x408 / +0x438 / +0x420) while
+  // Skill::GetCurrentLevel (vt+0x1C8) != 0, as for the learned skills, so `passive` is exactly what one
+  // adds to the totals. Schema 6; empty before (unknown: check `schema`).
+  std::vector<Skill> item_skills;
   std::vector<Item> equipped;
   // Items whose tooltip the engine built in the most recent frame that built any, in call order
   // (a hovered item plus the equipped items the game shows for comparison).

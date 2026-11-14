@@ -168,6 +168,19 @@ J item(const Item& i) {
   if (i.stats) j["stats"] = stats(*i.stats);
   if (i.relic) j["relic"] = component(*i.relic);
   if (i.augment) j["augment"] = component(*i.augment);
+  if (i.requirements) {
+    const Requirements& r = *i.requirements;
+    J q = J::object();
+    put(q, "level", r.level);
+    put(q, "physique", r.attribute[0]);
+    put(q, "cunning", r.attribute[1]);
+    put(q, "spirit", r.attribute[2]);
+    J red = J::array();
+    for (const auto& a : r.reductions) red.push_back({a[0], a[1], a[2]});
+    q["reductions"] = std::move(red);
+    if (r.met) q["met"] = *r.met;
+    j["requirements"] = std::move(q);
+  }
   return j;
 }
 
@@ -184,6 +197,7 @@ J skill(const Skill& s) {
   if (s.passive && (!s.passive->char_attributes.empty() || !s.passive->defense.empty()))
     j["passive"] = stats(*s.passive);
   if (!s.modifier_ids.empty()) j["modifier_ids"] = s.modifier_ids;
+  put(j, "item_id", s.item_id);
   return j;
 }
 
@@ -339,6 +353,22 @@ Item read_item(const J& j) {
   if (j.contains("stats")) i.stats = read_stats(j.at("stats"));
   if (j.contains("relic")) i.relic = read_component(j.at("relic"));
   if (j.contains("augment")) i.augment = read_component(j.at("augment"));
+  if (const auto q = j.find("requirements"); q != j.end()) {
+    Requirements& r = i.requirements.emplace();
+    get(*q, "level", r.level);
+    get(*q, "physique", r.attribute[0]);
+    get(*q, "cunning", r.attribute[1]);
+    get(*q, "spirit", r.attribute[2]);
+    if (const auto red = q->find("reductions"); red != q->end()) {
+      if (!red->is_array() || red->size() != 3) throw std::runtime_error("requirements.reductions: not 3 rows");
+      for (std::size_t a = 0; a < 3; ++a) {
+        const J& row = red->at(a);
+        if (!row.is_array() || row.size() != 3) throw std::runtime_error("requirements.reductions: not 3 per row");
+        for (std::size_t k = 0; k < 3; ++k) r.reductions[a][k] = row.at(k).get<int>();
+      }
+    }
+    if (const auto m = q->find("met"); m != q->end()) r.met = m->get<bool>();
+  }
   return i;
 }
 
@@ -356,6 +386,7 @@ Skill read_skill(const J& j, int schema) {
   if (j.contains("passive")) s.passive = read_stats(j.at("passive"));
   else if (schema >= 4) s.passive = ItemStats{};
   get(j, "modifier_ids", s.modifier_ids);
+  get(j, "item_id", s.item_id);
   return s;
 }
 
@@ -441,6 +472,7 @@ std::string to_json(const Snapshot& s, int indent) {
   put_list(j, "conversions", s.conversions, conversion);
   put_list(j, "skills", s.skills, skill);
   put_list(j, "item_skill_modifiers", s.item_skill_modifiers, item_skill_modifier);
+  put_list(j, "item_skills", s.item_skills, skill);
   put_list(j, "equipped", s.equipped, item);
   put_list(j, "tooltip_items", s.tooltip_items, item);
   put(j, "tooltip_age_ms", s.tooltip_age_ms);
@@ -486,6 +518,7 @@ Snapshot from_json(std::string_view text) {
     get_list(j, "conversions", s.conversions, read_conversion);
     get_list(j, "skills", s.skills, [&](const J& x) { return read_skill(x, s.schema); });
     get_list(j, "item_skill_modifiers", s.item_skill_modifiers, read_item_skill_modifier);
+    get_list(j, "item_skills", s.item_skills, [&](const J& x) { return read_skill(x, s.schema); });
     get_list(j, "equipped", s.equipped, read_item);
     get_list(j, "tooltip_items", s.tooltip_items, read_item);
     get(j, "tooltip_age_ms", s.tooltip_age_ms);
@@ -553,6 +586,7 @@ void recycle(Snapshot& s, Spares& spare) {
   spare_out(s.inventory, spare.items);
   spare_out(s.tooltip_items, spare.items);
   spare_out(s.equipped, spare.items);
+  spare_out(s.item_skills, spare.skills);
   spare_out(s.skills, spare.skills);
   spare_out(s.item_skill_modifiers, spare.item_skill_modifiers);
   std::string mv = keep(s.mod_version), gb = keep(s.game_build), at = keep(s.taken_at), name = keep(s.character_name);
@@ -564,6 +598,7 @@ void recycle(Snapshot& s, Spares& spare) {
   // stays (capacity of an empty vector survives the move back).
   auto sk = std::move(s.skills);
   auto ism = std::move(s.item_skill_modifiers);
+  auto isk = std::move(s.item_skills);
   auto eq = std::move(s.equipped);
   auto tt = std::move(s.tooltip_items);
   auto inv = std::move(s.inventory);
@@ -578,6 +613,7 @@ void recycle(Snapshot& s, Spares& spare) {
   s.conversions = std::move(conv);
   s.skills = std::move(sk);
   s.item_skill_modifiers = std::move(ism);
+  s.item_skills = std::move(isk);
   s.equipped = std::move(eq);
   s.tooltip_items = std::move(tt);
   s.inventory = std::move(inv);

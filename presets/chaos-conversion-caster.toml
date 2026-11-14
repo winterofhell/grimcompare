@@ -1,0 +1,36 @@
+# chaos-conversion-caster: a caster whose main skills end up mostly Chaos after conversions (e.g. Fire or
+# Vitality -> Chaos gear).
+# Generic template, not a guide build: every number below is a DESIGN CHOICE (docs/PRESETS.md), chosen offline
+# from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
+# Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
+# "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
+
+[preset]
+name = "chaos-conversion-caster"
+
+[match]
+masteries = [
+  "records/skills/playerclass01/_classtraining_class01.dbr",  # Soldier
+  "records/skills/playerclass02/_classtraining_class02.dbr",  # Demolitionist
+  "records/skills/playerclass03/_classtraining_class03.dbr",  # Occultist
+  "records/skills/playerclass04/_classtraining_class04.dbr",  # Nightblade
+  "records/skills/playerclass05/_classtraining_class05.dbr",  # Arcanist
+  "records/skills/playerclass06/_classtraining_class06.dbr",  # Shaman
+  "records/skills/playerclass07/_classtraining_class07.dbr",  # Inquisitor
+  "records/skills/playerclass08/_classtraining_class08.dbr",  # Necromancer
+  "records/skills/playerclass09/_classtraining_class09.dbr",  # Oathkeeper
+  "records/skills/playerclass10/_classtraining_class10.dbr",  # Berserker
+]
+archetype = "caster"
+damage = ["chaos"]
+min_share = 0.5   # design choice: half the main skills' damage is Chaos after conversions
+
+[damage]
+skill_weights = "points"
+# Red line when an item adds a conversion whose output is not Chaos ([match] damage): it would pull damage
+# away from the type the build converts into.
+conversion_warn = ["*->*"]
+
+[other]
+retaliation = 0                               # a caster does not scale retaliation
+retaliation_modifier = 0

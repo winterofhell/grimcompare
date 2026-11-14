@@ -11,6 +11,17 @@ add_executable(gdc_tests
   test_stat_model.cpp
   test_db_fields.cpp
   test_store.cpp
+  test_tooltip.cpp
+  test_text.cpp
+  test_score.cpp
+  test_sets.cpp
+  test_granted.cpp
+  test_presets.cpp
+  test_effects.cpp
+  test_utility.cpp
+  test_requirements.cpp
+  test_enemy.cpp
+  test_sanity.cpp
 )
 target_link_libraries(gdc_tests PRIVATE gdc_core)
 target_include_directories(gdc_tests PRIVATE ${PROJECT_SOURCE_DIR}/third_party)

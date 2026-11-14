@@ -1,0 +1,137 @@
+# GD Compare score preset (score v1). Copied next to GDCompare.asi; edits apply on the next hover
+# (hot reload). A bad file keeps the last good preset and the tooltip says why.
+#
+# Every number here is a DESIGN CHOICE, not a game mechanic: none has a source. They only weigh what the
+# model computes from the game's own rules (docs/MECHANICS.md §5). Tune them from play.
+# Missing keys keep these defaults; unknown keys are an error (catches typos).
+#
+#   score = Damage^damage x Survivability^survival x Other^other
+#   shown change = (score after / score before - 1) x 100 %
+
+[preset]
+# true: when a named preset in GDCompare.presets/ is made for your character ([match], e.g. plague-garden for a
+# Shaman / Occultist), it scores instead of this file. false: always this file.
+auto = true
+
+[score]
+damage = 1.0              # exponent a
+survival = 1.0            # exponent b
+other = 0.25              # exponent c: small extras, weighted low
+negligible_percent = 0.1  # |change| below this shows as "~0%"
+# [thresholds] curve: ln(factor) slope per relative step below / above a target, and the width of the bend
+# between them (relative to the target). 1.0 / 0.05: well below a target each 10% short costs ~10% Survivability, well above
+# each 10% over adds ~0.5%; within ~width of the target the slope bends smoothly from one to the other.
+threshold_below = 1.0
+threshold_above = 0.05
+threshold_width = 0.05
+
+[damage]
+# Skill records to score; empty = auto: the 3 learned class attack skills with the most points spent,
+# weighted by points. Example: skills = ["records/skills/playerclass04/shadowstrike.dbr"]
+skills = []
+# Weights of `skills`: "equal", or "points" (by points spent in each).
+skill_weights = "equal"
+auto_skills = 3
+# Auto only: when every auto skill has a cooldown, the default weapon attack (at attack speed) gets this
+# share of Damage, the skills the rest.
+filler_weight = 0.5
+# Conversions that show a red line when an item adds them and their output is not a [match] damage type:
+# "from->to" with physical, pierce, cold, fire, poison (Acid and Poison), lightning, vitality, chaos, aether,
+# elemental, or * for any. Empty: no warnings. Example: conversion_warn = ["vitality->*", "*->chaos"]
+conversion_warn = []
+# Enemy Defensive Ability for your hit / crit chance = this x your level. 0 = the median monster of your
+# level from the game database (re/EnemyByLevel.tsv: 413 at level 15, 1188 at 50, 2283 at 100).
+enemy_da_per_level = 0
+# Attacks per second of one pet (pet damage and RR). 0 = unknown: pets are listed "+? unscored". Not in
+# the database (the attack animation's length is not a record field).
+pet_attack_rate = 0
+
+[survival]
+# Enemy Offensive Ability for their chance to hit and crit you = this x your level. 0 = the same table
+# (500 at level 15, 1312 at 50, 2472 at 100).
+enemy_oa_per_level = 0
+# One incoming hit = this x your level: armor absorbs up to its value per hit, a shield blocks up to its
+# amount. 0 = the same table (a skill hit of the median monster: 178 at level 15, of it 69 physical; 540 /
+# 240 at 50; 1184 / 486 at 100).
+enemy_hit_per_level = 0
+# Share of incoming attacks that are melee (your "chance to avoid melee attacks" works on them); the rest
+# are projectiles ("chance to avoid projectiles").
+melee_share = 0.5
+# Share of the time enemies carry your items' "x% reduced target's damage" debuff (only the strongest one
+# counts). Their damage is lowered before any of your defenses.
+damage_reduction_uptime = 0.5
+# Subtracted from each of the 9 base resists (Pierce .. Bleeding) before its cap: incoming enemy resistance
+# reduction, which is what overcap protects against (0 = none). Physical and crowd-control resists are not lowered.
+resist_reduction = 0
+# Hits you take per second: drives "when hit" procs (docs/PRESETS.md threat profile).
+incoming_hits_per_sec = 2
+
+# Share of incoming damage per type (normalized, need not sum to 1).
+[survival.threat]
+physical = 0.20
+pierce = 0.05
+cold = 0.10
+fire = 0.10
+poison = 0.10
+lightning = 0.10
+vitality = 0.10
+chaos = 0.10
+aether = 0.10
+bleeding = 0.05
+
+# The target's resistances: your RR (gear, skills, devotions, procs, pets) lowers them, damage x (1 - resist/100)
+# (docs/MECHANICS.md §1). Values from the DB (bosses as the target is the design choice): mean base defensive<Type>
+# of the 48 Boss-classified enemy records
+# (database.arz 1.3.1.1 + GDX1-3), rounded; difficulty scaling not included.
+[enemy]
+physical = 19
+pierce = 22
+cold = 32
+fire = 15
+poison = 15     # Acid and Poison
+lightning = 16
+vitality = 30
+chaos = 15
+aether = 17
+bleeding = 0
+
+# Defense targets: Survivability x a smooth curve per stat (docs/PRESETS.md). None by default. Keys:
+# resist (each of the 9 base resists, as shown), resist_overcap (uncapped - cap), physical_resist, absorption,
+# armor, stun_resist, freeze_resist, slow_resist, reflect_reduction, life, da. 0 = off (in a stage: drop one).
+# Example: resist = 80
+[thresholds]
+
+# Uptime overrides, effect record -> [0, 1], over the derived value (docs/MECHANICS.md §4). Use it when the
+# Shift view marks one "default !" (unknown trigger) or the derived value is off. Example:
+# "records/skills/devotion/tier2_32d_skill.dbr" = 0.8
+[uptime]
+
+# Other = 1 + sum of weight x value (exponent `other` above). One line per stat; the comment says what a value
+# of 1 is. A number is the weight; { weight = x, when = "..." } (or when = [...], all must hold) counts it only
+# in that context: "shield" (L hand holds a shield), "offhand" (a caster off-hand), "pets" (a skill with points
+# summons pets), "weapon:<Class>" (R hand record class, e.g. "weapon:WeaponMelee_Sword"), "stage:<name>";
+# "!" negates ("!shield"). Weights may be negative (-10..10); 0 = ignore.
+# % Armor, absorption, resists, life, DA, OA, % damage, crit, attack / cast speed and RR are not here: Damage
+# and Survivability compute them. So do dodge / deflect, shield block and the "reduced target's damage"
+# debuff since 0.9.0 (stages of Survivability, [survival]). Item-only below (cooldown, cost, life leech,
+# retaliation, pet bonus): skills' parts of those are not seen.
+[other]
+run_speed = 0.5                               # per 100% run speed
+life_regen = 0.02                             # per 1% of Life regenerated per second (low levels: 3-5%/s)
+energy_regen = 0.02                           # per 10 Energy regenerated per second
+life_leech = 0.3                              # per 100% of attack damage converted to health
+stun_resist = 0.1                             # per 100% reduced stun duration
+freeze_resist = 0.05                          # per 100% reduced freeze duration
+petrify_resist = 0.05                         # per 100% reduced petrify duration
+sleep_resist = 0.05                           # per 100% reduced sleep duration
+trap_resist = 0.05                            # per 100% reduced entrapment duration
+knockdown_resist = 0.05                       # per 100% reduced knockdown duration
+slow_resist = 0.05                            # per 100% slow resistance
+disruption_resist = 0.05                      # per 100% skill disruption protection
+cooldown_reduction = 0.5                      # per 100% skill cooldown reduction
+skill_cost_reduction = 0.1                    # per 100% skill energy cost reduction
+experience = 0.2                              # per 100% experience gained, x (1 - level / 100): 0 at max level
+retaliation = 0.02                            # per 1000 retaliation damage
+retaliation_modifier = 0.02                   # per 100% retaliation damage
+pet_bonus = { weight = 0.2, when = "pets" }   # per 100% mean bonus to pets
+default = 0.05                                # per 100 of any other stat (gold, light radius, ...): named in Shift

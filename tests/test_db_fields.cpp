@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -69,4 +70,49 @@ TEST_CASE("database field table matches the extracted engine tables") {
   CHECK(prot->modifier);
   CHECK(gdc::fields::target("defensiveChaosMaxResist") == nullptr);
   CHECK(gdc::fields::target("") == nullptr);
+}
+
+TEST_CASE("damage field tables match the extracted engine table") {
+  std::set<std::tuple<std::string, int, bool>> mods_want;
+  std::set<std::tuple<std::string, std::string, std::string, std::string, int>> flat_want = {
+      {"offensivePhysicalMin", "offensivePhysicalMax", "", "offensivePhysicalChance", 2}};  // DamageAttribute_Physical: no load field in the table
+  const std::set<int> types = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15, 58, 60};
+  for (const auto& r : rows("CombatAttributeType.tsv")) {
+    if (r.size() < 3 || r[0] == "?" || !types.contains(std::stoi(r[0]))) continue;
+    std::map<std::string, std::string> tag;
+    std::istringstream in(r[2]);
+    for (std::string t; in >> t;)
+      if (const auto eq = t.find('='); eq != std::string::npos) tag[t.substr(0, eq)] = t.substr(eq + 1);
+    const std::string& cls = r[1];
+    const int type = std::stoi(r[0]);
+    if (tag.contains("LoadModifier") && cls.starts_with("DamageAttributeAbsMod_")) mods_want.emplace(tag["LoadModifier"], type, false);
+    if (tag.contains("LoadModifier") && cls.starts_with("DamageAttributeDurMod_")) mods_want.emplace(tag["LoadModifier"], type, true);
+    if (tag.contains("LoadValueMin") && (cls.starts_with("DamageAttributeAbs_") || cls.starts_with("DamageAttributeAbsBase_")))
+      flat_want.emplace(tag["LoadValueMin"], tag["LoadValueMax"], "", tag["LoadChance"], type);
+    if (tag.contains("LoadValueMin") && cls.starts_with("DamageAttributeDur_"))
+      flat_want.emplace(tag["LoadValueMin"], tag["LoadValueMax"], tag["LoadDurationMin"], tag["LoadChance"], type);
+  }
+  std::set<std::tuple<std::string, int, bool>> mods_have;
+  std::vector<std::string> names;
+  for (const auto& [f, t] : gdc::fields::damage_modifiers()) {
+    CHECK(t.kind == gdc::fields::Kind::Damage);
+    mods_have.emplace(std::string(f), t.type, t.modifier);
+    names.emplace_back(f);
+  }
+  CHECK(std::is_sorted(names.begin(), names.end()));
+  CHECK(mods_have == mods_want);
+  std::set<std::tuple<std::string, std::string, std::string, std::string, int>> flat_have;
+  for (const auto& f : gdc::fields::flat_damage())
+    flat_have.emplace(std::string(f.min), std::string(f.max), std::string(f.duration), std::string(f.chance), f.type);
+  CHECK(flat_have == flat_want);
+  CHECK(gdc::fields::damage_modifier("offensiveSlowPoisonModifier")->modifier);
+  CHECK(gdc::fields::spread(58, false).size() == 3);
+  double scale = 0;
+  const auto* crit = gdc::fields::lookup("offensiveCritDamageModifier", scale);
+  REQUIRE(crit);
+  CHECK(crit->type == 59);
+  CHECK(scale == doctest::Approx(0.01));
+  CHECK(gdc::fields::lookup("offensiveFireModifier", scale) == gdc::fields::damage_modifier("offensiveFireModifier"));
+  CHECK(scale == 1);
+  CHECK(!gdc::fields::lookup("offensiveNothing", scale));
 }

@@ -3,14 +3,16 @@
 //                                        snapshot key and the auto-snapshot probe; a capture copies the
 //                                        engine numbers into a snap::Snapshot and queues it.
 //   ItemEquipment/ItemArtifact::GetUIDisplayText
-//                                        records the id of the item whose tooltip is built, then
-//                                        calls the original. Nothing else.
-// Writer thread: serializes queued snapshots, writes the F9 file and the auto-snapshot store (gdc::store).
+//                                        records the id of the item whose tooltip is built, calls the
+//                                        original, then appends the tooltip block (tooltip.h).
+// Writer thread: serializes queued snapshots, writes the F9 file and the auto-snapshot store (gdc::store),
+// then checks each new record against the previous one (calibration.h).
 // Nothing here writes game memory. A faulting snapshot turns snapshots off for the session; any probe or
 // writer failure turns auto snapshots off.
 #include "hooks.h"
 
 #include <windows.h>
+#include <intrin.h>
 
 #include <MinHook.h>
 
@@ -22,9 +24,11 @@
 #include <memory>
 #include <vector>
 
+#include "calibration.h"
 #include "gdc/store.h"
 #include "log.h"
 #include "seh.h"
+#include "tooltip.h"
 
 namespace gdc::adapter {
 namespace {
@@ -37,11 +41,16 @@ constexpr std::size_t kMaxTooltipItems = 8;
 
 HookConfig g_cfg;
 int g_vk = VK_F9;
+// Freeze key (GDCompare.ini [freeze] key, 0 = off). F10 by default: the game binds F1..F7 only
+// (Documents/My Games/Grim Dawn/Settings/keybindings.txt, DirectInput codes 59..65 on 2026-11-14), Steam takes
+// F12, KDE's default global shortcuts take Ctrl+F1..F12 (Ctrl+F9 was the old freeze chord) and Alt+F-keys.
+int g_freeze_vk = VK_F10;
 UpdateFn g_update = nullptr;
 TooltipFn g_tip_equipment = nullptr, g_tip_artifact = nullptr;
 std::atomic<bool> g_snapshots{false};
 std::atomic<std::uint64_t> g_tick{0};
 bool g_was_down = false;  // game thread only
+bool g_freeze_was_down = false;  // game thread only
 
 SRWLOCK g_tip_lock = SRWLOCK_INIT;  // no exceptions, unlike std::mutex
 std::vector<u32> g_tip_ids;  // reserved at install; ids of the latest tick that built tooltips
@@ -67,11 +76,13 @@ void latch(const void* item) noexcept {
 void tip_equipment(const void* self, const void* ch, void* lines, bool b) {
   latch(self);
   g_tip_equipment(self, ch, lines, b);
+  tooltip_after_build(self, lines, _ReturnAddress());
 }
 
 void tip_artifact(const void* self, const void* ch, void* lines, bool b) {
   latch(self);
   g_tip_artifact(self, ch, lines, b);
+  tooltip_after_build(self, lines, _ReturnAddress());
 }
 
 bool foreground_is_ours() {
@@ -115,6 +126,7 @@ struct Job {
   unsigned triggers = 0;  // store::Trigger bits
   bool manual = false;    // F9: also the pretty snapshots\snapshot-*.json file
   long long game_us = 0;  // game-thread capture time
+  Probe probe;            // state at capture: the tooltip block uses the snapshot while the live probe equals it
   Timing timing;          // per section
 };
 
@@ -184,6 +196,7 @@ void process(Job& j) {
               static_cast<unsigned long long>(GetTickCount64() - t0), j.snap.complete ? "" : " (PARTIAL)");
   log::printf("  sections us: %s", sections(j.timing).c_str());
   for (const auto& f : w.deleted) log::printf("auto snapshot: rotated out %s", f.filename().string().c_str());
+  calibration_record(j.snap, w.full, w.file.stem().stem().string(), tooltip_database());  // never throws
 }
 
 void process_guarded(Job& j) {
@@ -215,6 +228,7 @@ DWORD WINAPI writer(void*) {
     g_jobs.pop_front();
     ReleaseSRWLockExclusive(&g_job_lock);
     process_guarded(*j);
+    if (j->snap.complete) tooltip_publish(j->snap, j->probe);  // guarded inside
     try {
       release(std::move(j));
     } catch (...) {  // bad_alloc growing the spares: the job is dropped, the next capture makes a new one
@@ -259,6 +273,7 @@ void capture(unsigned triggers, bool manual) {
   const Take r = snapshot_take(s, j->spare, tips, manual, j->timing);
   QueryPerformanceCounter(&t1);
   j->game_us = log::elapsed_us(t0, t1);
+  if (r != Take::NoPlayer && snapshot_probe(j->probe) != Take::Ok) j->probe = Probe{};  // never matches
   if (r == Take::NoPlayer) {
     if (manual) log::write("snapshot key: no main player (menu or loading), nothing written");
     release(std::move(j));
@@ -320,11 +335,15 @@ void auto_tick() {
 void update(void* self, int arg) {
   g_update(self, arg);
   ++g_tick;
+  tooltip_tick();
   if (!g_snapshots) return;
   try {
     const bool down = (GetAsyncKeyState(g_vk) & 0x8000) != 0 && foreground_is_ours();
     if (down && !g_was_down) capture(store::kManual, true);
     g_was_down = down;
+    const bool freeze = g_freeze_vk != 0 && (GetAsyncKeyState(g_freeze_vk) & 0x8000) != 0 && foreground_is_ours();
+    if (freeze && !g_freeze_was_down) tooltip_freeze();
+    g_freeze_was_down = freeze;
     if (g_auto) auto_tick();
   } catch (const std::exception& e) {
     g_snapshots = false;
@@ -353,6 +372,16 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     log::printf("GDCompare.ini [snapshot] key=%u is not a virtual-key code 1..254; using F9 (120)", vk);
     g_vk = VK_F9;
   }
+  const UINT fk = GetPrivateProfileIntW(L"freeze", L"key", VK_F10, ini.c_str());
+  if (fk > 254) {
+    log::printf("GDCompare.ini [freeze] key=%u is not a virtual-key code 1..254 (0 = off); using F10 (121)", fk);
+    g_freeze_vk = VK_F10;
+  } else if (static_cast<int>(fk) == g_vk && fk != 0) {
+    log::printf("GDCompare.ini [freeze] key=%u is the snapshot key; freeze off", fk);
+    g_freeze_vk = 0;
+  } else {
+    g_freeze_vk = static_cast<int>(fk);
+  }
   g_tip_ids.reserve(kMaxTooltipItems);
   g_tips.reserve(kMaxTooltipItems);
   g_free.reserve(kMaxJobs);
@@ -367,6 +396,7 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
       log::printf("auto snapshot: store init failed: %s", e.what());
     }
   }
+  if (g_store) calibration_init(cfg.mod_dir, cfg.mod_version.c_str());
   HANDLE wt = CreateThread(nullptr, 0, writer, nullptr, 0, nullptr);
   if (!wt) {
     log::printf("hooks: writer thread not started (%lu)", GetLastError());
@@ -394,6 +424,8 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     MH_Uninitialize();
     return false;
   }
+  // The block is optional: if its engine functions are not verified the tooltip stays the game's own.
+  if (!tooltip_init(r, cfg.mod_dir)) log::write("tooltip: block off");
   g_auto = want_auto && g_store != nullptr;
   g_snapshots = true;  // before enabling: the first hooked Update may run immediately
   st = MH_EnableHook(MH_ALL_HOOKS);
@@ -404,6 +436,7 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     return false;
   }
   log::printf("hooks installed; snapshot key = virtual-key %d (F9 = 120), GDCompare.ini [snapshot] key", g_vk);
+  log::printf("freeze key = virtual-key %d (F10 = 121, 0 = off), GDCompare.ini [freeze] key", g_freeze_vk);
   log::printf("auto snapshots %s (debounce %llu ms, cap %u MB; [snapshot] auto, auto_debounce_ms, auto_cap_mb)",
               g_auto ? "on" : "off", static_cast<unsigned long long>(g_debounce_ms), cap_mb);
   return true;

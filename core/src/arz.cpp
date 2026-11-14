@@ -1,9 +1,22 @@
 #include "gdc/arz.h"
 
 #include <cstring>
-#include <fstream>
-#include <iterator>
 #include <stdexcept>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace gdc::arz {
 namespace {
@@ -80,7 +93,14 @@ std::string_view Record::string(std::string_view key, std::size_t i) const {
   return it->second.strings[i];
 }
 
-File::File(std::vector<std::byte> data) : data_(std::move(data)) {
+File::File(std::vector<std::byte> data) {
+  auto v = std::make_shared<const std::vector<std::byte>>(std::move(data));
+  data_ = *v;
+  owner_ = std::move(v);
+  index();
+}
+
+void File::index() {
   Reader h{data_};
   h.get<std::uint16_t>();
   if (h.get<std::uint16_t>() != 3) fail("not a version 3 .arz");
@@ -89,13 +109,13 @@ File::File(std::vector<std::byte> data) : data_(std::move(data)) {
   if (str_start > data_.size() || str_size > data_.size() - str_start) fail("string table out of range");
   if (rec_start > data_.size() || rec_size > data_.size() - rec_start) fail("record table out of range");
 
-  Reader s{std::span(data_).subspan(str_start, str_size)};
+  Reader s{data_.subspan(str_start, str_size)};
   while (s.p < s.d.size()) {
     const auto n = s.get<std::uint32_t>();
     for (std::uint32_t k = 0; k < n; ++k) strings_.push_back(s.str(s.get<std::uint32_t>()));
   }
 
-  Reader r{std::span(data_).subspan(rec_start, rec_size)};
+  Reader r{data_.subspan(rec_start, rec_size)};
   for (std::uint32_t k = 0; k < rec_count; ++k) {
     const auto name = r.get<std::uint32_t>();
     Entry e;
@@ -111,19 +131,43 @@ File::File(std::vector<std::byte> data) : data_(std::move(data)) {
 }
 
 File File::open(const std::filesystem::path& path) {
-  std::ifstream f(path, std::ios::binary);
-  if (!f) fail("cannot open " + path.string());
-  std::vector<char> c((std::istreambuf_iterator<char>(f)), {});
-  std::vector<std::byte> b(c.size());
-  std::memcpy(b.data(), c.data(), c.size());
-  return File(std::move(b));
+  File f;
+  std::size_t size = 0;
+#ifdef _WIN32
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) fail("cannot open " + path.string());
+  LARGE_INTEGER li{};
+  const bool sized = GetFileSizeEx(h, &li) != 0;
+  HANDLE m = sized && li.QuadPart > 0 ? CreateFileMappingW(h, nullptr, PAGE_READONLY, 0, 0, nullptr) : nullptr;
+  CloseHandle(h);  // the mapping keeps the file open
+  if (!m) fail("cannot map " + path.string());
+  const void* view = MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
+  CloseHandle(m);  // the view keeps the mapping
+  if (!view) fail("cannot map " + path.string());
+  size = static_cast<std::size_t>(li.QuadPart);
+  f.owner_ = std::shared_ptr<const void>(view, [](const void* p) { UnmapViewOfFile(p); });
+#else
+  const int fd = ::open(path.c_str(), O_RDONLY);
+  if (fd < 0) fail("cannot open " + path.string());
+  struct stat st {};
+  void* view = fstat(fd, &st) == 0 && st.st_size > 0
+                   ? mmap(nullptr, static_cast<std::size_t>(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0)
+                   : MAP_FAILED;
+  ::close(fd);  // the mapping keeps the file
+  if (view == MAP_FAILED) fail("cannot map " + path.string());
+  size = static_cast<std::size_t>(st.st_size);
+  f.owner_ = std::shared_ptr<const void>(view, [size](const void* p) { munmap(const_cast<void*>(p), size); });
+#endif
+  f.data_ = {static_cast<const std::byte*>(f.owner_.get()), size};
+  f.index();
+  return f;
 }
 
 std::optional<Record> File::record(std::string_view name) const {
   const auto it = index_.find(std::string(name));
   if (it == index_.end()) return std::nullopt;
   const Entry& e = it->second;
-  const auto raw = lz4_block(std::span(data_).subspan(kHeader + e.offset, e.compressed), e.decompressed);
+  const auto raw = lz4_block(data_.subspan(kHeader + e.offset, e.compressed), e.decompressed);
   Record rec;
   rec.cls = e.cls;
   Reader r{raw};
@@ -160,10 +204,34 @@ Database Database::open_game(const std::filesystem::path& game_dir) {
   return db;
 }
 
-std::optional<Record> Database::record(std::string_view name) const {
+namespace {
+
+struct Spin {
+  std::atomic_flag& f;
+  explicit Spin(std::atomic_flag& flag) : f(flag) {
+    while (f.test_and_set(std::memory_order_acquire)) {
+    }
+  }
+  ~Spin() { f.clear(std::memory_order_release); }
+  Spin(const Spin&) = delete;
+  Spin& operator=(const Spin&) = delete;
+};
+
+}  // namespace
+
+const Record* Database::record(std::string_view name) const {
+  {
+    Spin l(cache_->lock);
+    if (const auto it = cache_->records.find(std::string(name)); it != cache_->records.end()) return it->second.get();
+  }
+  std::unique_ptr<const Record> rec;  // decoded outside the lock; a racing decode of the same name is dropped
   for (auto it = files_.rbegin(); it != files_.rend(); ++it)
-    if (it->contains(name)) return it->record(name);
-  return std::nullopt;
+    if (it->contains(name)) {
+      if (auto r = it->record(name)) rec = std::make_unique<const Record>(std::move(*r));
+      break;
+    }
+  Spin l(cache_->lock);
+  return cache_->records.try_emplace(std::string(name), std::move(rec)).first->second.get();
 }
 
 }  // namespace gdc::arz
