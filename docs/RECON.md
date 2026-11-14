@@ -1,0 +1,146 @@
+# RECON — Phase 0
+
+Date: 2026-11-14. Everything below was checked on this machine unless marked **[ref]** (a third-party source, not yet checked against our binaries) or **[unverified]**.
+
+## 1. Install facts
+
+| Item | Value | Source |
+|---|---|---|
+| Install | `~/.local/share/Steam/steamapps/common/Grim Dawn` (library 0) | `libraryfolders.vdf`, `appmanifest_219990.acf` |
+| Steam build | buildid `25813250`; depots 219991 (base), 483840, 642280/642281 (AoM), 897670/897671 (FG), 2699230/2699231 (FoA) | appmanifest |
+| Game version | **v1.3.1.1 (x64)** | string `"v1.3.1.1 (x64)"` in Engine.dll (both builds) |
+| Prefix | `compatdata/219990/pfx`; user dir `.../steamuser/Documents/My Games/Grim Dawn` | |
+| Renderer | direct3d11 | `log.html` (from Aug 17, v1.3.0.7, so a run before the update) |
+
+**The game runs from `compat/`, not `x64/`.** `compat/ReShade.log` shows ReShade injected into `S:\common\Grim Dawn\compat\Grim Dawn.exe`. This is Steam's "Compatibility Mode (SteamOS/Linux)" launch entry ([DPYes thread] says the same).
+
+| Binary | x64/ sha256 | compat/ sha256 | PDB path |
+|---|---|---|---|
+| Game.dll | `cd7ecd79…cecad2` | **identical** | `…\x64\SteamShip\Game.pdb` |
+| Engine.dll | `4c2ea14c…3153` | `6dbc7458…c792c9` (different) | compat: `…\x64\SteamShipProton\Engine.pdb` |
+| Grim Dawn.exe | `d3915e25…c4c4` | `e976909f…ec9` (different) | — |
+
+Consequences:
+- Game.dll RVAs are the same for both launch options. Engine.dll differs; Phase 1 hashes each module from the path it was actually loaded from (logged, informational).
+- `compat/` also ships `Game.lib/.exp` and `Engine.lib/.exp` (full import libraries). They are not needed now; we resolve by name at runtime (`GetProcAddress` on mangled names).
+- The exe's `FileVersion` resource reads `0.3.0.0`, which is useless. Use `Engine::GetVersion()` (exported) plus module hashes.
+
+### Already installed in `compat/` (do not touch)
+- `dxgi.dll` = **OptiScaler 0.9.4** (launch options: `WINEDLLOVERRIDES="dxgi=n,b"`). `OptiScaler.ini` → `[Plugins] LoadAsiPlugins = true`, `LoadReshade = true`.
+- `ReShade64.dll` + `renodx-grimdawn.addon64`, `fakenvapi.dll`, FidelityFX DLLs. These are managed by a tool that keeps `.rhi-linux/manifest.json` with backups.
+- No `dinput8.dll` or `winmm.dll` anywhere, so there is no ASI loader and no DPYes. gd-uniquetab is not installed.
+
+Current launch options: `WINEDLLOVERRIDES="dxgi=n,b" LD_PRELOAD="" AMD_USERQ=1 PROTON_ENABLE_WAYLAND=1 DXVK_HDR=1 gamemoderun %command%`
+
+### Loader plan
+- `compat/DirectInput.dll` imports `DINPUT8.dll` (winedump), so **Ultimate ASI Loader x64 as `compat/dinput8.dll`** gets loaded. Launch options become `WINEDLLOVERRIDES="dxgi,dinput8=n,b" …` (one variable; a second `WINEDLLOVERRIDES=` would override the first).
+- Timing [ref gd-uniquetab HANDOFF]: `dinput8.dll` loads *after* the engine reads its database, while `winmm` loads at process start. That is fine for us: we hook UI and read functions only.
+- Fallback: OptiScaler's own ASI loading (`LoadAsiPlugins=true`, default folder `.\OptiScaler\plugins\` per the ini comment) **[unverified: path resolution with `OptiDllPath=auto`]**. It avoids a new proxy DLL but ties us to OptiScaler. Not chosen.
+- `winmm.dll` stays free for DPYes/Riftgate if you ever install them.
+
+## 2. Reference projects
+
+| Project | Status | Reusable for us |
+|---|---|---|
+| **gd-uniquetab** (`github.com/ffuuu18-lab/gd-uniquetab`) | Exists, MIT, C++17/MSVC, MinHook, Ultimate ASI Loader. Supports **1.3.0.8 + 1.3.1.1** | **Tooltip technique** (below), SEH-guarded reads, all-or-nothing hook install, COMDAT-alias check, threading rules, `ItemReplicaInfo` offsets (+0x28 prefix, +0x48 suffix, +0x68 seed; replica at item+0x538 on 1.3.0.8). Their DB/ARC reader serves another purpose; we write our own small one. |
+| **Grim Gleaner** (`github.com/kultcher/grim_gleaner`, Crate forum t/158323) | Exists. Python tool, v0.9.2-beta (catalog for 1.3.0.7) | Affix/stat category lists and build-priority weights as a **sanity reference** for presets. Its mechanism (rewriting localization tags in `Text_EN`) and its roll-blind grading are not what we want. |
+| **gddb**, **gd-cli** | **Not found** under those names. Closest: `xaviershay/gd-explorer` (Haskell: arz/arc/gdc parsing, stats, DPS estimate, covers GDX3), `bealex/GrimDawner` (Swift: arz/arc/LZ4/tex + `Documentation/GameData.md`), `atom0s/grimarz`/`grimarc` (format docs) | Format cross-checks; gd-explorer's stat code as a second opinion for MECHANICS.md. |
+| **GD Stash** (mamba, Crate t/29036) | Exists, closed source (Java). GitHub repos under that name with random owners look like **malware bait**, do not use | Nothing directly. We read item values from the engine, not from `.gdc`. |
+| **GrimTools Build Calculator** | Closed web tool | Formula cross-check only (cite per formula in MECHANICS.md). |
+| **Grim Internals** | Old, closed; no `Engine.def` repo found. A Crate thread shows the old `.def` approach (MinGW→MSVC name aliases) | Nothing: we have the real export tables. |
+| **Perfect Rolls – Runtime Patch** (Nexus mods/247) | Exists; signature scanning of Game.dll; **writes** process memory | Name `GrimDawnPerfectRolls` not found on GitHub; repo link only via Nexus page. Not needed: we use exports. |
+| **DPYes** (Crate t/133378) | Closed. Loader = `winmm.dll` in `x64/` **or `compat/`** for the Linux launch option | Confirms the compat-folder finding and the `n,b` override pattern. |
+
+### What vanilla already does (do not duplicate)
+- Side-by-side tooltip of the hovered item vs the equipped item (`tagTutorialTip49`, `tagQuickTip49`). Weapons also show a **DPS comparison**: exports `ItemEquipment::CompareDPS`, `Player::CompareItems(uint, float&×4, bool&)`.
+- **Ctrl** = "show details" / compare *without* components/augments/skills (patch 1.2.1.2 HF2), and "hold Ctrl to hide tooltip". So Ctrl is taken. **Shift** is only used for click actions (shift-click transfer, chat link), so it is free as a hover modifier **[verify in-game: no Shift hover behaviour]**.
+- 1.3.0.0: detailed tooltips show roll ranges `[min-max]`.
+- Vanilla does **not** show character-sheet deltas (resists to cap, HP, OA/DA…), set-bonus loss, requirement breakage, or a build-aware score. That is our niche.
+
+## 3. Exports (Game.dll 25,113 / Engine.dll 6,283)
+
+Full dumps: `re/Game.exports.tsv`, `re/Engine.exports.tsv` (RVA, mangled, demangled; regenerate with `re/tools/demangle_exports.py`). The RVAs below are from **compat/** binaries. ICF warning: 1,574 exports share RVA `0x15880` (empty stubs), so every hook target must have exactly one export alias (all targets below checked: 1 alias).
+
+### Globals / entry points
+- `?gGameEngine@GAME@@3PEAVGameEngine@1@EA` (Game, data) → `GameEngine::GetMainPlayer() const` (0x2EBB70) → `Player*`
+- `?gEngine@GAME@@3PEAVEngine@1@EA` (Engine, data); `Engine::GetVersion()` (0x79CD0, Engine) → version string
+- `GameEngine::GetGameDifficulty() const` (0x2D8490) → `GameDifficulty`; `GameEngine::GetPlayerAttributePak() const` (likely the difficulty pak, **[unverified]**)
+
+### Player / character sheet
+Sheet values come from the engine's own getters. No exported "character sheet UI" class exists (UI classes are not exported), so Phase 2 reads these and calibration verifies them against the screen:
+- Attributes: `Character::GetTotalCharAttribute(CharAttributeType)`, `GetTotalCharModifier`, `GetBaseCharAttribute`, `GetPointsSpent`
+- HP/Energy: `GetLifeLimit`, `GetManaLimit`, `GetLifeRegenValue`, `GetManaRegenValue`, `GetLifePerStrength/Dexterity/Intelligence`, `GetManaPerIntel`
+- Speeds: `GetAttackSpeed`, `GetSpellCastSpeed`, `GetRunSpeed(bool)`
+- Defense: `GetAllDefenseAttributes(CombatAttributeAccumulator&)`, `Player::GetDefenseAttributeCap`, `GetPhysicalDamageReductionPercent`, `GetElementalDamageReductionPercent`, `GetTotalDamageReductionPercent/Absolute`
+- Equipment accumulators: `GetEquipCharAttributes`, `GetEquipSkillAttributes`, `GetEquipOffensiveModifierAttributes`, `GetEquipConversionAttributes`, `GetEquipRetaliation[Modifier]Attributes`, `GetEquipArmorDamageAttributes`; also `GetSkillCharAttributes`, `GetBaseCharAttributes`
+- Level/points: `GetCharLevel`, `GetSkillPoints`, `GetModifierPoints`, `GetDevotionPoints`, `GetTotalDevotionPoints`, `GetSkillMasteries`, `GetSkillList`, `GetSkillManager`, `GetItemSkillList`, `Player::GetPlayerCharacterClass`
+- Sets: `Character::GetNumberOfItemsInSet(string)`, `GetItemsInSet(string)`
+- OA/DA, crit: no direct getter found yet. Likely inside `CombatManager` (82 exports) **[open, Ghidra]**
+
+### Equipment
+- `Character::GetAttachedItems()` → `mem::vector<EquipManagerContainer>`; container ctor `(Item*, EquipLocations, bool)`, so it holds `Item*` + slot + alt-weapon flag **[layout to confirm]**
+- `CombatManager::GetEquipManager()`; `EquipManager::GetItemId(EquipLocations)`, `GetItemLocation(uint)`, `GetItemAlternate(uint)`, `GetHandState()`, `GetWeaponIdLeft/Right`, `LocationToString(EquipLocations)` (gives the enum names at runtime)
+- Item ids → `Item*`: `ObjectManager` has **no exported GetObject** (template, inlined) **[open: Ghidra or via GetAttachedItems]**
+
+### Items: actual rolled values (engine-computed, no recomputation)
+`Item` virtuals, overridden by `ItemEquipment` / `ItemRelic` / `ItemEnchantment` / `ItemArtifact`:
+`GetCharAttributes(CharAttributeAccumulator&)`, `GetDefenseAttributes(CombatAttributeAccumulator&)`, `GetOffensiveDamageAttributes(CombatAttributeAccumulator&, float)`, `GetOffensiveModifierAttributes`, `GetRetaliation[Modifier]Attributes`, `GetConversionAttributes(ConversionAttributeAccumulator&)`, `GetSkillAttributes(SkillAttributeAccumulator&)`, `ContributeRacialBonus*`.
+Plus `GetLevelRequirement`, `GetStrength/Dexterity/IntelligenceRequirement`, `AreRequirementsMet(Character const*)`, `ItemEquipment::GetItemSetName`, `GetRelic`, `GetEnchantment`, `GetTransmute`, `HasPetBonus`, `IsTwoHandedMeleeWeapon`, `GetLeft/RightHandType`.
+Accumulator classes are exported too (`CharAttributeAccumulator`, `CombatAttributeAccumulator` 57 exports, `CombatAttribute` 65, `SkillAttribute`, `DamageAttribute*`), so we can construct one, let the item fill it, and read it back. **This is the core of Phase 2.**
+
+### Tooltip building
+- `ItemEquipment::GetUIDisplayText(Character const*, mem::vector<GameTextLine>&, bool)` 0x33DCE0; also `Item::` 0x325CC0, `ItemRelic::` 0x348800, `ItemEnchantment::` 0x339DD0, `ItemArtifact::` 0x32A570, `ItemArtifactFormula::` 0x32DDD0; `ItemSet::GetUIDisplayText`
+- `GameTextLine::GameTextLine(GameTextClass, u16string const&, bool, GraphicsTexture const*, float)` 0x313030 (no exported dtor)
+- `GameTextLineToString(mem::vector<GameTextLine> const&, mem::list<GameTextString>&)` 0x316EB0, which turns lines into render strings
+- [ref gd-uniquetab]: `GameTextLine` is 0x40 bytes (`+0` class, `+8` MSVC u16string, `+0x28` bool, `+0x30` texture, `+0x38` float). `mem::vector` = `{begin,end,cap}`. Technique: detour `GetUIDisplayText` → latch the vector fingerprint; detour `GameTextLineToString` → pass a **borrowed copy** of the line array (own `malloc`) with extra lines appended, then free it. The engine's vector is never grown. Class values `0x2C` (ItemEnchantmentStats, green), `0x4A` (EffectHeading, orange), `0x12` (ItemBaseStats, white); `0x50–0x53` (GrayStats) are desaturated; `0x14`/`0x23` are dropped by a filter. **All [ref], verify on our build in Phase 4.**
+- The text class names exist as strings in Game.dll (`ItemBaseStats`, `ItemEnchantmentStats`, `EffectHeading`, `GrayStats1..4`, …, each with an `…Indent` variant at 0x69a…–0x69b…), so they map to UI style records.
+
+## 4. Text and colour tags (from the game's own `Text_EN.arc`, base + gdx1-3)
+- Inline tags take the form `{^X}`. Counts in Text_EN: `{^n}` 3101, `{^E}` 746, `{^H}` 129, `{^g}`, `{^R}`, `{^o}`, `{^b}`, `{^h}`, `{^y}`, `{^r}`; also `{^w}`, `{^s}`, `{^k}`; `{^-}` appears to reset (`{^o}[Ctrl]{^-} key`). A bare `^O` without braces also occurs (`tagShowDetails=^O[Hold Ctrl…]`).
+- `{^n}` = line break (used as `{^n}{^n}` paragraph breaks).
+- Usage implies colours: `{^g}` green (good news), `{^r}` red (`tagSkillNotReady`), `{^y}` yellow, `{^w}` white. **The exact letter→RGB table is not in text files [open: Engine disassembly or in-game test].**
+- Tooltip lines are coloured **per line via `GameTextClass`** [ref gd-uniquetab uses no inline tags]. Whether inline `{^X}` works inside a `GameTextLine` is **[unverified]**, so Phase 4 tests both. The UX mock's green/red/grey total maps to a class per line in the worst case.
+
+## 5. Database (`database.arz` + `gdx1/2/3/*.arz`, ARZ v3, LZ4; `.arc` v3, LZ4)
+Override order base → gdx1 → gdx2 → gdx3 (e.g. `playerlevels.dbr` exists in base/gdx1/gdx2; gdx2 raises `maxPlayerLevel` 85→100, `maxDevotionPoints` 50→55). Verified constants:
+- `records/game/gameengine.dbr`: `playerDefenseCap=[80,80,80]`, `playerPetDefenseCap=[100…]`, `armorDefensiveAbsorption=70`, `playerAttackSpeedCapMin/Max=20/200`, `playerSpellCastSpeedCapMin/Max=20/200`, `playerRunSpeedCapMin/Max=20/135`, `playerReflectCap=30`, `dwWeaponSpeedFactor=0.5`, `skillMasteryTierLevel=[1,5,10,15,20,25,32,40,50]`
+- `records/game/combatformulas.dbr`: OA/DA equations (`(… + level*12 + (dex|str + bonus)*0.5) * (1+mod/100) + 53`), PTH equation, PTH thresholds/crit multipliers (`pthThreshold1..6`, `pthDamageModifier1..6`), `magicalDamageEquation` (int/215), `physicalDamageEquation` (dex/245), duration variants (/200, /215), armor equations (`physicalDamageDefenseEquationDGP`), shield block, hit-region chances
+- `records/creatures/pc/playerlevels.dbr` (gdx2): `strength/dexterity/intelligenceIncrement=8`, `lifeIncrement=20`, `lifeIncrementDexterity=8`, `lifeIncrementIntelligence=12`, `manaIncrement=16`
+- `records/creatures/pc/malepc01.dbr` (gdx3): base `characterLife/Mana=250`, attrs 50, OA/DA 65, `characterAttackSpeed/SpellCastSpeed=1.25`, `characterRunSpeed=0.93`, `skillTree1..10`
+- **Difficulty resist penalty**: `records/game/balancingadjustment_mp+difficulty_players01.dbr` (AttributePak, 12-entry arrays). Entries 0–3: 0; 4–7: −25 Fire/Cold/Lightning/Pierce/Poison; 8–11: −50 for those plus −25 Aether/Chaos/Bleed/Vitality/LifeLeech. Reading = 3 difficulties × 4 player counts **[index mapping unverified — do not assume; resolve by Phase 3 calibration against the in-game sheet]**.
+- FoA adds `records/game/gameascendant.dbr`, `balancingadjustment_ultramode_enemies01.dbr` (enemy side).
+- Attribute names in DB are the legacy ones: Strength=Physique, Dexterity=Cunning, Intelligence=Spirit (consistent with `tagCharStats*`) **[mapping to confirm against UI tags in MECHANICS.md]**.
+
+## 6. Hook plan (minimal, read-only)
+
+| # | Target | Kind | Purpose | Phase |
+|---|---|---|---|---|
+| 1 | `Engine::GetVersion`, module hashes, all targets below resolved by export name | call | gate: disabled only if a **required** export is missing/forwarded or a detour target is ICF-folded; unknown hash = warning only (decision 2026-11-14) | 1 |
+| 2 | `gGameEngine` → `GetMainPlayer`, `GetGameDifficulty`, Character getters, item accumulators | call (game thread only) | snapshot | 2 |
+| 3 | `Item*/ItemEquipment/ItemRelic/…::GetUIDisplayText` | detour (call original first) | identify hovered item + line vector | 4 |
+| 4 | `GameTextLineToString` | detour | append our lines via borrowed array; any failure → pass original | 4 |
+| 5 | Hotkeys | `GetAsyncKeyState` polled from the hook/tick, no WndProc hook | snapshot dump, preset cycle | 2/5 |
+
+Game-thread tick for snapshot work: hooks 3/4 already run on the game/UI thread. A separate tick (`GameEngine::Update`, as in gd-uniquetab) is added only if the hotkey dump needs it.
+
+Build: clang-cl + lld-link + xwin SDK/CRT, **`/MD`** (see risk 1), MinHook pinned (added when the first hook lands). All engine reads go through SEH-guarded helpers; no locks inside SEH frames.
+
+## 7. Risks
+1. **Allocator boundary**: the game uses dynamic CRT (Game.dll imports `malloc`/`free` from api-ms-win-crt-heap → ucrtbase, plus `MSVCP140`/`VCRUNTIME140`), so the adapter is built **`/MD`** and shares that heap: `std::string`/`std::allocator` memory the game returns can be freed by us. **Open:** `mem::vector`/`mem::list` carry no allocator in their mangled names; whether they use `operator new`/`malloc` or a private pool is unverified (Ghidra) — until then never free or grow `mem::` containers. The borrowed-array technique keeps ownership on our side. Lines built with the game's `GameTextLine` ctor contain **game-allocated** strings and no dtor is exported. Options: (a) build `GameTextLine` ourselves with our own string storage (layout validated against one ctor-built line), or (b) build lines once and keep them alive. Decide in Phase 4.
+2. **Engine.dll differs between launch options**, so the known-build list (`core/include/gdc/known_builds.h`) has both. Game.dll is shared.
+3. **OptiScaler/ReShade coexistence**: our `dinput8.dll` must not collide; the launch-option merge must keep `dxgi=n,b`.
+4. **Sheet values without an exported sheet**: some displayed values (OA/DA, crit, resist with overcap) may only exist inside unexported UI code. Mitigation: Ghidra on Game.dll (not the exe, which has the SteamStub DRM; .text is encrypted on disk [ref gd-uniquetab]).
+5. **Accumulator layouts** (`CombatAttributeAccumulator` etc.) are opaque. We construct them via exported ctors and read them via exported getters where available, otherwise SEH-guarded offsets validated at startup.
+6. **ICF-folded exports**: guard with an alias-count check before hooking.
+7. **Patch churn**: every game update can change Game.dll; unknown hash → warning; a missing/renamed required export → mod inert + log line. `ctest` (`test_real_binaries`) catches this on Linux before launching.
+8. Multiplayer: hooks are client-side UI/read only; no packets, no writes.
+
+## 8. Open questions (resolve in Phase 1–3)
+- `ObjectManager` id→object lookup (inlined template).
+- OA/DA, crit chance/damage, and "resist incl. overcap" getters.
+- GameTextClass numeric values and inline `{^X}` support in tooltip lines.
+- Difficulty-penalty array indexing.
+- `EquipLocations` enum values (use `EquipManager::LocationToString` at runtime to log them).
+
+## 9. Tools used (NixOS)
+`winedump` (system), `llvm-undname`/`llvm-readobj` via `nix-shell -p llvm`, Python recon readers `re/tools/arc.py`, `re/tools/arz.py` (pure-Python LZ4 block decoder; layout checked against the archive byte counts). Crate's `ArchiveTool.exe` under wine asserts on extract (`archivewriter.cpp:848`), so don't use it. Ghidra is not installed (`nix-shell -p ghidra` when needed).

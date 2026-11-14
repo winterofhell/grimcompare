@@ -1,0 +1,44 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "core",
+      "displayName": "Linux: core + tests",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/core",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "adapter",
+      "displayName": "Windows x64 adapter (.asi) via clang-cl + xwin",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/adapter",
+      "toolchainFile": "${sourceDir}/cmake/clang-cl-xwin.cmake",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "core", "configurePreset": "core" },
+    { "name": "adapter", "configurePreset": "adapter" }
+  ],
+  "testPresets": [
+    { "name": "core", "configurePreset": "core", "output": { "outputOnFailure": true } }
+  ],
+  "workflowPresets": [
+    {
+      "name": "core",
+      "steps": [
+        { "type": "configure", "name": "core" },
+        { "type": "build", "name": "core" },
+        { "type": "test", "name": "core" }
+      ]
+    },
+    {
+      "name": "adapter",
+      "steps": [
+        { "type": "configure", "name": "adapter" },
+        { "type": "build", "name": "adapter" }
+      ]
+    }
+  ]
+}
