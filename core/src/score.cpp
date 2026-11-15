@@ -743,6 +743,18 @@ CooldownUses cooldown_uses(double cooldown, double cdr, double rate) {
   return out;
 }
 
+// A captured hit animation (schema 10) means a SkillActivatedSpell / BuffSelf: Player::CalculateSkillDps picks the cast
+// path by class (0x3E0BEE..0x3E0CFD), whatever weapon damage % its modifiers add (Vile Eye on Dreeg's Evil Eye).
+bool has_anim(const snap::Skill& sk) { return sk.anim_frames > 0 && sk.anim_frame_rate > 0; }
+
+// Uses per second at most. With a hit animation: cast speed x frame rate / frames, as CalculateSkillDps stores in
+// SkillAttackInfo+0x2C. Without one: attack speed for weapon-damage skills, cast speed for the rest, read as uses per
+// second (unverified).
+double use_rate(const snap::Snapshot& s, const snap::Skill& sk, bool weapon) {
+  if (has_anim(sk)) return static_cast<double>(s.cast_speed) * sk.anim_frame_rate / sk.anim_frames;
+  return weapon ? s.attack_speed : s.cast_speed;
+}
+
 SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
                          std::vector<std::string>& notes, Amounts* parts = nullptr,
                          const std::map<int, double>* resist = nullptr) {
@@ -773,7 +785,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   const bool weapon = raw.weapon_pct > 0;
   out.per_use = sum * h.multiplier;
   out.cooldown = raw.cooldown;
-  out.rate = weapon ? s.attack_speed : s.cast_speed;
+  out.rate = use_rate(s, sk, weapon);
   std::string pace;
   if (raw.cooldown > 0) {
     const CooldownUses u = cooldown_uses(raw.cooldown, utility::cooldown_reduction(s), out.rate);
@@ -782,10 +794,14 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
     pace = " cooldown " + fmt(raw.cooldown, 2) + " s x (1 - " + fmt(u.cdr * 100) + "%) " + fmt(u.per_sec, 2) + "/s" +
            (u.capped ? " (speed cap)" : "");
   } else {
-    const double speed = 1 + (char_modifier(s, weapon ? kAttackSpeed : kCastSpeed) + char_modifier(s, kTotalSpeed)) / 100;
+    const bool attack_speed = weapon && !has_anim(sk);
+    const double speed = 1 + (char_modifier(s, attack_speed ? kAttackSpeed : kCastSpeed) + char_modifier(s, kTotalSpeed)) / 100;
     out.value = out.per_use * std::max(0.0, speed);
     pace = " speed " + fmt(speed, 2);
   }
+  if (has_anim(sk))
+    pace += " (anim " + std::to_string(sk.anim_frames) + "f@" + std::to_string(sk.anim_frame_rate) + " -> " +
+            fmt(out.rate, 2) + "/s)";
   out.inputs = stem(sk.record) + " L" + std::to_string(sk.current_level) + " dmg " + fmt(sum) + " pth " + fmt(pth) +
                " hit " + fmt(h.chance, 2) + " crit " + fmt(h.crit_chance, 2) + "+" + fmt(crit_bonus, 2) + " x" +
                fmt(h.multiplier, 3) + pace + " = " + fmt(out.value);
@@ -976,7 +992,6 @@ Other other(const snap::Snapshot& s, const Utility& u, const Settings& p) {
 
 namespace {
 
-// Character::GetAttackSpeed / GetSpellCastSpeed read as uses per second (unverified).
 struct Main {
   const snap::Skill* sk = nullptr;  // null: not in the snapshot
   Raw raw;
@@ -996,8 +1011,9 @@ effects::Rates rates(const snap::Snapshot& s, const std::vector<Skill>& skills, 
   for (std::size_t k = 0; k < skills.size(); ++k) {
     if (!mains[k].sk) continue;
     const bool weapon = mains[k].raw.weapon_pct > 0;
-    r.action += skills[k].weight * (weapon ? s.attack_speed : s.cast_speed);
-    if (weapon) r.weapon += skills[k].weight * s.attack_speed;
+    const double rate = skills[k].weight * use_rate(s, *mains[k].sk, weapon);
+    r.action += rate;
+    if (weapon) r.weapon += rate;
   }
   r.crit = attack(s, p, 0).crit_chance;
   return r;

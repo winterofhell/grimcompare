@@ -85,6 +85,10 @@ constexpr std::size_t kSlotSkillPassiveChar = 0x408, kSlotSkillPassiveDefense = 
 constexpr int kAbsorptionProtection = 38;  // CombatAttributeDefense_AbsorptionProtection::GetType (0x1182E0)
 // Skill+0x140: Skill::GetModifiers 0x3C5970, AddModifier 0x48FD00, AddModifierDefenseAttributes 0x494970.
 constexpr std::size_t kSkillModifiers = 0x140;
+// Player::CalculateSkillDps calls vt+0x6E0 on an is-a SkillActivated (0x3E09A3) and uses the frames only for an
+// is-a SkillActivatedSpell / SkillActivatedBuffSelf (0x3E0BEE..0x3E0CFD). Only objects whose slot holds the
+// exported SkillActivated::GetHitCallbackPoint (0x51A310) are called.
+constexpr std::size_t kSlotHitCallbackPoint = 0x6E0;
 // ArmorJewelry_Ring::vftable{Object} 0x6D7658 + 0x550 = GetItemType 0x2DE70; ItemEquipment's (0x76F718) =
 // Item::GetItemType 0x167E0.
 constexpr std::size_t kSlotItemType = 0x550;
@@ -143,6 +147,9 @@ struct Api {
   int (*skill_type)(const void*) = nullptr;
   bool (*buff_active)(const void*, const std::string&) = nullptr;  // Character::IsSkillBuffActive
   const std::string& (*buff_skill_name)(const void*) = nullptr;   // Skill::GetBuffSkillName
+  const void *ci_spell = nullptr, *ci_buff_self = nullptr;  // SkillActivatedSpell / SkillActivatedBuffSelf
+  // (skill, Character&, Name& out, frames out, frame rate out): 0x51A310 / 0x20B40.
+  bool (*hit_callback_point)(const void*, void*, u32*, u32*, int*) = nullptr;
 
   void* (*char_acc_ctor)(void*) = nullptr;
   void (*char_acc_dtor)(void*) = nullptr;
@@ -706,6 +713,29 @@ snap::Skill read_skill(Ctx& c, const void* sk) {
   const Span mods = vec(static_cast<const char*>(sk) + kSkillModifiers, sizeof(u32));
   s.modifier_ids.clear();
   for (std::size_t m = 0; m < mods.count; ++m) s.modifier_ids.push_back(rd<u32>(mods.begin, m * sizeof(u32)));
+  s.item_id = 0;
+  s.anim_frames = 0;
+  s.anim_frame_rate = 0;
+  const void* ci = class_info(sk);
+  if (s.current_level != 0 && (is_a(ci, g.ci_spell) || is_a(ci, g.ci_buff_self)) &&
+      rd<const void*>(rd<const void*>(sk), kSlotHitCallbackPoint) == reinterpret_cast<const void*>(g.hit_callback_point)) {
+    // As CalculateSkillDps: Name starts at 0, the return value is not checked, the outputs only when both > 0.
+    u32 name = 0, frames = 0;
+    int rate = 0;
+    auto ask = [&] { g.hit_callback_point(sk, c.player, &name, &frames, &rate); };
+    seh::Fault f;
+    if (seh::run(ask, f)) {
+      s.anim_frames = frames;
+      s.anim_frame_rate = rate;
+    } else {
+      char buf[200];
+      std::snprintf(buf, sizeof buf, "skill %s hit animation: FAULT 0x%08lX at 0x%016llX", s.record.c_str(), f.code,
+                    static_cast<unsigned long long>(f.addr));
+      c.s.errors.emplace_back(buf);
+      c.s.complete = false;
+      log::printf("snapshot: %s", buf);
+    }
+  }
   // Skill_Passive / Skill_BuffSelfToggled override these collectors.
   snap::ItemStats& p = s.passive.emplace();
   if (s.current_level != 0) {
@@ -923,6 +953,9 @@ bool snapshot_init(const Resolve& r) {
   b(g.skill_type, "Skill::GetSkillType");
   b(g.buff_active, "Character::IsSkillBuffActive");
   b(g.buff_skill_name, "Skill::GetBuffSkillName");
+  b(g.ci_spell, "SkillActivatedSpell::classInfo");
+  b(g.ci_buff_self, "SkillActivatedBuffSelf::classInfo");
+  b(g.hit_callback_point, "SkillActivated::GetHitCallbackPoint");
   b(g.char_acc_ctor, "CharAttributeAccumulator::CharAttributeAccumulator()");
   b(g.char_acc_dtor, "CharAttributeAccumulator::~CharAttributeAccumulator()");
   b(g.combat_acc_ctor, "CombatDisplayAccumulator::CombatDisplayAccumulator(bool)");

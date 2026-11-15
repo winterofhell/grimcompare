@@ -17,7 +17,8 @@ namespace gdc::snap {
 // 6: Snapshot::item_skills, Skill::item_id. Schemas 2..5 still read (granted skills unknown).
 // 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
 // 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
-inline constexpr int kSchema = 9;
+// 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown).
+inline constexpr int kSchema = 10;
 inline constexpr int kMinSchema = 2;
 
 struct CharAttribute {
@@ -140,6 +141,10 @@ struct Skill {
   // Schema 8. Character::IsSkillBuffActive 0x67DD0 looks up the SkillManager buff map (+0x100), filled and
   // erased by CreateRemoveSkillBuff 0x53A990 by the name it is given: the record or its buff record.
   std::optional<bool> buff_active;
+  // Schema 10, SkillActivated only: SkillActivated::GetHitCallbackPoint 0x51A310 = GraphicsAnim::GetLength /
+  // GetFrameRate of the skill's hit animation for this character. 0 = not SkillActivated, no animation or older.
+  std::uint32_t anim_frames = 0;
+  std::int32_t anim_frame_rate = 0;
 };
 
 // Skill+0x158 entry, Skill::AddToItemSkillModifiers.

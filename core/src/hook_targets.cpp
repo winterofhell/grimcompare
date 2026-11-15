@@ -334,6 +334,13 @@ constexpr Target kPlanned[] = {
      "?IsSkillBuffActive@Character@GAME@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z"},  // 0x67dd0
     {Module::Game, Kind::Call, true, "skills", "Skill::GetBuffSkillName",
      "?GetBuffSkillName@Skill@GAME@@QEBAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ"},  // 0x17ec0
+    // Hit animation frames: Player::CalculateSkillDps 0x3E09A3 (vt+0x6E0), 0x3E0BEE..0x3E0CFD (class checks, use).
+    {Module::Game, Kind::Data, true, "skills", "SkillActivatedSpell::classInfo",
+     "?classInfo@SkillActivatedSpell@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c030
+    {Module::Game, Kind::Data, true, "skills", "SkillActivatedBuffSelf::classInfo",
+     "?classInfo@SkillActivatedBuffSelf@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c060
+    {Module::Game, Kind::Call, true, "skills", "SkillActivated::GetHitCallbackPoint",
+     "?GetHitCallbackPoint@SkillActivated@GAME@@UEAA_NAEAVCharacter@2@AEAVName@2@AEAI2@Z"},  // 0x51a310
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

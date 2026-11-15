@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr const char* kModVersion = "0.9.7 (cooldown reduction on learned and devotion skills)";
+constexpr const char* kModVersion = "0.9.8 (skill hit animation frames)";
 constexpr DWORD kPollMs = 250;
 // shortcut: generous fixed waits, no source for real load times — revisit when the log shows how long modules
 // and gGameEngine actually take.

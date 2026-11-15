@@ -210,6 +210,25 @@ TEST_CASE("score: cooldown reduction raises a cooldown main skill's uses per sec
   // Capped on both sides: cooldown reduction adds nothing.
   s.cast_speed = after.cast_speed = 0.2;
   CHECK(damage(s, after) == doctest::Approx(1));
+  // With its hit animation (schema 10) the cap is cast speed x frame rate / frames: 0.2 x 30 / 20 = 0.3/s, so
+  // 0.25/s -> min(0.3125, 0.3)/s.
+  s.skills[0].anim_frames = after.skills[0].anim_frames = 20;
+  s.skills[0].anim_frame_rate = after.skills[0].anim_frame_rate = 30;
+  CHECK(damage(s, after) == doctest::Approx(0.3 / 0.25));
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).after.find("0.30/s (speed cap) (anim 20f@30 -> 0.30/s)") !=
+        std::string::npos);
+  // Vile Eye (evileye2) adds weapon damage %; the skill stays on the cast animation's rate, not attack speed.
+  learn(s, 3, "records/skills/playerclass03/evileye2.dbr", 5);
+  s.skills[0].modifier_ids = {2, 3};
+  s.attack_speed = 0.1f;
+  {
+    snap::Snapshot a2 = s;
+    a2.skill_attributes = after.skill_attributes;
+    CHECK(damage(s, a2) == doctest::Approx(0.3 / 0.25));
+  }
+  s.skills.pop_back();
+  s.skills[0].modifier_ids = {2};
+  s.skills[0].anim_frames = after.skills[0].anim_frames = 0;
   // Not in Other: listed at weight 0 (the Shift view says where it went).
   const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
   CHECK(r.ratio.other == doctest::Approx(1));

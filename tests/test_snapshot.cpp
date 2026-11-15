@@ -38,6 +38,8 @@ Snapshot sample() {
   s.damage_modifiers = {{6, 0, 0, 0, 120, 80}};
   s.conversions = {{10, 11, 50}};
   s.skills = {{77, "records/skills/a.dbr", 2, 10, 3, 13, 0, 0, 55}, {78, "records/skills/devotion/b.dbr", 0, 0, 0, 0, 7, 15, 0}};
+  s.skills[0].anim_frames = 24;
+  s.skills[0].anim_frame_rate = 30;
   Item it;
   it.id = 1001;
   it.location = 4;
@@ -95,6 +97,9 @@ TEST_CASE("snapshot JSON round-trips") {
   CHECK(b.run_speed == 1.35f);
   CHECK(b.defense_cap == 80);
   CHECK(b.devotion_current_level_sum == 7);
+  CHECK(b.skills[0].anim_frames == 24);
+  CHECK(b.skills[0].anim_frame_rate == 30);
+  CHECK(b.skills[1].anim_frames == 0);
   CHECK(b.pth.crit_divisor_min == 100);
   CHECK(b.pth.threshold[1] == 90);
   CHECK(b.pth.damage_modifier[5] == 1.5f);
@@ -145,7 +150,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 10})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 11})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),

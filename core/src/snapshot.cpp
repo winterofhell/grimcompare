@@ -199,6 +199,8 @@ J skill(const Skill& s) {
   if (!s.modifier_ids.empty()) j["modifier_ids"] = s.modifier_ids;
   put(j, "item_id", s.item_id);
   if (s.buff_active && *s.buff_active) j["buff_active"] = true;
+  put(j, "anim_frames", s.anim_frames);
+  if (s.anim_frame_rate != 0) j["anim_frame_rate"] = s.anim_frame_rate;
   return j;
 }
 
@@ -387,6 +389,8 @@ Skill read_skill(const J& j, int schema) {
   get(j, "modifier_ids", s.modifier_ids);
   get(j, "item_id", s.item_id);
   if (schema >= 8) s.buff_active = j.value("buff_active", false);
+  get(j, "anim_frames", s.anim_frames);
+  get(j, "anim_frame_rate", s.anim_frame_rate);
   return s;
 }
 
