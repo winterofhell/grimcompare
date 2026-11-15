@@ -8,8 +8,7 @@ namespace {
 
 constexpr Kind kChar = Kind::Char, kDefense = Kind::Defense;
 
-// Sorted by field name. Generated from re/DefenseAttributeFields.tsv, re/CombatAttributeType.tsv and
-// re/CharAttributeType.tsv (see the header).
+// Sorted by field name; generated from the re/*.tsv tables.
 constexpr std::pair<std::string_view, Target> kTable[] = {
     {"characterArmorDexterityReqReduction", {kChar, 48, false}},
     {"characterArmorIntelligenceReqReduction", {kChar, 49, false}},
@@ -131,7 +130,7 @@ constexpr std::pair<std::string_view, Target> kTable[] = {
 
 constexpr Kind kDamage = Kind::Damage;
 
-// Sorted by field name; generated from re/CombatAttributeType.tsv (see the header).
+// Sorted by field name.
 constexpr std::pair<std::string_view, Target> kDamageMods[] = {
     {"offensiveAetherModifier", {kDamage, 11, false}},
     {"offensiveBleedingModifier", {kDamage, 15, false}},

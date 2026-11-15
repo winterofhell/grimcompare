@@ -5,7 +5,7 @@
 
 namespace gdc::log {
 namespace {
-// Written once in open() before the vectored handler exists; read without the lock there.
+// Set once before the vectored handler exists, read there without the lock.
 HANDLE volatile g_file = INVALID_HANDLE_VALUE;
 SRWLOCK g_lock = SRWLOCK_INIT;
 }  // namespace

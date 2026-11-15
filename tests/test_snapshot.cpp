@@ -145,7 +145,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 8})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 10})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),
@@ -256,4 +256,15 @@ TEST_CASE("recycle: default values, capacity and spare order kept") {
   // Empty spares: a new element.
   std::vector<Item> none;
   CHECK(reuse(none).record.capacity() == Item{}.record.capacity());
+}
+
+TEST_CASE("snapshot JSON: character skill attribute totals (schema 9)") {
+  Snapshot s;
+  s.skill_attributes = {{1, 17, 0, 10, 0}};
+  const Snapshot back = from_json(to_json(s));
+  REQUIRE(back.skill_attributes.size() == 1);
+  CHECK(back.skill_attributes[0].type == 1);
+  CHECK(back.skill_attributes[0].value == 17);
+  CHECK(back.skill_attributes[0].modifier == 10);
+  CHECK(from_json(R"({"schema": 8})").skill_attributes.empty());  // not captured before schema 9
 }

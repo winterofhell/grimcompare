@@ -390,11 +390,15 @@ TEST_CASE("presets: archetype from class skill points; templates picked by Auto 
 
   SUBCASE("the two real characters keep their presets") {
     // winterpoison, level 15 (store #0021): Evil Eye, Swarm, Pox, Vines; Blood of Dreeg 1 point. Swarm still
-    // deals Vitality + Bleeding unconverted, so plague-garden does not fit yet (as before) and no template
-    // takes it: GDCompare.preset.toml scores, as before the templates.
-    const auto wp = fixture_snapshot("lvl15-wp-before-feet.json");
+    // deals Vitality + Bleeding unconverted, so plague-garden's damage check fails — but plague-garden binds
+    // winterpoison ([match] characters) and is used at every stage. The same character under another name
+    // goes through the checks and gets no template: GDCompare.preset.toml scores.
+    auto wp = fixture_snapshot("lvl15-wp-before-feet.json");
     CHECK(score::archetype(wp, *db).why == "pet 0, retaliation 1, attack 19 (weapon 0)");
     CHECK(score::archetype(wp, *db).name == "caster");
+    CHECK(auto_pick(wp, *db) == "plague-garden.toml");
+    CHECK(score::match(plague_garden(), wp, *db).why == "[match] characters lists winterpoison");
+    wp.character_name = "someone else";
     CHECK(auto_pick(wp, *db) == "");
     // winterofhell, level 96: Shadow Strike + mods and the Nightblade pool attacks (weapon), Doom Bolt, Blood
     // of Dreeg. Melee, but not mostly Physical: physical-melee does not fit either.

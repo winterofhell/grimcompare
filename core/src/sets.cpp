@@ -7,7 +7,6 @@
 namespace gdc::sets {
 namespace {
 
-// Field value at piece count n: index min(n - 1, size - 1), 0 at n = 0 (see the header).
 double at(const arz::Field& f, int n) {
   if (n <= 0 || f.numbers.empty()) return 0;
   return f.numbers[std::min<std::size_t>(static_cast<std::size_t>(n), f.numbers.size()) - 1];
@@ -18,8 +17,7 @@ double at(const arz::Record& r, std::string_view key, int n) {
   return it == r.fields.end() ? 0 : at(it->second, n);
 }
 
-// conversionInType / conversionOutType values (template enum Physical;Pierce;Elemental;Cold;Fire;Poison;
-// Lightning;Life;Chaos;Aether;Stun, docs/build-ref/ERRATA.md §1) are CombatAttributeType names.
+// Template enum names (ERRATA §1) are CombatAttributeType names.
 int damage_type_named(std::string_view name) {
   for (int t : {2, 4, 5, 6, 7, 8, 9, 10, 11, 58})
     if (!name.empty() && names::combat_attribute(t) == name) return t;
@@ -68,7 +66,6 @@ Bonus bonus(const arz::Record& set, int n) {
   }
   b.all = at(set, "augmentAllLevel", n);
 
-  // Skill modifiers: gated per count by itemSkillModifierControl (ItemSet::SkillModifierInstall, header).
   const auto control = set.fields.find("itemSkillModifierControl");
   if (control == set.fields.end() || control->second.numbers.empty() || at(control->second, n) >= 1)
     for (const auto& [key, field] : set.fields) {

@@ -18,6 +18,7 @@ add_library(gdc_core STATIC
   src/store.cpp
   src/calibrate.cpp
   src/tooltip.cpp
+  src/font.cpp
   src/text.cpp
   src/labels.cpp
   src/components.cpp

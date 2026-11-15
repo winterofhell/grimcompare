@@ -17,7 +17,7 @@ import re
 import sys
 
 FORMAT = "gdc-snap/1"
-KEYED = ["char_attributes", "defense", "damage_modifiers", "conversions", "skills", "item_skill_modifiers",
+KEYED = ["char_attributes", "defense", "damage_modifiers", "conversions", "skill_attributes", "skills", "item_skill_modifiers",
          "item_skills", "equipped", "inventory"]  # store.cpp kRules
 NAME_RE = re.compile(r"^(\d{8}-\d{6}-\d{3})-(\d{4})-(full|delta)\.json\.gz$")
 SHEET_CHAR = {1: "Physique", 2: "Cunning", 3: "Spirit", 4: "Life", 5: "Energy", 6: "LifeRegen", 7: "EnergyRegen",

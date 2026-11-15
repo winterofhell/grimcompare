@@ -1,16 +1,6 @@
-// Tooltip block, see tooltip.h. Threads:
-// - Game thread (GameEngine::Update and the GetUIDisplayText detours): reads items from the engine (the item
-//   reader uses game-thread scratch), looks the block up in the cache and appends it. It never scores: a miss
-//   reads the hovered item (~10 us), queues it and shows a gray "computing..." line; the block appears on the
-//   next hover (no engine call to rebuild an open tooltip is traced). Every second it also lists the
-//   inventory and reads a few new items per tick into the candidate pool.
-// - Worker thread: scores queued hovers first, then every pool item (both Shift states) against the latest
-//   snapshot and presets, and writes the score log. A new snapshot, preset, pool item or loaded database
-//   starts a new pass; cached blocks are skipped.
-// - Writer thread (hooks.cpp): tooltip_publish.
-// A build on any other thread gets a gray line saying so. Cache, pool, queue and presets are under g_lock (the
-// worker holds it only to pick work and store results). Any fault or C++ exception turns the block off for
-// the session; the game's own lines are never changed.
+// Threads: the game thread reads items and serves cached blocks, never scores (a miss queues the item and
+// shows "computing..." until the next hover; no engine call to rebuild an open tooltip is traced). The worker
+// scores. Any fault or C++ exception turns the block off for the session; the game's own lines are never touched.
 #include "tooltip.h"
 
 #include <windows.h>
@@ -46,21 +36,18 @@ using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
 // GameTextLine (ctor 0x313030): 0x40 bytes, +0 GameTextClass, +8 std::u16string, +0x28 bool, +0x30
-// GraphicsTexture*, +0x38 float. mem::vector: {begin, end, capacity}. The inline lines of
-// ItemEquipment::GetUIDisplayText use bool false, texture null, 1.0 (0x33DF35..0x33DF44).
+// GraphicsTexture*, +0x38 float. ItemEquipment::GetUIDisplayText uses false, null, 1.0 (0x33DF35..0x33DF44).
 constexpr std::size_t kLine = 0x40, kMaxLines = 4096;
 static_assert(sizeof(std::u16string) == 0x20, "the GameTextLine ctor reads an MSVC x64 std::u16string");
 using CtorFn = void* (*)(void* self, u32 cls, const std::u16string* text, bool flag, const void* texture, float scale);
 using PushFn = void (*)(void* vec, void* line);
-// GameTextClass per gdc::tooltip::Tone (re/GameTextClass.tsv): ItemSkillHeading (textgold), ItemBaseStats
-// (white), ItemRelicCompleteTitle (textgreen), SkillRequirementsNotMet (textred), ItemSetBonuses
-// (lightgold), GrayStats1 (gray).
+// re/GameTextClass.tsv.
 constexpr u32 kClass[] = {0x24, 0x12, 0x22, 0x34, 0x1A, 0x50};
 constexpr u32 kGray = 0x50;
-// Item::GenerateSearchText (0x329370) calls GetUIDisplayText (vt+0x458) at +0xB8 for stash search text.
+// Item::GenerateSearchText 0x329370 calls GetUIDisplayText (vt+0x458) at +0xB8 for stash search text.
 constexpr std::size_t kSearchCall = 0xB8, kSearchCallLen = 6;
-constexpr unsigned char kSearchCallBytes[kSearchCallLen] = {0xFF, 0x90, 0x58, 0x04, 0x00, 0x00};  // call [rax+0x458]
-// Cache: pool items x 2 Shift states + hovers, with room for the previous snapshot's entries.
+constexpr unsigned char kSearchCallBytes[kSearchCallLen] = {0xFF, 0x90, 0x58, 0x04, 0x00, 0x00};
+// Room for the previous snapshot's entries too.
 constexpr std::size_t kCache = 1024, kPool = 256, kMaxOut = 64, kMaxHover = 16;
 constexpr std::size_t kMaxBag = 512, kReadsPerTick = 4, kMaxSamples = 8192, kMaxLogOut = 4096;
 constexpr int kFirstLogs = 20, kTraceLogs = 5, kShiftLogs = 20;
@@ -73,15 +60,13 @@ struct Published {
   Probe probe;
 };
 
-// What the worker scores with: copied on the game thread whenever g_preset_version changes.
 struct Presets {
   u64 version = 0;
-  score::Preset main;                                         // GDCompare.preset.toml
-  std::vector<std::pair<std::string, score::Preset>> named;   // GDCompare.presets\*.toml that loaded, Auto order (tried_first)
+  score::Preset main;
+  std::vector<std::pair<std::string, score::Preset>> named;   // Auto order (tried_first)
+  tooltip::Screen screen;
 };
 
-// A block depends on the item (id, socketed component / augment), the snapshot, the presets, the data the
-// labels come from (data_level) and Shift.
 struct Key {
   u32 id = 0;
   u64 fp = 0, seq = 0, preset = 0;
@@ -90,26 +75,24 @@ struct Key {
   bool operator==(const Key&) const = default;
 };
 
-// One cached block. Slots are reused: their vectors and strings keep their capacity.
 struct Entry {
   Key key;
-  u64 used = 0;            // LRU stamp; 0: empty
-  bool ready = false;      // false: queued / computing
-  bool equippable = false; // ready, no lines, equippable: one of the equipped items
-  bool logged = true;      // `log` already written
+  u64 used = 0;            // LRU stamp; 0 = empty
+  bool ready = false;
+  bool equippable = false; // ready with no lines: already equipped
+  bool logged = true;
   long long model_us = 0;
   std::vector<u32> classes;
   std::vector<std::u16string> text;
-  std::vector<std::string> log;  // scores with inputs, warnings
+  std::vector<std::string> log;
 };
 
-// An item the worker can score: read on the game thread, shared read-only with the worker.
 struct Cand {
   u32 id = 0;
   u64 fp = 0;
   int type = 0;
   std::shared_ptr<const snap::Item> item;
-  ULONGLONG seen = 0;  // last hover or inventory listing
+  ULONGLONG seen = 0;
 };
 
 struct Job {
@@ -137,13 +120,20 @@ std::atomic<bool> g_on{false};
 bool g_debug = false;
 CtorFn g_ctor = nullptr;
 PushFn g_push = nullptr;
+const void* const* g_engine_var = nullptr;
+using GraphicsFn = void* (*)(const void* engine);
+using ScaleFn = float (*)(const void* graphics);
+using WidthFn = int (*)(const void* graphics);
+GraphicsFn g_graphics = nullptr;
+ScaleFn g_ui_scale = nullptr;
+WidthFn g_screen_width = nullptr;
 const void* g_search_ret = nullptr;
 std::atomic<const arz::Database*> g_db{nullptr};
-std::atomic<const text::Table*> g_text{nullptr};  // set after g_db
+std::atomic<const text::Table*> g_text{nullptr};
 std::filesystem::path g_game_dir;
 SRWLOCK g_pub_lock = SRWLOCK_INIT;
-std::shared_ptr<const Published> g_pub;  // under g_pub_lock
-u64 g_seq = 0;                           // writer thread
+std::shared_ptr<const Published> g_pub;
+u64 g_seq = 0;
 std::atomic<DWORD> g_game_tid{0};
 
 const std::u16string kOk = u"GDC ok";
@@ -153,59 +143,53 @@ const std::u16string kWaitingGear = u"GD Compare: waiting for a snapshot of the 
 const std::u16string kEquipped = u"GD Compare: equipped";
 const std::u16string kComputing = u"GD Compare: computing... (hover again)";
 
-// Under g_lock.
 SRWLOCK g_lock = SRWLOCK_INIT;
-CONDITION_VARIABLE g_cv = CONDITION_VARIABLE_INIT;  // worker sleeps on it (with g_lock)
+CONDITION_VARIABLE g_cv = CONDITION_VARIABLE_INIT;
 std::array<Entry, kCache> g_cache;
 u64 g_use = 0;
-u64 g_gen = 1;               // bumped by anything that can change a block: snapshot, presets, pool, database
-std::vector<Cand> g_pool;    // reserved kPool
-std::vector<Job> g_jobs;     // hovers waiting for the worker, reserved kMaxHover; oldest first
-std::vector<std::string> g_log_out;  // lines for the worker to write (keeps file I/O off the game thread)
+u64 g_gen = 1;
+std::vector<Cand> g_pool;
+std::vector<Job> g_jobs;
+std::vector<std::string> g_log_out;  // keeps file I/O off the game thread
 std::shared_ptr<const Presets> g_presets;
+tooltip::Screen g_screen;
 const void* g_player = nullptr;
-std::vector<Out> g_out;  // reserved kMaxOut at init
-// Score preset: GDCompare.preset.toml next to the .asi, polled on the game thread (tooltip_tick). A file
-// that fails to parse keeps the last good preset; the block shows the error.
+std::vector<Out> g_out;
+// A file that fails to parse keeps the last good preset.
 score::Preset g_preset;
 u64 g_preset_version = 1;
-std::u16string g_preset_error;  // "" = none
+std::u16string g_preset_error;
 std::wstring g_preset_path;
 FILETIME g_preset_mtime{};
-bool g_preset_seen = false;  // the file existed at the last poll
+bool g_preset_seen = false;
 ULONGLONG g_preset_poll_ms = 0;
-// Named presets for Auto: GDCompare.presets\*.toml next to the .asi, file name order. While g_preset has
-// [preset] auto = true (the default), the first one whose [match] fits the character scores the block
-// instead of g_preset (score::matches). Reloaded when the folder's file list or a file's mtime changes.
 struct Named {
   std::wstring file;
   FILETIME mtime{};
-  std::optional<score::Preset> preset;  // nullopt: did not load (g_named_error)
+  std::optional<score::Preset> preset;
 };
 constexpr std::size_t kMaxNamed = 32;
 std::vector<Named> g_named;
 std::wstring g_named_dir;
-std::u16string g_named_error;  // "" = none
+std::u16string g_named_error;
 u64 g_calls_total = 0;
 ULONGLONG g_last_log_ms = 0, g_last_build_ms = 0, g_shift_edge_ms = 0;
 u32 g_last_build_id = 0;
 bool g_after_shift = false;
 struct Window {
   u64 calls = 0, hits = 0, misses = 0, pending = 0, lines = 0, skipped = 0;
-  u64 computed_hover = 0, computed_pool = 0, queue_full = 0;  // worker
-  long long compute_sum_us = 0, compute_max_us = 0;           // worker
+  u64 computed_hover = 0, computed_pool = 0, queue_full = 0;
+  long long compute_sum_us = 0, compute_max_us = 0;
 } g_win;
-std::vector<u32> g_samples;  // build time (us) of each call in the window, reserved kMaxSamples
+std::vector<u32> g_samples;
 ULONGLONG g_win_start = 0;
-// Game thread only (tooltip_tick).
 bool g_shift_down = false;
 int g_shift_logs = 0;
 ULONGLONG g_bag_next = 0;
-std::vector<BagItem> g_bag, g_bag_todo;  // reserved kMaxBag
-std::vector<u32> g_bag_skip;             // inventory items that are not comparable; reserved kMaxBag
-std::vector<u32> g_stat_scratch;         // reserved kMaxSamples
-// Worker thread only.
-std::string g_auto_logged;  // last Auto choice written to the log
+std::vector<BagItem> g_bag, g_bag_todo;
+std::vector<u32> g_bag_skip;
+std::vector<u32> g_stat_scratch;
+std::string g_auto_logged;
 
 template <class T>
 T rd(const void* p, std::size_t off) {
@@ -216,7 +200,6 @@ T rd(const void* p, std::size_t off) {
 
 std::uintptr_t addr(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }
 
-// "Game.dll+0x33DF4B" (module + offset) or the absolute address. Not for hot paths.
 std::string where(std::uintptr_t a) {
   HMODULE m = nullptr;
   char buf[MAX_PATH + 32];
@@ -239,7 +222,6 @@ void off(const char* why) {
   log::printf("tooltip: %s; tooltip block off until the game restarts", why);
 }
 
-// Runs `f` under SEH with C++ exceptions caught; false (logged, block off) on either.
 template <class F>
 bool guarded(const char* what, F&& f) {
   auto body = [&] {
@@ -263,9 +245,11 @@ bool guarded(const char* what, F&& f) {
   return false;
 }
 
-void utf16(const std::string& s, std::u16string& out) {
+// Every string handed to the game goes through tooltip::escape.
+void utf16(const std::string& raw, std::u16string& out) {
   out.clear();
-  if (s.empty()) return;
+  if (raw.empty()) return;
+  const std::string s = tooltip::escape(raw);
   const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
   if (n <= 0) return;
   out.resize(static_cast<std::size_t>(n));
@@ -274,7 +258,6 @@ void utf16(const std::string& s, std::u16string& out) {
 
 long long us(LARGE_INTEGER a, LARGE_INTEGER b) { return log::elapsed_us(a, b); }
 
-// Any thread, not under g_lock: something a block depends on changed; the worker starts a new pass.
 void changed() {
   AcquireSRWLockExclusive(&g_lock);
   ++g_gen;
@@ -295,7 +278,7 @@ DWORD WINAPI load_db(void*) {
   const arz::Database* db = nullptr;
   auto open = [&] {
     try {
-      db = new arz::Database(arz::Database::open_game(g_game_dir));  // kept until the process ends
+      db = new arz::Database(arz::Database::open_game(g_game_dir));  // leaked on purpose: lives until the process ends
     } catch (const std::exception& e) {
       log::printf("tooltip: database not opened (%s); skill grants and max resist unchecked", e.what());
     }
@@ -314,7 +297,7 @@ DWORD WINAPI load_db(void*) {
   const text::Table* tx = nullptr;
   auto open_text = [&] {
     try {
-      tx = new text::Table(text::Table::open_game(g_game_dir));  // kept until the process ends
+      tx = new text::Table(text::Table::open_game(g_game_dir));  // leaked on purpose
     } catch (const std::exception& e) {
       log::printf("tooltip: game text not loaded (%s); internal names shown", e.what());
     }
@@ -332,7 +315,6 @@ DWORD WINAPI load_db(void*) {
   return 0;
 }
 
-// 0: no database, 1: database, 2: database and game text.
 int data_level(const arz::Database* db) { return db ? 1 + (g_text.load() != nullptr) : 0; }
 
 bool valid_vector(const void* v) {
@@ -341,8 +323,6 @@ bool valid_vector(const void* v) {
   return b <= e && e <= c && (e - b) % kLine == 0 && (c - b) % kLine == 0 && (e - b) / kLine <= kMaxLines;
 }
 
-// Auto: the first named preset (score::tried_first order) made for this character (score::match), else
-// GDCompare.preset.toml. `line`: the choice and why (each named preset's match result), for the log.
 const score::Preset& choose(const Presets& ps, const snap::Snapshot& s, const arz::Database* db, const Labels& labels,
                             std::string& line) {
   const score::Preset* p = &ps.main;
@@ -364,8 +344,6 @@ const score::Preset& choose(const Presets& ps, const snap::Snapshot& s, const ar
   return *p;
 }
 
-// --- under g_lock
-
 std::size_t cache_size() {
   std::size_t n = 0;
   for (const auto& e : g_cache) n += e.used != 0;
@@ -385,7 +363,6 @@ Entry* lru() {
   return e;
 }
 
-// A fresh slot for `k` (the least recently used one), marked used now.
 Entry* claim(const Key& k, bool ready) {
   Entry* e = lru();
   e->key = k;
@@ -400,10 +377,9 @@ Entry* claim(const Key& k, bool ready) {
   return e;
 }
 
-// Adds or refreshes a pool item (the least recently seen one goes when full) and starts a worker pass.
 void pool_put(Cand c) {
   auto it = std::find_if(g_pool.begin(), g_pool.end(), [&](const Cand& x) { return x.id == c.id; });
-  if (it == g_pool.end() && g_pool.size() < kPool) it = g_pool.insert(g_pool.end(), Cand{});  // within the reserve
+  if (it == g_pool.end() && g_pool.size() < kPool) it = g_pool.insert(g_pool.end(), Cand{});
   else if (it == g_pool.end())
     it = std::min_element(g_pool.begin(), g_pool.end(), [](const Cand& a, const Cand& b) { return a.seen < b.seen; });
   *it = std::move(c);
@@ -411,7 +387,6 @@ void pool_put(Cand c) {
   WakeConditionVariable(&g_cv);
 }
 
-// A different character (or none): nothing cached applies.
 void reset_for(const void* player) {
   if (player == g_player) return;
   if (g_player) log::printf("tooltip: character changed; cache cleared (%zu entries, %zu pool items)", cache_size(), g_pool.size());
@@ -424,7 +399,7 @@ void reset_for(const void* player) {
   ++g_gen;
 }
 
-// The worker writes these (the game thread never waits on the log file).
+// The game thread never waits on the log file.
 void queue_log(std::string line) {
   if (g_log_out.size() < kMaxLogOut) g_log_out.push_back(std::move(line));
   WakeConditionVariable(&g_cv);
@@ -435,7 +410,6 @@ void queue_log(std::vector<std::string>& lines) {
   lines.clear();
 }
 
-// The lines for one build (into g_out) and what happened. Game thread.
 Result plan(const void* item, void* lines, const void* caller, bool game_thread) {
   Result r;
   g_out.clear();
@@ -479,7 +453,6 @@ Result plan(const void* item, void* lines, const void* caller, bool game_thread)
       queue_log(e->log);
     }
   } else {
-    // Miss: read the item here (game-thread reader), score on the worker.
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
     snap::Item cand;
@@ -498,7 +471,7 @@ Result plan(const void* item, void* lines, const void* caller, bool game_thread)
     r.how = How::Miss;
     const bool equippable = !tooltip::locations_for(type).empty();
     if (!equippable) return r;
-    if (!current) {  // the block waits for a snapshot of the gear worn now
+    if (!current) {  // wait for a snapshot of the gear worn now
       g_out.push_back({kGray, pub ? &kWaitingGear : &kWaitingNone});
       pool_put({r.id, k.fp, type, std::make_shared<const snap::Item>(std::move(cand)), GetTickCount64()});
       return r;
@@ -514,7 +487,7 @@ Result plan(const void* item, void* lines, const void* caller, bool game_thread)
         claim(k, false);
         g_jobs.push_back({c, shift});
       } else {
-        ++g_win.queue_full;  // no pending entry: the next hover queues it again
+        ++g_win.queue_full;  // the next hover queues it again
       }
       pool_put(std::move(c));
       r.how = How::Pending;
@@ -537,8 +510,7 @@ Result plan(const void* item, void* lines, const void* caller, bool game_thread)
   return r;
 }
 
-// Each line: the engine's ctor copies our text into a buffer from the game's allocator; push_back moves
-// it into the vector (the temporary is left empty, nothing to free).
+// The engine ctor copies our text into a game-allocated buffer; push_back moves it, nothing left to free.
 void append(void* lines, Result& r) {
   for (const Out& o : g_out) {
     alignas(16) unsigned char tmp[kLine] = {};
@@ -575,8 +547,6 @@ void log_call(const Result& r, const void* caller, DWORD tid, long long took_us,
   queue_log(std::move(s));
 }
 
-// --- worker thread
-
 struct Computed {
   bool equippable = false;
   long long us = 0;
@@ -585,7 +555,6 @@ struct Computed {
   std::vector<std::string> log;
 };
 
-// Not under g_lock. false: faulted (block off).
 bool compute(const Published& pub, const Presets& ps, const Cand& c, bool shift, const arz::Database* db, Computed& out) {
   return guarded("worker", [&] {
     LARGE_INTEGER t0, t1;
@@ -598,8 +567,8 @@ bool compute(const Published& pub, const Presets& ps, const Cand& c, bool shift,
       log::printf("tooltip: scoring with %s", chose.c_str());
     }
     out.equippable = !tooltip::locations_for(c.type).empty();
-    std::vector<tooltip::Line> lines = tooltip::compare(pub.snap, *c.item, c.type, shift, db, preset, labels, &out.log);
-    // Passive calibration found a swap the model got wrong this session: say so under the heading.
+    std::vector<tooltip::Line> lines =
+        tooltip::compare(pub.snap, *c.item, c.type, shift, db, preset, labels, &out.log, nullptr, ps.screen);
     if (const int n = calibration_failures(); n > 0 && !lines.empty())
       lines.insert(lines.begin() + 1, {tooltip::Tone::Warning, "! calibration: " + std::to_string(n) +
                                                                    " failed this session (GDCompare.calibration.txt)"});
@@ -614,7 +583,6 @@ bool compute(const Published& pub, const Presets& ps, const Cand& c, bool shift,
   });
 }
 
-// Under g_lock: the result into the entry for `k` (the pending one, else a fresh slot).
 void store(const Key& k, Computed&& c, bool logged) {
   Entry* e = find(k);
   if (!e) e = claim(k, true);
@@ -632,7 +600,7 @@ DWORD WINAPI worker(void*) {
     Cand cand;
     bool shift = false;
   };
-  std::vector<Task> pass;  // pool items x Shift states, most recently seen first, Shift off first
+  std::vector<Task> pass;
   std::size_t pos = 0;
   u64 pass_gen = 0;
   std::vector<std::string> logs;
@@ -652,7 +620,7 @@ DWORD WINAPI worker(void*) {
     const std::shared_ptr<const Published> pub = published();
     const std::shared_ptr<const Presets> ps = g_presets;
     const arz::Database* db = g_db.load();
-    if (!pub || !ps) {  // nothing to score against yet
+    if (!pub || !ps) {
       g_jobs.clear();
       pass_gen = g_gen;
       pos = pass.size();
@@ -685,7 +653,7 @@ DWORD WINAPI worker(void*) {
     ReleaseSRWLockExclusive(&g_lock);
     Computed out;
     const bool ok = compute(*pub, *ps, task.cand, task.shift, db, out);
-    if (ok && hover) {  // likely shown on the next hover: log now
+    if (ok && hover) {
       log::printf("tooltip score: item %u%s, %lld us on the worker", task.cand.id, task.shift ? " (Shift)" : "", out.us);
       for (const auto& l : out.log) log::printf("  %s", l.c_str());
       out.log.clear();
@@ -708,12 +676,9 @@ DWORD WINAPI worker(void*) {
   return 0;
 }
 
-// --- game thread
-
-// Lists the inventory every kBagMs and reads up to kReadsPerTick new or changed items per tick into the pool.
 void bag_tick(ULONGLONG now) {
   const std::shared_ptr<const Published> pub = published();
-  if (!pub) return;  // nothing to score against yet
+  if (!pub) return;
   if (now >= g_bag_next) {
     g_bag_next = now + kBagMs;
     const Take t = snapshot_bag(g_bag);
@@ -721,7 +686,7 @@ void bag_tick(ULONGLONG now) {
     if (t != Take::Ok) return;
     AcquireSRWLockExclusive(&g_lock);
     if (!g_player) reset_for(pub->probe.player);
-    if (pub->probe.player != g_player) {  // another character's snapshot: the next hover resets (reset_for)
+    if (pub->probe.player != g_player) {  // another character: reset_for on the next hover
       ReleaseSRWLockExclusive(&g_lock);
       return;
     }
@@ -750,10 +715,24 @@ void bag_tick(ULONGLONG now) {
   }
 }
 
-// Under g_lock, game thread: the presets the worker scores with, after a change.
+// Values outside GetUIScaleFactor's range (0.7..2) keep the last ones.
+void poll_screen() {
+  if (!g_engine_var) return;
+  const void* engine = *g_engine_var;
+  const void* graphics = engine ? g_graphics(engine) : nullptr;
+  if (!graphics) return;
+  const tooltip::Screen now{g_ui_scale(graphics), g_screen_width(graphics)};
+  if (!(now.ui_scale >= 0.5f && now.ui_scale <= 4.0f) || now.width < 1 || now.width > 65536 || now == g_screen) return;
+  g_screen = now;
+  ++g_preset_version;
+  log::printf("tooltip: UI scale %.6f, screen width %d: lists break at %s", static_cast<double>(now.ui_scale), now.width,
+              now.width >= 1600 ? "the long sample" : "the short sample");
+}
+
 void publish_presets() {
   auto p = std::make_shared<Presets>();
   p->version = g_preset_version;
+  p->screen = g_screen;
   p->main = g_preset;
   for (const auto& n : g_named)
     if (n.preset) p->named.emplace_back(log::utf8(n.file), *n.preset);
@@ -764,7 +743,6 @@ void publish_presets() {
   WakeConditionVariable(&g_cv);
 }
 
-// One preset file (at most kMaxPresetBytes); nullopt and `error` on failure.
 std::optional<score::Preset> load_preset(const std::wstring& path, const WIN32_FILE_ATTRIBUTE_DATA& fa, std::string& error) {
   const u64 size = (static_cast<u64>(fa.nFileSizeHigh) << 32) | fa.nFileSizeLow;
   if (size > kMaxPresetBytes) {
@@ -787,8 +765,6 @@ std::optional<score::Preset> load_preset(const std::wstring& path, const WIN32_F
   return score::parse(text, error);
 }
 
-// Under g_lock, game thread. Reloads the named presets when the folder's *.toml list or a file's
-// modification time changed; a file that fails to load is skipped and named in the block.
 void poll_named() {
   std::vector<std::pair<std::wstring, WIN32_FILE_ATTRIBUTE_DATA>> found;
   WIN32_FIND_DATAW fd{};
@@ -829,8 +805,7 @@ void poll_named() {
   ++g_preset_version;
 }
 
-// Under g_lock, game thread. Re-reads the preset when its modification time changes; a missing file means
-// the built-in defaults (equal to presets/default.toml, tests/test_score.cpp).
+// Built-in defaults equal presets/default.toml (tests/test_score.cpp).
 void poll_preset() {
   WIN32_FILE_ATTRIBUTE_DATA fa{};
   const bool exists = GetFileAttributesExW(g_preset_path.c_str(), GetFileExInfoStandard, &fa) != 0;
@@ -860,7 +835,6 @@ void poll_preset() {
   ++g_preset_version;
 }
 
-// p-th percentile (0..1) of `v` (reordered); 0 when empty.
 u32 percentile(std::vector<u32>& v, double p) {
   if (v.empty()) return 0;
   const auto i = static_cast<std::size_t>(std::min<double>(static_cast<double>(v.size()) - 1, p * static_cast<double>(v.size())));
@@ -901,6 +875,21 @@ bool tooltip_init(const Resolve& r, const std::wstring& mod_dir) {
     return false;
   }
   g_search_ret = search + kSearchCall + kSearchCallLen;
+  {
+    const void* var = r("gEngine");
+    const void* graphics = r("Engine::GetGraphicsEngine");
+    const void* scale = r("GraphicsEngine::GetUIScaleFactor");
+    const void* width = r("GraphicsEngine::GetWidth");
+    if (var && graphics && scale && width) {
+      g_engine_var = static_cast<const void* const*>(var);
+      g_graphics = reinterpret_cast<GraphicsFn>(const_cast<void*>(graphics));
+      g_ui_scale = reinterpret_cast<ScaleFn>(const_cast<void*>(scale));
+      g_screen_width = reinterpret_cast<WidthFn>(const_cast<void*>(width));
+    } else {
+      log::write("tooltip: gEngine / GetGraphicsEngine / GetUIScaleFactor / GetWidth unresolved; lists break for "
+                 "UI scale 1 below 1600 pixels");
+    }
+  }
   g_out.reserve(kMaxOut);
   g_pool.reserve(kPool);
   g_jobs.reserve(kMaxHover);
@@ -914,11 +903,11 @@ bool tooltip_init(const Resolve& r, const std::wstring& mod_dir) {
               "(GDCompare.ini [tooltip] debug)",
               where(reinterpret_cast<std::uintptr_t>(g_push)).c_str(), scan::kLinePushBackLen, where(addr(g_search_ret)).c_str(),
               g_debug ? "on" : "off");
-  // The game root holds database/database.arz; the mod sits in its compat\ or x64\ folder.
+  // The mod sits in compat\ or x64\ under the game root.
   g_game_dir = std::filesystem::path(mod_dir).parent_path().parent_path();
   g_win_start = GetTickCount64();
   AcquireSRWLockExclusive(&g_lock);
-  publish_presets();  // built-in defaults until the first poll
+  publish_presets();
   ReleaseSRWLockExclusive(&g_lock);
   g_on = true;
   HANDLE w = CreateThread(nullptr, 0, worker, nullptr, 0, nullptr);
@@ -927,7 +916,7 @@ bool tooltip_init(const Resolve& r, const std::wstring& mod_dir) {
     log::printf("tooltip: worker thread not started (%lu); tooltip block off", GetLastError());
     return false;
   }
-  SetThreadPriority(w, THREAD_PRIORITY_BELOW_NORMAL);  // background scoring yields to the game's threads
+  SetThreadPriority(w, THREAD_PRIORITY_BELOW_NORMAL);
   CloseHandle(w);
   if (HANDLE h = CreateThread(nullptr, 0, load_db, nullptr, 0, nullptr)) CloseHandle(h);
   else log::printf("tooltip: database thread not started (%lu); skill grants and max resist unchecked", GetLastError());
@@ -946,10 +935,9 @@ void tooltip_publish(const snap::Snapshot& s, const Probe& probe) {
     p->seq = ++g_seq;
     p->snap = s;
     p->snap.tooltip_items.clear();
-    // Inventory: records only (target_sets "(in bag)"). Only manual snapshots read it; an auto snapshot keeps
-    // the last manual one's list (the writer thread is the only one that replaces g_pub).
-    // shortcut: an empty inventory also keeps the old list (no "inventory read" flag in the snapshot) —
-    // revisit when the snapshot records whether the inventory section ran.
+    // Auto snapshots keep the last manual inventory list.
+    // shortcut: an empty inventory also keeps the old list (no "inventory read" flag) — revisit when the snapshot
+    // records whether that section ran.
     p->snap.inventory.clear();
     if (!s.inventory.empty()) {
       p->snap.inventory.reserve(s.inventory.size());
@@ -963,18 +951,17 @@ void tooltip_publish(const snap::Snapshot& s, const Probe& probe) {
       p->snap.inventory = prev->snap.inventory;
     }
     p->probe = probe;
-    // Warm the database cache here: each equipped item swapped into its own slot decodes what a block needs
-    // (the items' records and the skills they touch).
+    // Warm the database cache: swapping each equipped item into its own slot decodes what a block needs.
     if (const arz::Database* db = g_db.load()) {
       for (const auto& it : p->snap.equipped) (void)model::swap(p->snap, it, it.location, db);
-      const score::Preset defaults;  // the records touched are the same for every preset
+      const score::Preset defaults;
       (void)score::compare(p->snap, p->snap, score::main_skills(p->snap, defaults, db), defaults, db);
     }
     AcquireSRWLockExclusive(&g_pub_lock);
     old = std::exchange(g_pub, std::move(p));
     ReleaseSRWLockExclusive(&g_pub_lock);
   });
-  changed();  // the worker scores the pool against it
+  changed();
 }
 
 void tooltip_freeze() {
@@ -1027,7 +1014,7 @@ void tooltip_tick() {
     const ULONGLONG since = now - g_last_build_ms;
     if (g_last_build_ms && since < 10000) {
       g_shift_edge_ms = now;
-      g_after_shift = true;  // the next build within kShiftWindowMs is logged regardless of the rate limit
+      g_after_shift = true;
       if (g_shift_logs < kShiftLogs) {
         ++g_shift_logs;
         log::printf("tooltip: Shift %s; last build %llu ms ago (item %u)", shift ? "down" : "up",
@@ -1042,6 +1029,7 @@ void tooltip_tick() {
     const u64 version = g_preset_version;
     if (g_on) guarded("preset", poll_preset);
     if (g_on) guarded("named presets", poll_named);
+    if (g_on) guarded("screen", poll_screen);
     if (g_on && g_preset_version != version) guarded("presets", publish_presets);
     ReleaseSRWLockExclusive(&g_lock);
   }
@@ -1049,7 +1037,7 @@ void tooltip_tick() {
   if (now - g_win_start < kStatsMs) return;
   AcquireSRWLockExclusive(&g_lock);
   const Window w = std::exchange(g_win, Window{});
-  g_stat_scratch.assign(g_samples.begin(), g_samples.end());  // within the reserve
+  g_stat_scratch.assign(g_samples.begin(), g_samples.end());
   g_samples.clear();
   const double secs = static_cast<double>(now - g_win_start) / 1000.0;
   g_win_start = now;

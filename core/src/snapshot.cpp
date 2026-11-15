@@ -198,6 +198,7 @@ J skill(const Skill& s) {
     j["passive"] = stats(*s.passive);
   if (!s.modifier_ids.empty()) j["modifier_ids"] = s.modifier_ids;
   put(j, "item_id", s.item_id);
+  if (s.buff_active && *s.buff_active) j["buff_active"] = true;
   return j;
 }
 
@@ -215,8 +216,6 @@ J item_skill_modifier(const ItemSkillModifier& m) {
   if (m.stats) j["stats"] = stats(*m.stats);
   return j;
 }
-
-// --- reading
 
 CharAttribute read_char_attribute(const J& j) {
   CharAttribute a;
@@ -387,6 +386,7 @@ Skill read_skill(const J& j, int schema) {
   else if (schema >= 4) s.passive = ItemStats{};
   get(j, "modifier_ids", s.modifier_ids);
   get(j, "item_id", s.item_id);
+  if (schema >= 8) s.buff_active = j.value("buff_active", false);
   return s;
 }
 
@@ -470,6 +470,7 @@ std::string to_json(const Snapshot& s, int indent) {
   put_list(j, "defense", s.defense, combat);
   put_list(j, "damage_modifiers", s.damage_modifiers, combat);
   put_list(j, "conversions", s.conversions, conversion);
+  put_list(j, "skill_attributes", s.skill_attributes, skill_attribute);
   put_list(j, "skills", s.skills, skill);
   put_list(j, "item_skill_modifiers", s.item_skill_modifiers, item_skill_modifier);
   put_list(j, "item_skills", s.item_skills, skill);
@@ -516,6 +517,7 @@ Snapshot from_json(std::string_view text) {
     get_list(j, "defense", s.defense, read_combat);
     get_list(j, "damage_modifiers", s.damage_modifiers, read_combat);
     get_list(j, "conversions", s.conversions, read_conversion);
+    get_list(j, "skill_attributes", s.skill_attributes, read_skill_attribute);
     get_list(j, "skills", s.skills, [&](const J& x) { return read_skill(x, s.schema); });
     get_list(j, "item_skill_modifiers", s.item_skill_modifiers, read_item_skill_modifier);
     get_list(j, "item_skills", s.item_skills, [&](const J& x) { return read_skill(x, s.schema); });
@@ -531,7 +533,6 @@ Snapshot from_json(std::string_view text) {
 
 namespace {
 
-// Strings keep their buffer: moved out, cleared, moved back after the reset.
 std::string keep(std::string& s) {
   std::string out = std::move(s);
   out.clear();
@@ -569,7 +570,7 @@ void reset(ItemSkillModifier& m) {
   m.modifier_record = std::move(mr);
 }
 
-// Reversed, so that reuse() (pop_back) returns them in their original order.
+// Reversed so reuse() (pop_back) returns them in order.
 template <class T>
 void spare_out(std::vector<T>& from, std::vector<T>& spare) {
   for (auto it = from.rbegin(); it != from.rend(); ++it) {
@@ -582,7 +583,6 @@ void spare_out(std::vector<T>& from, std::vector<T>& spare) {
 }  // namespace
 
 void recycle(Snapshot& s, Spares& spare) {
-  // Pushed last-first: inventory, tooltip_items, equipped, so equipped come back first.
   spare_out(s.inventory, spare.items);
   spare_out(s.tooltip_items, spare.items);
   spare_out(s.equipped, spare.items);
@@ -594,8 +594,8 @@ void recycle(Snapshot& s, Spares& spare) {
   auto def = keep(s.defense);
   auto dm = keep(s.damage_modifiers);
   auto conv = keep(s.conversions);
-  // skills / item_skill_modifiers / equipped / tooltip_items / inventory: empty vectors whose capacity
-  // stays (capacity of an empty vector survives the move back).
+  auto sa = keep(s.skill_attributes);
+  // Capacity of an empty vector survives the move back.
   auto sk = std::move(s.skills);
   auto ism = std::move(s.item_skill_modifiers);
   auto isk = std::move(s.item_skills);
@@ -611,6 +611,7 @@ void recycle(Snapshot& s, Spares& spare) {
   s.defense = std::move(def);
   s.damage_modifiers = std::move(dm);
   s.conversions = std::move(conv);
+  s.skill_attributes = std::move(sa);
   s.skills = std::move(sk);
   s.item_skill_modifiers = std::move(ism);
   s.item_skills = std::move(isk);

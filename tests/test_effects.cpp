@@ -6,6 +6,7 @@
 #include "game_db.h"
 #include "gdc/effects.h"
 #include "gdc/score.h"
+#include "gdc/utility.h"
 
 using namespace gdc;
 
@@ -106,6 +107,29 @@ TEST_CASE("effects: learned debuffs, devotion and item procs, set pets (installe
   CHECK(rot->amount.at(9) == 18);  // "to all" lands on every enemy type
   CHECK(rot->uptime == doctest::Approx(5 / (1.5 + 1 / 0.2)));
 
+  // Cooldown reduction 20% (Skill::GetCooldownTime): shortens the devotion power's and a learned skill's
+  // recharge (Mortar Trap, skillCooldownTime 2.5 s in the merged database), not the item proc's (Skill::IsItemSkill).
+  {
+    snap::Snapshot r = s;
+    r.skill_attributes = {{1, 20}};
+    learn(r, 4, "records/skills/playerclass02/mortartrap1.dbr", 1);
+    const auto cr = effects::collect(r, *db, rates, {}, all);
+    CHECK(find(cr, kRumor, 1)->uptime == doctest::Approx(std::min(1.0, 4 / (0.8 + 1 / (0.15 * 2)))));
+    CHECK(find(cr, kRotProc, 2)->uptime == doctest::Approx(rot->uptime));
+    const auto mortar = std::find_if(cr.effects.begin(), cr.effects.end(), [](const effects::Effect& e) {
+      return e.record.ends_with("mortartrap1.dbr");
+    });
+    REQUIRE(mortar != cr.effects.end());
+    INFO(mortar->basis);
+    CHECK(mortar->per_sec == doctest::Approx(1 / (2.5 * 0.8)));
+    CHECK(mortar->basis.find("2.5 s x (1 - 20%)") != std::string::npos);
+    r.skill_attributes = {{1, 100}};  // the whole recharge: kept up
+    const auto all_cdr = effects::collect(r, *db, rates, {}, all);
+    CHECK(std::find_if(all_cdr.effects.begin(), all_cdr.effects.end(), [](const effects::Effect& e) {
+            return e.record.ends_with("mortartrap1.dbr");
+          })->maintained);
+  }
+
   // No trigger rate: procs fall back to 0 (default), the learned curse stays up.
   c = effects::collect(s, *db, effects::Rates{}, {}, all);
   CHECK(find(c, kRumor, 1)->origin == effects::Origin::Default);
@@ -159,6 +183,38 @@ TEST_CASE("score: RR from a swap multiplies damage through the enemy resists (in
   CHECK(r.unscored.empty());
 }
 
+TEST_CASE("score: cooldown reduction raises a cooldown main skill's uses per second up to cast speed (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.pth.minimum = 55;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/playerclass03/evileye1.dbr", 12);  // no cooldown of its own
+  learn(s, 2, "records/skills/playerclass03/evileye1b.dbr", 1);  // its transmuter: skillCooldownTime 4 s
+  s.skills[0].modifier_ids = {2};
+  s.cast_speed = 100;  // no cap
+  snap::Snapshot after = s;
+  after.skill_attributes = {{1, 20}};  // CooldownReduction 20%
+  score::Preset p;
+  p.skills = {"records/skills/playerclass03/evileye1.dbr"};
+  auto damage = [&](const snap::Snapshot& b, const snap::Snapshot& a) {
+    return score::compare(b, a, score::main_skills(b, p, db), p, db).ratio.damage;
+  };
+  CHECK(damage(s, after) == doctest::Approx(1 / 0.8));  // 4 s -> 3.2 s
+  CHECK(damage(after, s) == doctest::Approx(0.8));
+  // Cast speed caps it: 0.25/s -> min(0.3125, 0.27)/s.
+  s.cast_speed = after.cast_speed = 0.27;
+  CHECK(damage(s, after) == doctest::Approx(0.27 / 0.25));
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).after.find("0.27/s (speed cap)") != std::string::npos);
+  // Capped on both sides: cooldown reduction adds nothing.
+  s.cast_speed = after.cast_speed = 0.2;
+  CHECK(damage(s, after) == doctest::Approx(1));
+  // Not in Other: listed at weight 0 (the Shift view says where it went).
+  const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
+  CHECK(r.ratio.other == doctest::Approx(1));
+}
+
 TEST_CASE("score: procs and pets add damage on the main skills' per-second scale (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) return;
@@ -180,10 +236,95 @@ TEST_CASE("score: procs and pets add damage on the main skills' per-second scale
   // shortcut in the test: the set's other 4/4 bonuses also change the sheet; only the direction is checked.
   const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
   CHECK(r.ratio.damage > 1.05);
-  CHECK(r.after.find("venomousseed (pet)") != std::string::npos);
+  // Living Blossom is PetPlayerScaling (effects::summoned): it attacks with the player's bonuses, so +100%
+  // Acid / Poison on the sheet raises its damage per attack like a proc's.
+  auto per_attack = [](const std::string& text) {
+    const auto at = text.find("venomousseed (player-scaled pet) ");
+    REQUIRE(at != std::string::npos);
+    const auto x = text.find(" x ", at);
+    return std::stod(text.substr(x + 3));
+  };
+  snap::Snapshot boosted = after;
+  snap::CombatTotals acid;
+  acid.type = 7;
+  acid.damage_modifier = acid.dot_modifier = 100;
+  boosted.damage_modifiers.push_back(acid);
+  const auto b = score::compare(s, boosted, score::main_skills(s, p, db), p, db);
+  CHECK(per_attack(b.after) > per_attack(r.after) * 1.3);
   // Without a cast speed the on-attack summon has no rate: the pets are named unscored, not guessed.
   s.cast_speed = after.cast_speed = 0;
   const auto n = score::compare(s, after, score::main_skills(s, p, db), p, db);
   CHECK(std::any_of(n.unscored.begin(), n.unscored.end(),
                     [](const score::Unscored& u) { return u.record.ends_with("venomousseed.dbr"); }));
+}
+
+TEST_CASE("score: a conversion moves the source type's DoT too, except to Pierce / Chaos / Aether (installed game; skips if absent)") {
+  // CombatAttributeAccumulator::ConvertDamage (0x119ED0): Sigil of Consumption deals Vitality and Vitality Decay.
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 50;
+  learn(s, 1, "records/skills/playerclass03/_classtraining_class03.dbr", 20);
+  learn(s, 2, "records/skills/playerclass03/sigilofdestruction1.dbr", 10);
+  auto share = [&](const std::map<score::DamageKey, double>& p, score::DamageKey k) {
+    const auto it = p.find(k);
+    return it != p.end() ? it->second : 0.0;
+  };
+  s.conversions = {{9, 7, 1.0f}};  // Vitality -> Acid: Vitality Decay becomes Poison
+  auto p = score::damage_profile(s, *db);
+  CHECK(share(p, {7, false}) > 0);
+  CHECK(share(p, {7, true}) > 0);
+  CHECK(share(p, {9, false}) == 0);
+  CHECK(share(p, {9, true}) == 0);
+  s.conversions = {{9, 10, 1.0f}};  // Vitality -> Chaos: Chaos has no DoT, Vitality Decay stays
+  p = score::damage_profile(s, *db);
+  CHECK(share(p, {10, false}) > 0);
+  CHECK(share(p, {10, true}) == 0);
+  CHECK(share(p, {9, true}) > 0);
+  CHECK(share(p, {9, false}) == 0);
+}
+
+TEST_CASE("score: gear ADCtH counts only on weapon-damage skills; a skill modifier's on its skill (installed game; skips if absent)") {
+  // Skill::CollectCombatParameters adds gear damage attributes only for weapon damage % > 0;
+  // DamageAttributeAbs_LifeLeech scales them by min(%/100, 1). Bramblevine's modifier: 15% on Dreeg's Evil Eye.
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.cast_speed = s.attack_speed = 2;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/playerclass03/evileye1.dbr", 12);
+  learn(s, 2, "records/skills/default/defaultweaponattack.dbr", 1);
+  snap::Snapshot after = s;
+  snap::Item ring = piece(4, "records/items/gearaccessories/rings/a002_ring02.dbr");
+  ring.stats->offensive_damage.push_back({20, false, 10, 10});  // 10% ADCtH
+  after.equipped.push_back(ring);
+  score::Preset p;
+  p.other["life_leech"] = {1.0, {}};
+  p.skills = {"records/skills/playerclass03/evileye1.dbr"};
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).ratio.other == doctest::Approx(1));
+  p.skills = {"records/skills/default/defaultweaponattack.dbr"};  // weaponDamagePct 100
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).ratio.other > 1.05);
+
+  p.skills = {"records/skills/playerclass03/evileye1.dbr"};
+  snap::ItemSkillModifier m;
+  m.skill_id = 1;
+  m.skill_record = "records/skills/playerclass03/evileye1.dbr";
+  m.modifier_record = "records/skills/itemskillsgdx2/skillmodifiers/legendary/shield_d203_evileye.dbr";
+  after = s;
+  after.item_skill_modifiers.push_back(m);
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).ratio.other > 1.1);  // + 0.15 x 1.0
+}
+
+TEST_CASE("utility: \"pets\" holds only for Class Pet summons, not PetPlayerScaling ones (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  snap::Skill bloom;  // Worldkeeper's Garden 4/4: Conjure Living Blossom -> itempet_livingplantbloom_01 (PetPlayerScaling)
+  bloom.record = "records/skills/itemskillsgdx3/legendary/conjurelivingbloom.dbr";
+  bloom.current_level = 1;
+  s.item_skills.push_back(bloom);
+  CHECK_FALSE(utility::context(s, db, "").pets);
+  learn(s, 1, "records/skills/playerclass03/summon_hellhound1.dbr", 3);  // -> pet_hellhound_a03 (Pet)
+  CHECK(utility::context(s, db, "").pets);
 }

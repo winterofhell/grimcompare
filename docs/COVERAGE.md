@@ -170,9 +170,9 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `hands` | C16 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `head` | C21 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `itemSetName` | I796 | set bonus at the old / new piece count (sets.cpp) |
-| `itemSkillAutoController` | I1438 C5 R37 X482 | granted skill: procs through gdc::effects (damage, RR, uptime); ungated passives through the record; the rest "+? unscored" with the reason |
-| `itemSkillLevelEq` | I1828 C55 A54 R103 X494 | granted skill: procs through gdc::effects (damage, RR, uptime); ungated passives through the record; the rest "+? unscored" with the reason |
-| `itemSkillName` | I1827 C55 A54 R103 X496 | granted skill: procs through gdc::effects (damage, RR, uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSkillAutoController` | I1438 C5 R37 X482 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSkillLevelEq` | I1828 C55 A54 R103 X494 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSkillName` | I1827 C55 A54 R103 X496 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
 | `legs` | C15 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `mace` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `mace2h` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
@@ -389,9 +389,9 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `scepter` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `shield` | C40 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `shoulders` | C17 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `skillCooldownReduction` | I1080 X447 | Other `cooldown_reduction` (items only) |
-| `skillCooldownReductionChance` | X6 | Other `cooldown_reduction` (items only) |
-| `skillManaCostReduction` | I18 C3 R4 X14 | Other `skill_cost_reduction` (items only) |
+| `skillCooldownReduction` | I1080 X447 | character total (schema 9): Damage (cooldown main skills), timed-buff uptime |
+| `skillCooldownReductionChance` | X6 | not read (the total is taken without the chance parts) |
+| `skillManaCostReduction` | I18 C3 R4 X14 | not scored (no energy model); shown in Shift |
 | `spear2h` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `sword` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `sword2h` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |

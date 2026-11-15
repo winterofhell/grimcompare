@@ -12,13 +12,17 @@ name = "plague-garden"
 # Hovering a piece of these sets notes how many are worn and which are missing (also below its level).
 target_sets = ["records/items/lootsets/itemset_d313.dbr"]  # Worldkeeper's Garden (helm, shoulders, chest, medal)
 
-# Auto picks this preset for a character whose masteries are Shaman and / or Occultist only, whose class skill
-# points go mostly to attack spells (archetype caster) AND whose main
-# skills (the 3 class attack skills with the most points, after conversions) deal at least min_share Acid +
-# Poison. Otherwise the generic preset (GDCompare.preset.toml) scores. The log says why either way.
+# winterpoison is bound to this preset: Auto picks it for that character at every level, with no mastery,
+# archetype or damage check (levelling skills deal Vitality / Physical until the conversion gear arrives, so
+# the min_share check below fails at stages 1-35).
+# Any other character: Auto picks it when its masteries are Shaman and / or Occultist only, its class skill
+# points go mostly to attack spells (archetype caster) AND its main skills (the 3 class attack skills with
+# the most points, after conversions) deal at least min_share Acid + Poison. Otherwise the generic preset
+# (GDCompare.preset.toml) scores. The log says why either way.
 # Note: Devouring Swarm (Vitality + Bleeding), Grasping Vines (Physical + Bleeding) and Bloody Pox (Vitality +
 # Bleeding) need conversion gear to count; Dreeg's Evil Eye is Acid + Poison by itself.
 [match]
+characters = ["winterpoison"]
 masteries = [
   "records/skills/playerclass06/_classtraining_class06.dbr",  # Shaman
   "records/skills/playerclass03/_classtraining_class03.dbr",  # Occultist
@@ -34,7 +38,9 @@ skill_weights = "points"
 # The guide forbids Acid -> Vitality / Cold / Fire, Physical -> Chaos / Fire, Vitality -> Chaos
 # (docs/build-ref/priorities.md §1); this list is wider (any output but Acid/Poison, design choice).
 # Vitality / Physical -> Acid (Bat, Groble Vile Effigy, Worldkeeper's Gaze, priorities §1) never warn.
-conversion_warn = ["poison->*", "vitality->*", "physical->*"]
+# A conversion names the direct type and moves its DoT too ("acid" = DB "Poison"; Acid -> X also moves Poison,
+# Vitality -> X Vitality Decay, Physical -> X Internal Trauma; docs/MECHANICS.md §2).
+conversion_warn = ["acid->*", "vitality->*", "physical->*"]
 
 # Utility stats (presets/default.toml lists what each value is). Weights follow docs/build-ref/priorities.md where
 # it says something (§ cited); the rest keep the default's design choices.
@@ -42,7 +48,9 @@ conversion_warn = ["poison->*", "vitality->*", "physical->*"]
 run_speed = 0.5                               # default
 life_regen = 0.05                             # §3.6 "% Health Regeneration scales hard" (set medal, Oak Skin, Behemoth): above default 0.02
 energy_regen = 0.02                           # default
-life_leech = 1.0                              # §2 ADCtH 12%+ (Yugol, Bat, Bramblevine): weighted high
+life_leech = 1.0                              # §2 ADCtH 12%+ (Yugol, Bat, Bramblevine): weighted high. Gear ADCtH
+                                              # reaches only weapon-damage skills (none here): the value is the
+                                              # main skills' own + modifiers' (Bramblevine), MECHANICS §6
 stun_resist = 0.1                             # default; the target is in [thresholds] (§2 75-80%)
 freeze_resist = 0.05                          # default; target in [thresholds] (§2 50%+)
 petrify_resist = 0.05                         # default
@@ -51,12 +59,11 @@ trap_resist = 0.05                            # default
 knockdown_resist = 0.05                       # default
 slow_resist = 0.05                            # default; target in [thresholds] (§2 50%+)
 disruption_resist = 0.05                      # default
-cooldown_reduction = 0.3                      # §3.5 "a little Cooldown Reduction" (DEE / Blood of Dreeg more often)
-skill_cost_reduction = 0.1                    # default
 experience = 0.2                              # default (0 at level 100)
 retaliation = 0                               # §1 "don't collect items for pure Retaliation: it breaks the DoT scaling"
 retaliation_modifier = 0                      # §1 "% Retaliation Damage Added to Attack is a free bonus": not sought
-pet_bonus = { weight = 0.2, when = "pets" }   # default (the set's Living Bud / Blossom pets)
+pet_bonus = { weight = 0.2, when = "pets" }   # default. Living Bloom / Blossom are PetPlayerScaling: no pet
+                                              # bonus, the player's own bonuses scale them (score as procs)
 default = 0.05                                # default
 
 [survival]

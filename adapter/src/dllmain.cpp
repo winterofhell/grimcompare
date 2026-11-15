@@ -1,18 +1,8 @@
-// Phase 1: load under the ASI loader, identify the game build, resolve every planned
-// Game.dll/Engine.dll symbol by exported name and log it. Fully passive: no hooks, no writes
-// to game memory, no engine calls except Engine::GetVersion (static string getter) after the
-// engine exists.
-// Gate (docs/RECON.md §6): disabled only if a required export is missing; an unknown
-// module hash just logs a warning.
-//
-// Safety rules (crash 2026-11-14, docs/BUILD.md "Safe-mode test"):
-// - DllMain: DisableThreadLibraryCalls + start one worker thread. Nothing else.
-// - Kill switch first (<mod dir>\GDCompare.disable or GDCOMPARE_DISABLE=1): the worker exits
-//   without logging or touching anything.
-// - First log line before any other work; every line goes straight to WriteFile (no user-space
-//   buffer), so after a crash the log ends at the last step reached.
-// - Each step runs under SEH; a fault logs, disables, returns. Nothing is rethrown.
-// - A vectored handler only logs faults whose address lies inside this module; it never handles.
+// Loads under the ASI loader, identifies the build, resolves exports. Only a missing required export disables
+// (docs/RECON.md §6); an unknown hash just warns.
+// Safety rules (crash 2026-11-14, docs/BUILD.md "Safe-mode test"): DllMain only starts one thread; the kill switch
+// (GDCompare.disable or GDCOMPARE_DISABLE=1) is checked first; log lines go straight to WriteFile so a crash
+// leaves the last step; each step runs under SEH; the vectored handler only logs faults inside this module.
 #include <windows.h>
 #include <bcrypt.h>
 #include <psapi.h>
@@ -32,16 +22,16 @@
 
 namespace {
 
-constexpr const char* kModVersion = "0.9.0 (accuracy pass: engine defense pipeline, crit tiers, monster table, top-3 parts)";
+constexpr const char* kModVersion = "0.9.7 (cooldown reduction on learned and devotion skills)";
 constexpr DWORD kPollMs = 250;
-// shortcut: generous fixed waits, no source for real load times — revisit when the Phase 1 log
-// shows how long modules / gGameEngine actually take.
+// shortcut: generous fixed waits, no source for real load times — revisit when the log shows how long modules
+// and gGameEngine actually take.
 constexpr DWORD kModulesTimeoutMs = 120'000;
 constexpr DWORD kEngineTimeoutMs = 300'000;
 
 HMODULE g_self = nullptr;
 std::uintptr_t g_self_begin = 0, g_self_end = 0;
-std::atomic<bool> g_enabled{false};  // read by the hook/snapshot code of later phases
+std::atomic<bool> g_enabled{false};
 std::atomic<long> g_veh_logged{0};
 constexpr long kVehMaxLines = 64;
 
@@ -82,7 +72,7 @@ std::string where(std::uintptr_t addr) {
   return buf;
 }
 
-// Vectored handler: log-only, lock-free, no heap (it can run on any thread, inside any state).
+// Can run on any thread in any state: log-only, lock-free, no heap.
 LONG CALLBACK fault_logger(EXCEPTION_POINTERS* ep) {
   const auto addr = reinterpret_cast<std::uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
   if (addr >= g_self_begin && addr < g_self_end && g_veh_logged.fetch_add(1) < kVehMaxLines)
@@ -130,14 +120,12 @@ std::optional<std::string> sha256_file(const std::wstring& path) {
   return out;
 }
 
-// --- steps
-
 struct Module {
   const wchar_t* name;
   HMODULE handle = nullptr;
   std::span<const std::byte> image;
   gdc::pe::ExportTable exports;
-  std::string build;  // known build version, "" if unknown
+  std::string build;
 };
 
 struct Ctx {
@@ -285,7 +273,7 @@ bool step_hooks(Ctx& c) {
   return gdc::adapter::hooks_install(resolver(c), {self_dir(), kModVersion, c.game.build});
 }
 
-// --- step runner. The SEH frame has no C++ objects; C++ exceptions are caught one level down.
+// The SEH frame holds no C++ objects; exceptions are caught one level down.
 
 using StepFn = bool (*)(Ctx&);
 enum StepResult : int { kFault = -2, kCppException = -1, kFailed = 0, kOk = 1 };
@@ -366,7 +354,7 @@ void start() {
   if (GetModuleInformation(GetCurrentProcess(), g_self, &mi, sizeof mi)) {
     g_self_begin = reinterpret_cast<std::uintptr_t>(mi.lpBaseOfDll);
     g_self_end = g_self_begin + mi.SizeOfImage;
-    // Stay mapped for the process lifetime: the vectored handler must never dangle.
+    // The vectored handler must never dangle.
     HMODULE pinned = nullptr;
     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                            reinterpret_cast<LPCWSTR>(&fault_logger), &pinned) &&

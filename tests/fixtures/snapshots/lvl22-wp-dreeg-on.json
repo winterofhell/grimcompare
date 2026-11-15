@@ -1,0 +1,7103 @@
+{
+  "schema": 8,
+  "mod_version": "0.9.2 (symmetric Damage, buffs at uptime only, weapons compared, can't-equip-yet scoring)",
+  "game_build": "v1.3.1.1 (x64)",
+  "taken_at": "2026-11-15T09:45:55.528Z",
+  "complete": true,
+  "character": {
+    "name": "winterpoison",
+    "level": 22,
+    "difficulty": 0,
+    "difficulty_name": "Normal",
+    "devotion_points_total": 7,
+    "devotion_current_level_sum": 8,
+    "life_max": 3403.0908,
+    "mana_max": 1060.32,
+    "attack_speed": 1.18125,
+    "cast_speed": 1.25,
+    "run_speed": 0.9672,
+    "run_speed_uncapped": 0.9672,
+    "defense_cap": 80.0,
+    "pth": {
+      "minimum": 55.0,
+      "crit_divisor_min": 100.0,
+      "thresholds": [
+        70.0,
+        90.0,
+        105.0,
+        120.0,
+        130.0,
+        135.0
+      ],
+      "damage_modifiers": [
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5
+      ]
+    }
+  },
+  "char_attributes": [
+    {
+      "type": 1,
+      "name": "Strength",
+      "total": 286.0,
+      "base": 194.0,
+      "points_spent": 18
+    },
+    {
+      "type": 2,
+      "name": "Dexterity",
+      "total": 132.0,
+      "base": 50.0
+    },
+    {
+      "type": 3,
+      "name": "Intelligence",
+      "total": 245.15999,
+      "modifier": 8.0,
+      "base": 74.0,
+      "points_spent": 3
+    },
+    {
+      "type": 4,
+      "name": "Life",
+      "total": 3403.0908,
+      "modifier": 19.0,
+      "base": 646.0
+    },
+    {
+      "type": 5,
+      "name": "Mana",
+      "total": 1060.32,
+      "base": 298.0
+    },
+    {
+      "type": 6,
+      "name": "LifeRegen",
+      "modifier": 24.0,
+      "total": 32.24
+    },
+    {
+      "type": 7,
+      "name": "ManaRegen",
+      "total": 4.2599998,
+      "modifier": 42.0
+    },
+    {
+      "type": 8,
+      "name": "ManaLimitReserve"
+    },
+    {
+      "type": 9,
+      "name": "ManaLimitReserveReduction"
+    },
+    {
+      "type": 10,
+      "name": "Constitution",
+      "total": 300.0,
+      "base": 300.0
+    },
+    {
+      "type": 11,
+      "name": "HealIncrease"
+    },
+    {
+      "type": 12,
+      "name": "PercentHealIncrease"
+    },
+    {
+      "type": 13,
+      "name": "TotalSpeed"
+    },
+    {
+      "type": 14,
+      "name": "RunSpeed",
+      "total": 0.9672,
+      "modifier": 4.0,
+      "base": 0.93
+    },
+    {
+      "type": 15,
+      "name": "AttackSpeed",
+      "total": 1.3125,
+      "base": 1.25,
+      "modifier": 5.0
+    },
+    {
+      "type": 16,
+      "name": "SpellCastSpeed",
+      "total": 1.25,
+      "base": 1.25
+    },
+    {
+      "type": 17,
+      "name": "BaseAttackSpeed",
+      "total": -0.099999994
+    },
+    {
+      "type": 18,
+      "name": "RunSpeedCap"
+    },
+    {
+      "type": 19,
+      "name": "AttackSpeedCap"
+    },
+    {
+      "type": 20,
+      "name": "SpellCastSpeedCap"
+    },
+    {
+      "type": 21,
+      "name": "OffensiveAbility",
+      "total": 169.0,
+      "base": 65.0
+    },
+    {
+      "type": 22,
+      "name": "OffensiveAbilityModifier",
+      "total": 4.0
+    },
+    {
+      "type": 23,
+      "name": "DefensiveAbility",
+      "total": 123.0,
+      "base": 65.0
+    },
+    {
+      "type": 24,
+      "name": "DefensiveAbilityModifier"
+    },
+    {
+      "type": 25,
+      "name": "DefensiveBlockRecoveryReduction"
+    },
+    {
+      "type": 26,
+      "name": "EnergyAbsorptionPercent"
+    },
+    {
+      "type": 27,
+      "name": "DodgePercent"
+    },
+    {
+      "type": 28,
+      "name": "DeflectProjectile"
+    },
+    {
+      "type": 29,
+      "name": "WeaponStrengthReqReduction"
+    },
+    {
+      "type": 30,
+      "name": "WeaponDexterityReqReduction"
+    },
+    {
+      "type": 31,
+      "name": "WeaponIntelligenceReqReduction"
+    },
+    {
+      "type": 32,
+      "name": "MeleeStrengthReqReduction"
+    },
+    {
+      "type": 33,
+      "name": "MeleeDexterityReqReduction"
+    },
+    {
+      "type": 34,
+      "name": "MeleeIntelligenceReqReduction"
+    },
+    {
+      "type": 35,
+      "name": "HuntingStrengthReqReduction"
+    },
+    {
+      "type": 36,
+      "name": "HuntingDexterityReqReduction"
+    },
+    {
+      "type": 37,
+      "name": "HuntingIntelligenceReqReduction"
+    },
+    {
+      "type": 38,
+      "name": "StaffStrengthReqReduction"
+    },
+    {
+      "type": 39,
+      "name": "StaffDexterityReqReduction"
+    },
+    {
+      "type": 40,
+      "name": "StaffIntelligenceReqReduction"
+    },
+    {
+      "type": 41,
+      "name": "Weapon2HStrengthReqReduction"
+    },
+    {
+      "type": 42,
+      "name": "Weapon2HDexterityReqReduction"
+    },
+    {
+      "type": 43,
+      "name": "Weapon2HIntelligenceReqReduction"
+    },
+    {
+      "type": 44,
+      "name": "ShieldStrengthReqReduction"
+    },
+    {
+      "type": 45,
+      "name": "ShieldDexterityReqReduction"
+    },
+    {
+      "type": 46,
+      "name": "ShieldIntelligenceReqReduction"
+    },
+    {
+      "type": 47,
+      "name": "ArmorStrengthReqReduction"
+    },
+    {
+      "type": 48,
+      "name": "ArmorDexterityReqReduction"
+    },
+    {
+      "type": 49,
+      "name": "ArmorIntelligenceReqReduction"
+    },
+    {
+      "type": 50,
+      "name": "JewelryStrengthReqReduction"
+    },
+    {
+      "type": 51,
+      "name": "JewelryDexterityReqReduction"
+    },
+    {
+      "type": 52,
+      "name": "JewelryIntelligenceReqReduction"
+    },
+    {
+      "type": 53,
+      "name": "GlobalReqReduction"
+    },
+    {
+      "type": 54,
+      "name": "LevelReqReduction"
+    },
+    {
+      "type": 55,
+      "name": "IncreasedExperience"
+    },
+    {
+      "type": 56,
+      "name": "IncreasedGold"
+    },
+    {
+      "type": 57,
+      "name": "LightRadius"
+    }
+  ],
+  "defense": [
+    {
+      "type": 4,
+      "name": "Pierce",
+      "defense": 25.0,
+      "processed": 25.0,
+      "capped": true
+    },
+    {
+      "type": 5,
+      "name": "Cold",
+      "defense": 108.0,
+      "processed": 80.0,
+      "capped": true
+    },
+    {
+      "type": 6,
+      "name": "Fire",
+      "defense": 122.0,
+      "processed": 80.0,
+      "capped": true
+    },
+    {
+      "type": 7,
+      "name": "Poison",
+      "defense": 59.0,
+      "processed": 59.0,
+      "capped": true
+    },
+    {
+      "type": 8,
+      "name": "Lightning",
+      "defense": 111.0,
+      "processed": 80.0,
+      "capped": true
+    },
+    {
+      "type": 9,
+      "name": "Life",
+      "defense": 30.0,
+      "processed": 30.0,
+      "capped": true
+    },
+    {
+      "type": 10,
+      "name": "Chaos",
+      "defense": 10.0,
+      "processed": 10.0,
+      "capped": true
+    },
+    {
+      "type": 11,
+      "name": "Aether",
+      "defense": 35.0,
+      "processed": 35.0,
+      "capped": true
+    },
+    {
+      "type": 15,
+      "name": "Bleeding",
+      "defense": 11.0,
+      "processed": 11.0,
+      "capped": true
+    },
+    {
+      "type": 16,
+      "name": "TotalSpeed",
+      "defense": 24.0,
+      "processed": 24.0
+    },
+    {
+      "type": 17,
+      "name": "AttackSpeed",
+      "defense": 24.0,
+      "processed": 24.0
+    },
+    {
+      "type": 18,
+      "name": "SpellCastSpeed",
+      "defense": 24.0,
+      "processed": 24.0
+    },
+    {
+      "type": 19,
+      "name": "RunSpeed",
+      "defense": 24.0,
+      "processed": 24.0
+    },
+    {
+      "type": 38,
+      "name": "AbsorptionProtection",
+      "defense": 648.0,
+      "processed": 667.44
+    },
+    {
+      "type": 40,
+      "name": "Protection",
+      "defense_modifier": 3.0
+    },
+    {
+      "type": 42,
+      "name": "Stun",
+      "defense": 27.0,
+      "processed": 27.0
+    },
+    {
+      "type": 45,
+      "name": "Freeze",
+      "defense": 21.0,
+      "processed": 21.0
+    },
+    {
+      "type": 46,
+      "name": "Petrify",
+      "defense": 21.0,
+      "processed": 21.0
+    }
+  ],
+  "damage_modifiers": [
+    {
+      "type": 4,
+      "name": "Pierce",
+      "damage_modifier": 39.0
+    },
+    {
+      "type": 5,
+      "name": "Cold",
+      "damage_modifier": 15.0,
+      "dot_modifier": 9.0
+    },
+    {
+      "type": 6,
+      "name": "Fire",
+      "damage_modifier": 15.0,
+      "dot_modifier": 9.0
+    },
+    {
+      "type": 7,
+      "name": "Poison",
+      "damage_modifier": 101.0,
+      "dot_modifier": 188.0
+    },
+    {
+      "type": 8,
+      "name": "Lightning",
+      "damage_modifier": 34.0,
+      "dot_modifier": 11.0
+    },
+    {
+      "type": 9,
+      "name": "Life",
+      "damage_modifier": 106.0,
+      "dot_modifier": 34.0
+    },
+    {
+      "type": 11,
+      "name": "Aether",
+      "damage_modifier": 30.0
+    },
+    {
+      "type": 15,
+      "name": "Bleeding",
+      "dot_modifier": 82.0
+    },
+    {
+      "type": 59,
+      "name": "CritDamageModifier",
+      "damage_modifier": 0.22999999
+    }
+  ],
+  "conversions": [
+    {
+      "from": 11,
+      "to": 7,
+      "from_name": "Aether",
+      "to_name": "Poison",
+      "percent": 1.0
+    },
+    {
+      "from": 2,
+      "to": 9,
+      "from_name": "Physical",
+      "to_name": "Life",
+      "percent": 0.1616342
+    },
+    {
+      "from": 58,
+      "to": 7,
+      "from_name": "Elemental",
+      "to_name": "Poison",
+      "percent": 0.45
+    }
+  ],
+  "skills": [
+    {
+      "id": 24196,
+      "record": "records/endlessdungeon/skills/powerups/shatteredessence_01.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24197,
+      "record": "records/endlessdungeon/skills/powerups/shatteredessence_01b.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24198,
+      "record": "records/endlessdungeon/skills/powerups/shatteredessence_01c.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24199,
+      "record": "records/endlessdungeon/skills/powerups/shatteredessence_01d.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24200,
+      "record": "records/endlessdungeon/skills/shrines/amatokwhisper.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24205,
+      "record": "records/endlessdungeon/skills/shrines/azrakaabargain.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24210,
+      "record": "records/endlessdungeon/skills/shrines/death.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24215,
+      "record": "records/endlessdungeon/skills/shrines/oleronbloodlust.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24220,
+      "record": "records/endlessdungeon/skills/shrines/rattoshveil.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19671,
+      "record": "records/skills/default/defaultevade.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19667,
+      "record": "records/skills/default/defaulthealthpotion.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1,
+      "modifier_ids": [
+        24150,
+        24151,
+        24152,
+        24153,
+        24154,
+        24158,
+        24161,
+        24162,
+        24163,
+        24165,
+        24166,
+        24169
+      ]
+    },
+    {
+      "id": 19662,
+      "record": "records/skills/default/defaultkickattack.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19669,
+      "record": "records/skills/default/defaultmanapotion.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1,
+      "modifier_ids": [
+        24173,
+        24174,
+        24175,
+        24176,
+        24177,
+        24181,
+        24184,
+        24185,
+        24186,
+        24188,
+        24189,
+        24192
+      ]
+    },
+    {
+      "id": 19664,
+      "record": "records/skills/default/defaultmoveto.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19666,
+      "record": "records/skills/default/defaultpetattack.dbr",
+      "type": 3,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19665,
+      "record": "records/skills/default/defaultweaponattack.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 19663,
+      "record": "records/skills/default/defaultwpbasicattack.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 20232,
+      "record": "records/skills/devotion/tier1_01a.dbr"
+    },
+    {
+      "id": 20233,
+      "record": "records/skills/devotion/tier1_01b.dbr"
+    },
+    {
+      "id": 20234,
+      "record": "records/skills/devotion/tier1_01c.dbr"
+    },
+    {
+      "id": 20235,
+      "record": "records/skills/devotion/tier1_01d.dbr"
+    },
+    {
+      "id": 20236,
+      "record": "records/skills/devotion/tier1_01e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20305,
+      "record": "records/skills/devotion/tier1_02a.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 21,
+            "name": "OffensiveAbility",
+            "value": 12.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 20306,
+      "record": "records/skills/devotion/tier1_02b.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 1,
+            "name": "Strength",
+            "value": 15.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 20307,
+      "record": "records/skills/devotion/tier1_02c.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 21,
+            "name": "OffensiveAbility",
+            "value": 18.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 20308,
+      "record": "records/skills/devotion/tier1_02d.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1
+    },
+    {
+      "id": 20309,
+      "record": "records/skills/devotion/tier1_02e_skill.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 2,
+      "devotion_level": 2,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20378,
+      "record": "records/skills/devotion/tier1_03a.dbr"
+    },
+    {
+      "id": 20379,
+      "record": "records/skills/devotion/tier1_03b.dbr"
+    },
+    {
+      "id": 20380,
+      "record": "records/skills/devotion/tier1_03c.dbr"
+    },
+    {
+      "id": 20381,
+      "record": "records/skills/devotion/tier1_03d.dbr"
+    },
+    {
+      "id": 20382,
+      "record": "records/skills/devotion/tier1_04a.dbr"
+    },
+    {
+      "id": 20383,
+      "record": "records/skills/devotion/tier1_04b.dbr"
+    },
+    {
+      "id": 20384,
+      "record": "records/skills/devotion/tier1_04c.dbr"
+    },
+    {
+      "id": 20385,
+      "record": "records/skills/devotion/tier1_05a.dbr"
+    },
+    {
+      "id": 20386,
+      "record": "records/skills/devotion/tier1_05b.dbr"
+    },
+    {
+      "id": 20387,
+      "record": "records/skills/devotion/tier1_05c.dbr"
+    },
+    {
+      "id": 20388,
+      "record": "records/skills/devotion/tier1_05d.dbr"
+    },
+    {
+      "id": 20389,
+      "record": "records/skills/devotion/tier1_05e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20409,
+      "record": "records/skills/devotion/tier1_06a.dbr"
+    },
+    {
+      "id": 20410,
+      "record": "records/skills/devotion/tier1_06b.dbr"
+    },
+    {
+      "id": 20411,
+      "record": "records/skills/devotion/tier1_06c.dbr"
+    },
+    {
+      "id": 20412,
+      "record": "records/skills/devotion/tier1_06d.dbr"
+    },
+    {
+      "id": 20413,
+      "record": "records/skills/devotion/tier1_06e_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20480,
+      "record": "records/skills/devotion/tier1_07a.dbr"
+    },
+    {
+      "id": 20481,
+      "record": "records/skills/devotion/tier1_07b.dbr"
+    },
+    {
+      "id": 20482,
+      "record": "records/skills/devotion/tier1_07c.dbr"
+    },
+    {
+      "id": 20483,
+      "record": "records/skills/devotion/tier1_07d.dbr"
+    },
+    {
+      "id": 20484,
+      "record": "records/skills/devotion/tier1_08a.dbr"
+    },
+    {
+      "id": 20485,
+      "record": "records/skills/devotion/tier1_08b.dbr"
+    },
+    {
+      "id": 20486,
+      "record": "records/skills/devotion/tier1_08c.dbr"
+    },
+    {
+      "id": 20487,
+      "record": "records/skills/devotion/tier1_08d.dbr"
+    },
+    {
+      "id": 20488,
+      "record": "records/skills/devotion/tier1_08e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20557,
+      "record": "records/skills/devotion/tier1_09a.dbr"
+    },
+    {
+      "id": 20558,
+      "record": "records/skills/devotion/tier1_09b.dbr"
+    },
+    {
+      "id": 20559,
+      "record": "records/skills/devotion/tier1_09c.dbr"
+    },
+    {
+      "id": 20560,
+      "record": "records/skills/devotion/tier1_09d.dbr"
+    },
+    {
+      "id": 20561,
+      "record": "records/skills/devotion/tier1_09e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20631,
+      "record": "records/skills/devotion/tier1_10a.dbr"
+    },
+    {
+      "id": 20632,
+      "record": "records/skills/devotion/tier1_10b.dbr"
+    },
+    {
+      "id": 20633,
+      "record": "records/skills/devotion/tier1_10c.dbr"
+    },
+    {
+      "id": 20634,
+      "record": "records/skills/devotion/tier1_10d.dbr"
+    },
+    {
+      "id": 20635,
+      "record": "records/skills/devotion/tier1_10e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20705,
+      "record": "records/skills/devotion/tier1_11a.dbr"
+    },
+    {
+      "id": 20706,
+      "record": "records/skills/devotion/tier1_11b.dbr"
+    },
+    {
+      "id": 20707,
+      "record": "records/skills/devotion/tier1_11c.dbr"
+    },
+    {
+      "id": 20708,
+      "record": "records/skills/devotion/tier1_12a.dbr"
+    },
+    {
+      "id": 20709,
+      "record": "records/skills/devotion/tier1_12b.dbr"
+    },
+    {
+      "id": 20710,
+      "record": "records/skills/devotion/tier1_12c.dbr"
+    },
+    {
+      "id": 20711,
+      "record": "records/skills/devotion/tier1_12d.dbr"
+    },
+    {
+      "id": 20712,
+      "record": "records/skills/devotion/tier1_13a.dbr"
+    },
+    {
+      "id": 20713,
+      "record": "records/skills/devotion/tier1_13b.dbr"
+    },
+    {
+      "id": 20714,
+      "record": "records/skills/devotion/tier1_13c.dbr"
+    },
+    {
+      "id": 20715,
+      "record": "records/skills/devotion/tier1_13d.dbr"
+    },
+    {
+      "id": 20716,
+      "record": "records/skills/devotion/tier1_14a.dbr"
+    },
+    {
+      "id": 20717,
+      "record": "records/skills/devotion/tier1_14b.dbr"
+    },
+    {
+      "id": 20718,
+      "record": "records/skills/devotion/tier1_14c.dbr"
+    },
+    {
+      "id": 20719,
+      "record": "records/skills/devotion/tier1_14d.dbr"
+    },
+    {
+      "id": 20720,
+      "record": "records/skills/devotion/tier1_15a.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 23,
+            "name": "DefensiveAbility",
+            "value": 18.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 20721,
+      "record": "records/skills/devotion/tier1_15b.dbr"
+    },
+    {
+      "id": 20722,
+      "record": "records/skills/devotion/tier1_15c.dbr"
+    },
+    {
+      "id": 20723,
+      "record": "records/skills/devotion/tier1_15d.dbr",
+      "level": 1,
+      "current_level": 1,
+      "devotion_level": 1,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 21,
+            "name": "OffensiveAbility",
+            "value": 18.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 20724,
+      "record": "records/skills/devotion/tier1_15e.dbr"
+    },
+    {
+      "id": 20725,
+      "record": "records/skills/devotion/tier1_16a.dbr"
+    },
+    {
+      "id": 20726,
+      "record": "records/skills/devotion/tier1_16b.dbr"
+    },
+    {
+      "id": 20727,
+      "record": "records/skills/devotion/tier1_16c.dbr"
+    },
+    {
+      "id": 20728,
+      "record": "records/skills/devotion/tier1_16d.dbr"
+    },
+    {
+      "id": 20729,
+      "record": "records/skills/devotion/tier1_17a.dbr"
+    },
+    {
+      "id": 20730,
+      "record": "records/skills/devotion/tier1_17b.dbr"
+    },
+    {
+      "id": 20731,
+      "record": "records/skills/devotion/tier1_17c.dbr"
+    },
+    {
+      "id": 20732,
+      "record": "records/skills/devotion/tier1_17d.dbr"
+    },
+    {
+      "id": 20733,
+      "record": "records/skills/devotion/tier1_18a.dbr"
+    },
+    {
+      "id": 20734,
+      "record": "records/skills/devotion/tier1_18b.dbr"
+    },
+    {
+      "id": 20735,
+      "record": "records/skills/devotion/tier1_18c.dbr"
+    },
+    {
+      "id": 20736,
+      "record": "records/skills/devotion/tier1_18d.dbr"
+    },
+    {
+      "id": 20737,
+      "record": "records/skills/devotion/tier1_18e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20810,
+      "record": "records/skills/devotion/tier1_19a.dbr"
+    },
+    {
+      "id": 20811,
+      "record": "records/skills/devotion/tier1_19b.dbr"
+    },
+    {
+      "id": 20812,
+      "record": "records/skills/devotion/tier1_19c.dbr"
+    },
+    {
+      "id": 20813,
+      "record": "records/skills/devotion/tier1_19d.dbr"
+    },
+    {
+      "id": 20814,
+      "record": "records/skills/devotion/tier1_19e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20883,
+      "record": "records/skills/devotion/tier1_20a.dbr"
+    },
+    {
+      "id": 20884,
+      "record": "records/skills/devotion/tier1_20b.dbr"
+    },
+    {
+      "id": 20885,
+      "record": "records/skills/devotion/tier1_20c.dbr"
+    },
+    {
+      "id": 20886,
+      "record": "records/skills/devotion/tier1_20d.dbr"
+    },
+    {
+      "id": 20887,
+      "record": "records/skills/devotion/tier1_20e_skill.dbr",
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20956,
+      "record": "records/skills/devotion/tier1_21a.dbr"
+    },
+    {
+      "id": 20957,
+      "record": "records/skills/devotion/tier1_21b.dbr"
+    },
+    {
+      "id": 20958,
+      "record": "records/skills/devotion/tier1_21c.dbr"
+    },
+    {
+      "id": 20959,
+      "record": "records/skills/devotion/tier1_21d.dbr"
+    },
+    {
+      "id": 23307,
+      "record": "records/skills/devotion/tier1_21e_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20960,
+      "record": "records/skills/devotion/tier1_22a.dbr"
+    },
+    {
+      "id": 20961,
+      "record": "records/skills/devotion/tier1_22b.dbr"
+    },
+    {
+      "id": 20962,
+      "record": "records/skills/devotion/tier1_22c.dbr"
+    },
+    {
+      "id": 20963,
+      "record": "records/skills/devotion/tier1_22d.dbr"
+    },
+    {
+      "id": 20964,
+      "record": "records/skills/devotion/tier1_23a.dbr"
+    },
+    {
+      "id": 20965,
+      "record": "records/skills/devotion/tier1_23b.dbr"
+    },
+    {
+      "id": 20966,
+      "record": "records/skills/devotion/tier1_23c.dbr"
+    },
+    {
+      "id": 20967,
+      "record": "records/skills/devotion/tier1_23d.dbr"
+    },
+    {
+      "id": 20968,
+      "record": "records/skills/devotion/tier1_24a.dbr"
+    },
+    {
+      "id": 20969,
+      "record": "records/skills/devotion/tier1_24b.dbr"
+    },
+    {
+      "id": 20970,
+      "record": "records/skills/devotion/tier1_24c.dbr"
+    },
+    {
+      "id": 20971,
+      "record": "records/skills/devotion/tier1_24d.dbr"
+    },
+    {
+      "id": 20972,
+      "record": "records/skills/devotion/tier1_25a.dbr"
+    },
+    {
+      "id": 20973,
+      "record": "records/skills/devotion/tier1_25b.dbr"
+    },
+    {
+      "id": 20974,
+      "record": "records/skills/devotion/tier1_25c.dbr"
+    },
+    {
+      "id": 20975,
+      "record": "records/skills/devotion/tier1_25d.dbr"
+    },
+    {
+      "id": 23264,
+      "record": "records/skills/devotion/tier1_25e_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20976,
+      "record": "records/skills/devotion/tier1_26a.dbr"
+    },
+    {
+      "id": 20977,
+      "record": "records/skills/devotion/tier1_26b.dbr"
+    },
+    {
+      "id": 20978,
+      "record": "records/skills/devotion/tier1_26c.dbr"
+    },
+    {
+      "id": 20979,
+      "record": "records/skills/devotion/tier1_26d.dbr"
+    },
+    {
+      "id": 23197,
+      "record": "records/skills/devotion/tier1_26e_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20980,
+      "record": "records/skills/devotion/tier1_27a.dbr"
+    },
+    {
+      "id": 20981,
+      "record": "records/skills/devotion/tier1_27b.dbr"
+    },
+    {
+      "id": 20982,
+      "record": "records/skills/devotion/tier1_27c.dbr"
+    },
+    {
+      "id": 20983,
+      "record": "records/skills/devotion/tier1_28a.dbr"
+    },
+    {
+      "id": 20984,
+      "record": "records/skills/devotion/tier1_28b.dbr"
+    },
+    {
+      "id": 20985,
+      "record": "records/skills/devotion/tier1_28c.dbr"
+    },
+    {
+      "id": 20986,
+      "record": "records/skills/devotion/tier1_28d.dbr"
+    },
+    {
+      "id": 20987,
+      "record": "records/skills/devotion/tier1_28e.dbr"
+    },
+    {
+      "id": 20988,
+      "record": "records/skills/devotion/tier1_29a.dbr"
+    },
+    {
+      "id": 20989,
+      "record": "records/skills/devotion/tier1_29b.dbr"
+    },
+    {
+      "id": 20990,
+      "record": "records/skills/devotion/tier1_29c.dbr"
+    },
+    {
+      "id": 20991,
+      "record": "records/skills/devotion/tier1_29d.dbr"
+    },
+    {
+      "id": 23285,
+      "record": "records/skills/devotion/tier1_29e_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 25
+    },
+    {
+      "id": 20992,
+      "record": "records/skills/devotion/tier1_30a.dbr"
+    },
+    {
+      "id": 20993,
+      "record": "records/skills/devotion/tier1_30b.dbr"
+    },
+    {
+      "id": 20994,
+      "record": "records/skills/devotion/tier1_30c.dbr"
+    },
+    {
+      "id": 20995,
+      "record": "records/skills/devotion/tier1_30d.dbr"
+    },
+    {
+      "id": 20996,
+      "record": "records/skills/devotion/tier1_31a.dbr"
+    },
+    {
+      "id": 20997,
+      "record": "records/skills/devotion/tier1_31b.dbr"
+    },
+    {
+      "id": 20998,
+      "record": "records/skills/devotion/tier1_31c.dbr"
+    },
+    {
+      "id": 20999,
+      "record": "records/skills/devotion/tier1_31d.dbr"
+    },
+    {
+      "id": 21000,
+      "record": "records/skills/devotion/tier1_31e.dbr"
+    },
+    {
+      "id": 21001,
+      "record": "records/skills/devotion/tier1_32a.dbr"
+    },
+    {
+      "id": 21002,
+      "record": "records/skills/devotion/tier1_32b.dbr"
+    },
+    {
+      "id": 21003,
+      "record": "records/skills/devotion/tier1_32c.dbr"
+    },
+    {
+      "id": 21004,
+      "record": "records/skills/devotion/tier1_32d.dbr"
+    },
+    {
+      "id": 21005,
+      "record": "records/skills/devotion/tier1_32e.dbr"
+    },
+    {
+      "id": 21006,
+      "record": "records/skills/devotion/tier1_33a.dbr"
+    },
+    {
+      "id": 21007,
+      "record": "records/skills/devotion/tier1_33b.dbr"
+    },
+    {
+      "id": 21008,
+      "record": "records/skills/devotion/tier1_33c.dbr"
+    },
+    {
+      "id": 21009,
+      "record": "records/skills/devotion/tier1_34a.dbr"
+    },
+    {
+      "id": 21010,
+      "record": "records/skills/devotion/tier1_34b.dbr"
+    },
+    {
+      "id": 21011,
+      "record": "records/skills/devotion/tier1_34c.dbr"
+    },
+    {
+      "id": 21012,
+      "record": "records/skills/devotion/tier1_34d.dbr"
+    },
+    {
+      "id": 21013,
+      "record": "records/skills/devotion/tier1_34e.dbr"
+    },
+    {
+      "id": 21014,
+      "record": "records/skills/devotion/tier1_35a.dbr"
+    },
+    {
+      "id": 21015,
+      "record": "records/skills/devotion/tier1_35b.dbr"
+    },
+    {
+      "id": 21016,
+      "record": "records/skills/devotion/tier1_35c.dbr"
+    },
+    {
+      "id": 23376,
+      "record": "records/skills/devotion/tier1_36a.dbr"
+    },
+    {
+      "id": 23377,
+      "record": "records/skills/devotion/tier1_36b.dbr"
+    },
+    {
+      "id": 23378,
+      "record": "records/skills/devotion/tier1_36c.dbr"
+    },
+    {
+      "id": 23379,
+      "record": "records/skills/devotion/tier1_37a.dbr"
+    },
+    {
+      "id": 23380,
+      "record": "records/skills/devotion/tier1_37b.dbr"
+    },
+    {
+      "id": 23381,
+      "record": "records/skills/devotion/tier1_37c.dbr"
+    },
+    {
+      "id": 23382,
+      "record": "records/skills/devotion/tier1_38a.dbr"
+    },
+    {
+      "id": 23383,
+      "record": "records/skills/devotion/tier1_38b.dbr"
+    },
+    {
+      "id": 23384,
+      "record": "records/skills/devotion/tier1_38c.dbr"
+    },
+    {
+      "id": 23385,
+      "record": "records/skills/devotion/tier1_39a.dbr"
+    },
+    {
+      "id": 23386,
+      "record": "records/skills/devotion/tier1_39b.dbr"
+    },
+    {
+      "id": 23387,
+      "record": "records/skills/devotion/tier1_39c.dbr"
+    },
+    {
+      "id": 23388,
+      "record": "records/skills/devotion/tier1_39d.dbr"
+    },
+    {
+      "id": 23389,
+      "record": "records/skills/devotion/tier1_40a.dbr"
+    },
+    {
+      "id": 23390,
+      "record": "records/skills/devotion/tier1_40b.dbr"
+    },
+    {
+      "id": 23391,
+      "record": "records/skills/devotion/tier1_40c.dbr"
+    },
+    {
+      "id": 23392,
+      "record": "records/skills/devotion/tier1_40d.dbr"
+    },
+    {
+      "id": 23393,
+      "record": "records/skills/devotion/tier1_41a.dbr"
+    },
+    {
+      "id": 23394,
+      "record": "records/skills/devotion/tier1_41b.dbr"
+    },
+    {
+      "id": 23395,
+      "record": "records/skills/devotion/tier1_41c.dbr"
+    },
+    {
+      "id": 23396,
+      "record": "records/skills/devotion/tier1_41d.dbr"
+    },
+    {
+      "id": 23397,
+      "record": "records/skills/devotion/tier1_42a.dbr"
+    },
+    {
+      "id": 23398,
+      "record": "records/skills/devotion/tier1_42b.dbr"
+    },
+    {
+      "id": 23399,
+      "record": "records/skills/devotion/tier1_42c.dbr"
+    },
+    {
+      "id": 23400,
+      "record": "records/skills/devotion/tier1_42d.dbr"
+    },
+    {
+      "id": 23859,
+      "record": "records/skills/devotion/tier1_43a.dbr"
+    },
+    {
+      "id": 23860,
+      "record": "records/skills/devotion/tier1_43b.dbr"
+    },
+    {
+      "id": 23861,
+      "record": "records/skills/devotion/tier1_43c.dbr"
+    },
+    {
+      "id": 23862,
+      "record": "records/skills/devotion/tier1_43d.dbr"
+    },
+    {
+      "id": 23863,
+      "record": "records/skills/devotion/tier1_44a.dbr"
+    },
+    {
+      "id": 23864,
+      "record": "records/skills/devotion/tier1_44b.dbr"
+    },
+    {
+      "id": 23865,
+      "record": "records/skills/devotion/tier1_44c.dbr"
+    },
+    {
+      "id": 23866,
+      "record": "records/skills/devotion/tier1_44d.dbr"
+    },
+    {
+      "id": 23867,
+      "record": "records/skills/devotion/tier1_45a.dbr"
+    },
+    {
+      "id": 23868,
+      "record": "records/skills/devotion/tier1_45b.dbr"
+    },
+    {
+      "id": 23869,
+      "record": "records/skills/devotion/tier1_45c.dbr"
+    },
+    {
+      "id": 23870,
+      "record": "records/skills/devotion/tier1_45d.dbr"
+    },
+    {
+      "id": 23871,
+      "record": "records/skills/devotion/tier1_46a.dbr"
+    },
+    {
+      "id": 23872,
+      "record": "records/skills/devotion/tier1_46b.dbr"
+    },
+    {
+      "id": 23873,
+      "record": "records/skills/devotion/tier1_46c.dbr"
+    },
+    {
+      "id": 23874,
+      "record": "records/skills/devotion/tier1_46d.dbr"
+    },
+    {
+      "id": 21017,
+      "record": "records/skills/devotion/tier2_01a.dbr"
+    },
+    {
+      "id": 21018,
+      "record": "records/skills/devotion/tier2_01b.dbr"
+    },
+    {
+      "id": 21019,
+      "record": "records/skills/devotion/tier2_01c_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21089,
+      "record": "records/skills/devotion/tier2_01d.dbr"
+    },
+    {
+      "id": 21090,
+      "record": "records/skills/devotion/tier2_01e.dbr"
+    },
+    {
+      "id": 21091,
+      "record": "records/skills/devotion/tier2_02a.dbr"
+    },
+    {
+      "id": 21092,
+      "record": "records/skills/devotion/tier2_02b.dbr"
+    },
+    {
+      "id": 21093,
+      "record": "records/skills/devotion/tier2_02c.dbr"
+    },
+    {
+      "id": 21094,
+      "record": "records/skills/devotion/tier2_02d.dbr"
+    },
+    {
+      "id": 21095,
+      "record": "records/skills/devotion/tier2_02e.dbr"
+    },
+    {
+      "id": 21096,
+      "record": "records/skills/devotion/tier2_02f_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21117,
+      "record": "records/skills/devotion/tier2_03a.dbr"
+    },
+    {
+      "id": 21118,
+      "record": "records/skills/devotion/tier2_03b.dbr"
+    },
+    {
+      "id": 21119,
+      "record": "records/skills/devotion/tier2_03c.dbr"
+    },
+    {
+      "id": 21120,
+      "record": "records/skills/devotion/tier2_03d.dbr"
+    },
+    {
+      "id": 21121,
+      "record": "records/skills/devotion/tier2_03e.dbr"
+    },
+    {
+      "id": 21122,
+      "record": "records/skills/devotion/tier2_03f_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21192,
+      "record": "records/skills/devotion/tier2_04a.dbr"
+    },
+    {
+      "id": 21193,
+      "record": "records/skills/devotion/tier2_04b.dbr"
+    },
+    {
+      "id": 21194,
+      "record": "records/skills/devotion/tier2_04c.dbr"
+    },
+    {
+      "id": 21195,
+      "record": "records/skills/devotion/tier2_04d.dbr"
+    },
+    {
+      "id": 21196,
+      "record": "records/skills/devotion/tier2_04e.dbr"
+    },
+    {
+      "id": 21197,
+      "record": "records/skills/devotion/tier2_04f.dbr"
+    },
+    {
+      "id": 21198,
+      "record": "records/skills/devotion/tier2_04g_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21268,
+      "record": "records/skills/devotion/tier2_05a.dbr"
+    },
+    {
+      "id": 21269,
+      "record": "records/skills/devotion/tier2_05b.dbr"
+    },
+    {
+      "id": 21270,
+      "record": "records/skills/devotion/tier2_05c.dbr"
+    },
+    {
+      "id": 21271,
+      "record": "records/skills/devotion/tier2_05d.dbr"
+    },
+    {
+      "id": 21272,
+      "record": "records/skills/devotion/tier2_05e.dbr"
+    },
+    {
+      "id": 21273,
+      "record": "records/skills/devotion/tier2_05f_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21342,
+      "record": "records/skills/devotion/tier2_06a.dbr"
+    },
+    {
+      "id": 21343,
+      "record": "records/skills/devotion/tier2_06b.dbr"
+    },
+    {
+      "id": 21344,
+      "record": "records/skills/devotion/tier2_06c.dbr"
+    },
+    {
+      "id": 21345,
+      "record": "records/skills/devotion/tier2_06d.dbr"
+    },
+    {
+      "id": 21346,
+      "record": "records/skills/devotion/tier2_06e.dbr"
+    },
+    {
+      "id": 21347,
+      "record": "records/skills/devotion/tier2_06f.dbr"
+    },
+    {
+      "id": 21348,
+      "record": "records/skills/devotion/tier2_06g_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21416,
+      "record": "records/skills/devotion/tier2_07a.dbr"
+    },
+    {
+      "id": 21417,
+      "record": "records/skills/devotion/tier2_07b.dbr"
+    },
+    {
+      "id": 21418,
+      "record": "records/skills/devotion/tier2_07c.dbr"
+    },
+    {
+      "id": 21419,
+      "record": "records/skills/devotion/tier2_07d.dbr"
+    },
+    {
+      "id": 21420,
+      "record": "records/skills/devotion/tier2_07e.dbr"
+    },
+    {
+      "id": 21421,
+      "record": "records/skills/devotion/tier2_07f.dbr"
+    },
+    {
+      "id": 21422,
+      "record": "records/skills/devotion/tier2_07g_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21492,
+      "record": "records/skills/devotion/tier2_08a.dbr"
+    },
+    {
+      "id": 21493,
+      "record": "records/skills/devotion/tier2_08b.dbr"
+    },
+    {
+      "id": 21494,
+      "record": "records/skills/devotion/tier2_08c.dbr"
+    },
+    {
+      "id": 21495,
+      "record": "records/skills/devotion/tier2_08d.dbr"
+    },
+    {
+      "id": 21496,
+      "record": "records/skills/devotion/tier2_08e.dbr"
+    },
+    {
+      "id": 21497,
+      "record": "records/skills/devotion/tier2_08f.dbr"
+    },
+    {
+      "id": 21498,
+      "record": "records/skills/devotion/tier2_08g_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21518,
+      "record": "records/skills/devotion/tier2_09a.dbr"
+    },
+    {
+      "id": 21519,
+      "record": "records/skills/devotion/tier2_09b.dbr"
+    },
+    {
+      "id": 21520,
+      "record": "records/skills/devotion/tier2_09c.dbr"
+    },
+    {
+      "id": 21521,
+      "record": "records/skills/devotion/tier2_09d.dbr"
+    },
+    {
+      "id": 21522,
+      "record": "records/skills/devotion/tier2_09e.dbr"
+    },
+    {
+      "id": 21523,
+      "record": "records/skills/devotion/tier2_09f_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21590,
+      "record": "records/skills/devotion/tier2_10a.dbr"
+    },
+    {
+      "id": 21591,
+      "record": "records/skills/devotion/tier2_10b.dbr"
+    },
+    {
+      "id": 21592,
+      "record": "records/skills/devotion/tier2_10c.dbr"
+    },
+    {
+      "id": 21593,
+      "record": "records/skills/devotion/tier2_10d.dbr"
+    },
+    {
+      "id": 21594,
+      "record": "records/skills/devotion/tier2_10e.dbr"
+    },
+    {
+      "id": 21595,
+      "record": "records/skills/devotion/tier2_10f_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21662,
+      "record": "records/skills/devotion/tier2_11a.dbr"
+    },
+    {
+      "id": 21663,
+      "record": "records/skills/devotion/tier2_11b.dbr"
+    },
+    {
+      "id": 21664,
+      "record": "records/skills/devotion/tier2_11c.dbr"
+    },
+    {
+      "id": 21665,
+      "record": "records/skills/devotion/tier2_11d.dbr"
+    },
+    {
+      "id": 21666,
+      "record": "records/skills/devotion/tier2_11e_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21736,
+      "record": "records/skills/devotion/tier2_12a.dbr"
+    },
+    {
+      "id": 21737,
+      "record": "records/skills/devotion/tier2_12b.dbr"
+    },
+    {
+      "id": 21738,
+      "record": "records/skills/devotion/tier2_12c.dbr"
+    },
+    {
+      "id": 21739,
+      "record": "records/skills/devotion/tier2_12d.dbr"
+    },
+    {
+      "id": 21740,
+      "record": "records/skills/devotion/tier2_12e_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21807,
+      "record": "records/skills/devotion/tier2_13a.dbr"
+    },
+    {
+      "id": 21808,
+      "record": "records/skills/devotion/tier2_13b.dbr"
+    },
+    {
+      "id": 21809,
+      "record": "records/skills/devotion/tier2_13c.dbr"
+    },
+    {
+      "id": 21810,
+      "record": "records/skills/devotion/tier2_13d.dbr"
+    },
+    {
+      "id": 21811,
+      "record": "records/skills/devotion/tier2_13e.dbr"
+    },
+    {
+      "id": 21812,
+      "record": "records/skills/devotion/tier2_13f.dbr"
+    },
+    {
+      "id": 21813,
+      "record": "records/skills/devotion/tier2_13g_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21883,
+      "record": "records/skills/devotion/tier2_14a.dbr"
+    },
+    {
+      "id": 21884,
+      "record": "records/skills/devotion/tier2_14b.dbr"
+    },
+    {
+      "id": 21885,
+      "record": "records/skills/devotion/tier2_14c.dbr"
+    },
+    {
+      "id": 21886,
+      "record": "records/skills/devotion/tier2_14d.dbr"
+    },
+    {
+      "id": 21887,
+      "record": "records/skills/devotion/tier2_14e.dbr"
+    },
+    {
+      "id": 21888,
+      "record": "records/skills/devotion/tier2_14f.dbr"
+    },
+    {
+      "id": 21889,
+      "record": "records/skills/devotion/tier2_14g_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 21956,
+      "record": "records/skills/devotion/tier2_15a.dbr"
+    },
+    {
+      "id": 21957,
+      "record": "records/skills/devotion/tier2_15b.dbr"
+    },
+    {
+      "id": 21958,
+      "record": "records/skills/devotion/tier2_15c.dbr"
+    },
+    {
+      "id": 21959,
+      "record": "records/skills/devotion/tier2_15d.dbr"
+    },
+    {
+      "id": 21960,
+      "record": "records/skills/devotion/tier2_15e.dbr"
+    },
+    {
+      "id": 21961,
+      "record": "records/skills/devotion/tier2_15f.dbr"
+    },
+    {
+      "id": 21962,
+      "record": "records/skills/devotion/tier2_15g_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22031,
+      "record": "records/skills/devotion/tier2_16a.dbr"
+    },
+    {
+      "id": 22032,
+      "record": "records/skills/devotion/tier2_16b.dbr"
+    },
+    {
+      "id": 22033,
+      "record": "records/skills/devotion/tier2_16c_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22054,
+      "record": "records/skills/devotion/tier2_16d.dbr"
+    },
+    {
+      "id": 22055,
+      "record": "records/skills/devotion/tier2_16e.dbr"
+    },
+    {
+      "id": 22056,
+      "record": "records/skills/devotion/tier2_16f.dbr"
+    },
+    {
+      "id": 22057,
+      "record": "records/skills/devotion/tier2_16g.dbr"
+    },
+    {
+      "id": 22058,
+      "record": "records/skills/devotion/tier2_17a.dbr"
+    },
+    {
+      "id": 22059,
+      "record": "records/skills/devotion/tier2_17b.dbr"
+    },
+    {
+      "id": 22060,
+      "record": "records/skills/devotion/tier2_17c_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22082,
+      "record": "records/skills/devotion/tier2_17d.dbr"
+    },
+    {
+      "id": 22083,
+      "record": "records/skills/devotion/tier2_17e.dbr"
+    },
+    {
+      "id": 22084,
+      "record": "records/skills/devotion/tier2_18a.dbr"
+    },
+    {
+      "id": 22085,
+      "record": "records/skills/devotion/tier2_18b.dbr"
+    },
+    {
+      "id": 22086,
+      "record": "records/skills/devotion/tier2_18c.dbr"
+    },
+    {
+      "id": 22087,
+      "record": "records/skills/devotion/tier2_18d.dbr"
+    },
+    {
+      "id": 22088,
+      "record": "records/skills/devotion/tier2_18e.dbr"
+    },
+    {
+      "id": 22089,
+      "record": "records/skills/devotion/tier2_18f_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22160,
+      "record": "records/skills/devotion/tier2_19a.dbr"
+    },
+    {
+      "id": 22161,
+      "record": "records/skills/devotion/tier2_19b.dbr"
+    },
+    {
+      "id": 22162,
+      "record": "records/skills/devotion/tier2_19c.dbr"
+    },
+    {
+      "id": 22163,
+      "record": "records/skills/devotion/tier2_19d.dbr"
+    },
+    {
+      "id": 22164,
+      "record": "records/skills/devotion/tier2_19e.dbr"
+    },
+    {
+      "id": 22165,
+      "record": "records/skills/devotion/tier2_20a.dbr"
+    },
+    {
+      "id": 22166,
+      "record": "records/skills/devotion/tier2_20b.dbr"
+    },
+    {
+      "id": 22167,
+      "record": "records/skills/devotion/tier2_20c.dbr"
+    },
+    {
+      "id": 22168,
+      "record": "records/skills/devotion/tier2_20d.dbr"
+    },
+    {
+      "id": 22169,
+      "record": "records/skills/devotion/tier2_20e.dbr"
+    },
+    {
+      "id": 22170,
+      "record": "records/skills/devotion/tier2_20f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22191,
+      "record": "records/skills/devotion/tier2_21a.dbr"
+    },
+    {
+      "id": 22192,
+      "record": "records/skills/devotion/tier2_21b.dbr"
+    },
+    {
+      "id": 22193,
+      "record": "records/skills/devotion/tier2_21c.dbr"
+    },
+    {
+      "id": 22194,
+      "record": "records/skills/devotion/tier2_21d.dbr"
+    },
+    {
+      "id": 22195,
+      "record": "records/skills/devotion/tier2_21e.dbr"
+    },
+    {
+      "id": 22196,
+      "record": "records/skills/devotion/tier2_22a.dbr"
+    },
+    {
+      "id": 22197,
+      "record": "records/skills/devotion/tier2_22b.dbr"
+    },
+    {
+      "id": 22198,
+      "record": "records/skills/devotion/tier2_22c.dbr"
+    },
+    {
+      "id": 22199,
+      "record": "records/skills/devotion/tier2_22d.dbr"
+    },
+    {
+      "id": 22200,
+      "record": "records/skills/devotion/tier2_22e.dbr"
+    },
+    {
+      "id": 22201,
+      "record": "records/skills/devotion/tier2_22f.dbr"
+    },
+    {
+      "id": 22202,
+      "record": "records/skills/devotion/tier2_23a.dbr"
+    },
+    {
+      "id": 22203,
+      "record": "records/skills/devotion/tier2_23b.dbr"
+    },
+    {
+      "id": 22204,
+      "record": "records/skills/devotion/tier2_23c.dbr"
+    },
+    {
+      "id": 22205,
+      "record": "records/skills/devotion/tier2_23d.dbr"
+    },
+    {
+      "id": 22206,
+      "record": "records/skills/devotion/tier2_23e.dbr"
+    },
+    {
+      "id": 22207,
+      "record": "records/skills/devotion/tier2_23f.dbr"
+    },
+    {
+      "id": 22208,
+      "record": "records/skills/devotion/tier2_24a.dbr"
+    },
+    {
+      "id": 22209,
+      "record": "records/skills/devotion/tier2_24b.dbr"
+    },
+    {
+      "id": 22210,
+      "record": "records/skills/devotion/tier2_24c.dbr"
+    },
+    {
+      "id": 22211,
+      "record": "records/skills/devotion/tier2_24d.dbr"
+    },
+    {
+      "id": 22212,
+      "record": "records/skills/devotion/tier2_24e.dbr"
+    },
+    {
+      "id": 22213,
+      "record": "records/skills/devotion/tier2_24f.dbr"
+    },
+    {
+      "id": 22214,
+      "record": "records/skills/devotion/tier2_25a.dbr"
+    },
+    {
+      "id": 22215,
+      "record": "records/skills/devotion/tier2_25b.dbr"
+    },
+    {
+      "id": 22216,
+      "record": "records/skills/devotion/tier2_25c.dbr"
+    },
+    {
+      "id": 22217,
+      "record": "records/skills/devotion/tier2_25d.dbr"
+    },
+    {
+      "id": 22218,
+      "record": "records/skills/devotion/tier2_25e.dbr"
+    },
+    {
+      "id": 22219,
+      "record": "records/skills/devotion/tier2_25f.dbr"
+    },
+    {
+      "id": 22220,
+      "record": "records/skills/devotion/tier2_26a.dbr"
+    },
+    {
+      "id": 22221,
+      "record": "records/skills/devotion/tier2_26b.dbr"
+    },
+    {
+      "id": 22222,
+      "record": "records/skills/devotion/tier2_26c.dbr"
+    },
+    {
+      "id": 22223,
+      "record": "records/skills/devotion/tier2_26d.dbr"
+    },
+    {
+      "id": 22224,
+      "record": "records/skills/devotion/tier2_26e.dbr"
+    },
+    {
+      "id": 22225,
+      "record": "records/skills/devotion/tier2_27a.dbr"
+    },
+    {
+      "id": 22226,
+      "record": "records/skills/devotion/tier2_27b.dbr"
+    },
+    {
+      "id": 22227,
+      "record": "records/skills/devotion/tier2_27c.dbr"
+    },
+    {
+      "id": 22228,
+      "record": "records/skills/devotion/tier2_27d.dbr"
+    },
+    {
+      "id": 22229,
+      "record": "records/skills/devotion/tier2_27e.dbr"
+    },
+    {
+      "id": 22230,
+      "record": "records/skills/devotion/tier2_27f.dbr"
+    },
+    {
+      "id": 22231,
+      "record": "records/skills/devotion/tier2_28a.dbr"
+    },
+    {
+      "id": 22232,
+      "record": "records/skills/devotion/tier2_28b.dbr"
+    },
+    {
+      "id": 22233,
+      "record": "records/skills/devotion/tier2_28c.dbr"
+    },
+    {
+      "id": 22234,
+      "record": "records/skills/devotion/tier2_28d.dbr"
+    },
+    {
+      "id": 22235,
+      "record": "records/skills/devotion/tier2_28e.dbr"
+    },
+    {
+      "id": 22236,
+      "record": "records/skills/devotion/tier2_28f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22257,
+      "record": "records/skills/devotion/tier2_29a.dbr"
+    },
+    {
+      "id": 22258,
+      "record": "records/skills/devotion/tier2_29b.dbr"
+    },
+    {
+      "id": 22259,
+      "record": "records/skills/devotion/tier2_29c.dbr"
+    },
+    {
+      "id": 22260,
+      "record": "records/skills/devotion/tier2_29d.dbr"
+    },
+    {
+      "id": 22261,
+      "record": "records/skills/devotion/tier2_29e.dbr"
+    },
+    {
+      "id": 22262,
+      "record": "records/skills/devotion/tier2_29f.dbr"
+    },
+    {
+      "id": 22263,
+      "record": "records/skills/devotion/tier2_29g_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 22284,
+      "record": "records/skills/devotion/tier2_30a.dbr"
+    },
+    {
+      "id": 22285,
+      "record": "records/skills/devotion/tier2_30b.dbr"
+    },
+    {
+      "id": 22286,
+      "record": "records/skills/devotion/tier2_30c.dbr"
+    },
+    {
+      "id": 22287,
+      "record": "records/skills/devotion/tier2_30d.dbr"
+    },
+    {
+      "id": 22288,
+      "record": "records/skills/devotion/tier2_30e_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23191,
+      "record": "records/skills/devotion/tier2_31a.dbr"
+    },
+    {
+      "id": 23192,
+      "record": "records/skills/devotion/tier2_31b.dbr"
+    },
+    {
+      "id": 23193,
+      "record": "records/skills/devotion/tier2_31c.dbr"
+    },
+    {
+      "id": 23194,
+      "record": "records/skills/devotion/tier2_31d.dbr"
+    },
+    {
+      "id": 23195,
+      "record": "records/skills/devotion/tier2_31e.dbr"
+    },
+    {
+      "id": 23196,
+      "record": "records/skills/devotion/tier2_31f.dbr"
+    },
+    {
+      "id": 23401,
+      "record": "records/skills/devotion/tier2_32a.dbr"
+    },
+    {
+      "id": 23402,
+      "record": "records/skills/devotion/tier2_32b.dbr"
+    },
+    {
+      "id": 23403,
+      "record": "records/skills/devotion/tier2_32c.dbr"
+    },
+    {
+      "id": 23404,
+      "record": "records/skills/devotion/tier2_32d_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23473,
+      "record": "records/skills/devotion/tier2_32e.dbr"
+    },
+    {
+      "id": 23474,
+      "record": "records/skills/devotion/tier2_32f.dbr"
+    },
+    {
+      "id": 23475,
+      "record": "records/skills/devotion/tier2_33a.dbr"
+    },
+    {
+      "id": 23476,
+      "record": "records/skills/devotion/tier2_33b.dbr"
+    },
+    {
+      "id": 23477,
+      "record": "records/skills/devotion/tier2_33c.dbr"
+    },
+    {
+      "id": 23478,
+      "record": "records/skills/devotion/tier2_33d.dbr"
+    },
+    {
+      "id": 23479,
+      "record": "records/skills/devotion/tier2_33e.dbr"
+    },
+    {
+      "id": 23480,
+      "record": "records/skills/devotion/tier2_33f.dbr"
+    },
+    {
+      "id": 23481,
+      "record": "records/skills/devotion/tier2_34a.dbr"
+    },
+    {
+      "id": 23482,
+      "record": "records/skills/devotion/tier2_34b.dbr"
+    },
+    {
+      "id": 23483,
+      "record": "records/skills/devotion/tier2_34c.dbr"
+    },
+    {
+      "id": 23484,
+      "record": "records/skills/devotion/tier2_34d.dbr"
+    },
+    {
+      "id": 23485,
+      "record": "records/skills/devotion/tier2_34e_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23556,
+      "record": "records/skills/devotion/tier2_35a.dbr"
+    },
+    {
+      "id": 23557,
+      "record": "records/skills/devotion/tier2_35b.dbr"
+    },
+    {
+      "id": 23558,
+      "record": "records/skills/devotion/tier2_35c.dbr"
+    },
+    {
+      "id": 23559,
+      "record": "records/skills/devotion/tier2_35d.dbr"
+    },
+    {
+      "id": 23560,
+      "record": "records/skills/devotion/tier2_35e.dbr"
+    },
+    {
+      "id": 23561,
+      "record": "records/skills/devotion/tier2_35f.dbr"
+    },
+    {
+      "id": 23562,
+      "record": "records/skills/devotion/tier2_36a.dbr"
+    },
+    {
+      "id": 23563,
+      "record": "records/skills/devotion/tier2_36b.dbr"
+    },
+    {
+      "id": 23564,
+      "record": "records/skills/devotion/tier2_36c.dbr"
+    },
+    {
+      "id": 23565,
+      "record": "records/skills/devotion/tier2_36d.dbr"
+    },
+    {
+      "id": 23566,
+      "record": "records/skills/devotion/tier2_36e.dbr"
+    },
+    {
+      "id": 23567,
+      "record": "records/skills/devotion/tier2_36f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23875,
+      "record": "records/skills/devotion/tier2_37a.dbr"
+    },
+    {
+      "id": 23876,
+      "record": "records/skills/devotion/tier2_37b.dbr"
+    },
+    {
+      "id": 23877,
+      "record": "records/skills/devotion/tier2_37c.dbr"
+    },
+    {
+      "id": 23878,
+      "record": "records/skills/devotion/tier2_37d_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23946,
+      "record": "records/skills/devotion/tier2_37e.dbr"
+    },
+    {
+      "id": 23947,
+      "record": "records/skills/devotion/tier2_37f.dbr"
+    },
+    {
+      "id": 23948,
+      "record": "records/skills/devotion/tier2_38a.dbr"
+    },
+    {
+      "id": 23949,
+      "record": "records/skills/devotion/tier2_38b.dbr"
+    },
+    {
+      "id": 23950,
+      "record": "records/skills/devotion/tier2_38c.dbr"
+    },
+    {
+      "id": 23951,
+      "record": "records/skills/devotion/tier2_38d.dbr"
+    },
+    {
+      "id": 23952,
+      "record": "records/skills/devotion/tier2_38e_skill.dbr",
+      "devotion_max_level": 20
+    },
+    {
+      "id": 23976,
+      "record": "records/skills/devotion/tier2_38f.dbr"
+    },
+    {
+      "id": 22355,
+      "record": "records/skills/devotion/tier3_01a.dbr"
+    },
+    {
+      "id": 22356,
+      "record": "records/skills/devotion/tier3_01b.dbr"
+    },
+    {
+      "id": 22357,
+      "record": "records/skills/devotion/tier3_01c.dbr"
+    },
+    {
+      "id": 22358,
+      "record": "records/skills/devotion/tier3_01d.dbr"
+    },
+    {
+      "id": 22359,
+      "record": "records/skills/devotion/tier3_01e.dbr"
+    },
+    {
+      "id": 22360,
+      "record": "records/skills/devotion/tier3_01f_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 10
+    },
+    {
+      "id": 22427,
+      "record": "records/skills/devotion/tier3_02a.dbr"
+    },
+    {
+      "id": 22428,
+      "record": "records/skills/devotion/tier3_02b.dbr"
+    },
+    {
+      "id": 22429,
+      "record": "records/skills/devotion/tier3_02c.dbr"
+    },
+    {
+      "id": 22430,
+      "record": "records/skills/devotion/tier3_02d.dbr"
+    },
+    {
+      "id": 22431,
+      "record": "records/skills/devotion/tier3_02e_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22498,
+      "record": "records/skills/devotion/tier3_02f.dbr"
+    },
+    {
+      "id": 22499,
+      "record": "records/skills/devotion/tier3_02g.dbr"
+    },
+    {
+      "id": 22500,
+      "record": "records/skills/devotion/tier3_02h_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22569,
+      "record": "records/skills/devotion/tier3_03a.dbr"
+    },
+    {
+      "id": 22570,
+      "record": "records/skills/devotion/tier3_03b.dbr"
+    },
+    {
+      "id": 22571,
+      "record": "records/skills/devotion/tier3_03c.dbr"
+    },
+    {
+      "id": 22572,
+      "record": "records/skills/devotion/tier3_03d.dbr"
+    },
+    {
+      "id": 22573,
+      "record": "records/skills/devotion/tier3_03e.dbr"
+    },
+    {
+      "id": 22574,
+      "record": "records/skills/devotion/tier3_03f.dbr"
+    },
+    {
+      "id": 22575,
+      "record": "records/skills/devotion/tier3_03g_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22595,
+      "record": "records/skills/devotion/tier3_04a.dbr"
+    },
+    {
+      "id": 22596,
+      "record": "records/skills/devotion/tier3_04b.dbr"
+    },
+    {
+      "id": 22597,
+      "record": "records/skills/devotion/tier3_04c.dbr"
+    },
+    {
+      "id": 22598,
+      "record": "records/skills/devotion/tier3_04d.dbr"
+    },
+    {
+      "id": 22599,
+      "record": "records/skills/devotion/tier3_04e.dbr"
+    },
+    {
+      "id": 22600,
+      "record": "records/skills/devotion/tier3_04f.dbr"
+    },
+    {
+      "id": 22601,
+      "record": "records/skills/devotion/tier3_04g_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22669,
+      "record": "records/skills/devotion/tier3_05a.dbr"
+    },
+    {
+      "id": 22670,
+      "record": "records/skills/devotion/tier3_05b.dbr"
+    },
+    {
+      "id": 22671,
+      "record": "records/skills/devotion/tier3_05c.dbr"
+    },
+    {
+      "id": 22672,
+      "record": "records/skills/devotion/tier3_05d.dbr"
+    },
+    {
+      "id": 22673,
+      "record": "records/skills/devotion/tier3_05e.dbr"
+    },
+    {
+      "id": 22674,
+      "record": "records/skills/devotion/tier3_05f.dbr"
+    },
+    {
+      "id": 22675,
+      "record": "records/skills/devotion/tier3_05g_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22696,
+      "record": "records/skills/devotion/tier3_06a.dbr"
+    },
+    {
+      "id": 22697,
+      "record": "records/skills/devotion/tier3_06b.dbr"
+    },
+    {
+      "id": 22698,
+      "record": "records/skills/devotion/tier3_06c.dbr"
+    },
+    {
+      "id": 22699,
+      "record": "records/skills/devotion/tier3_06d.dbr"
+    },
+    {
+      "id": 22700,
+      "record": "records/skills/devotion/tier3_06e.dbr"
+    },
+    {
+      "id": 22701,
+      "record": "records/skills/devotion/tier3_06f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22722,
+      "record": "records/skills/devotion/tier3_07a.dbr"
+    },
+    {
+      "id": 22723,
+      "record": "records/skills/devotion/tier3_07b.dbr"
+    },
+    {
+      "id": 22724,
+      "record": "records/skills/devotion/tier3_07c.dbr"
+    },
+    {
+      "id": 22725,
+      "record": "records/skills/devotion/tier3_07d.dbr"
+    },
+    {
+      "id": 22726,
+      "record": "records/skills/devotion/tier3_07e.dbr"
+    },
+    {
+      "id": 22727,
+      "record": "records/skills/devotion/tier3_07f.dbr"
+    },
+    {
+      "id": 22728,
+      "record": "records/skills/devotion/tier3_07g_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22799,
+      "record": "records/skills/devotion/tier3_08a.dbr"
+    },
+    {
+      "id": 22800,
+      "record": "records/skills/devotion/tier3_08b.dbr"
+    },
+    {
+      "id": 22801,
+      "record": "records/skills/devotion/tier3_08c.dbr"
+    },
+    {
+      "id": 22802,
+      "record": "records/skills/devotion/tier3_08d.dbr"
+    },
+    {
+      "id": 22803,
+      "record": "records/skills/devotion/tier3_08e.dbr"
+    },
+    {
+      "id": 22804,
+      "record": "records/skills/devotion/tier3_08f.dbr"
+    },
+    {
+      "id": 22805,
+      "record": "records/skills/devotion/tier3_08g_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22872,
+      "record": "records/skills/devotion/tier3_09a.dbr"
+    },
+    {
+      "id": 22873,
+      "record": "records/skills/devotion/tier3_09b.dbr"
+    },
+    {
+      "id": 22874,
+      "record": "records/skills/devotion/tier3_09c.dbr"
+    },
+    {
+      "id": 22875,
+      "record": "records/skills/devotion/tier3_09d.dbr"
+    },
+    {
+      "id": 22876,
+      "record": "records/skills/devotion/tier3_09e.dbr"
+    },
+    {
+      "id": 22877,
+      "record": "records/skills/devotion/tier3_09f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22898,
+      "record": "records/skills/devotion/tier3_10a.dbr"
+    },
+    {
+      "id": 22899,
+      "record": "records/skills/devotion/tier3_10b.dbr"
+    },
+    {
+      "id": 22900,
+      "record": "records/skills/devotion/tier3_10c.dbr"
+    },
+    {
+      "id": 22901,
+      "record": "records/skills/devotion/tier3_10d.dbr"
+    },
+    {
+      "id": 22902,
+      "record": "records/skills/devotion/tier3_10e.dbr"
+    },
+    {
+      "id": 22903,
+      "record": "records/skills/devotion/tier3_10f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 22970,
+      "record": "records/skills/devotion/tier3_11a.dbr"
+    },
+    {
+      "id": 22971,
+      "record": "records/skills/devotion/tier3_11b.dbr"
+    },
+    {
+      "id": 22972,
+      "record": "records/skills/devotion/tier3_11c.dbr"
+    },
+    {
+      "id": 22973,
+      "record": "records/skills/devotion/tier3_11d.dbr"
+    },
+    {
+      "id": 22974,
+      "record": "records/skills/devotion/tier3_11e.dbr"
+    },
+    {
+      "id": 22975,
+      "record": "records/skills/devotion/tier3_11f.dbr"
+    },
+    {
+      "id": 22976,
+      "record": "records/skills/devotion/tier3_11g_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23043,
+      "record": "records/skills/devotion/tier3_12a.dbr"
+    },
+    {
+      "id": 23044,
+      "record": "records/skills/devotion/tier3_12b.dbr"
+    },
+    {
+      "id": 23045,
+      "record": "records/skills/devotion/tier3_12c.dbr"
+    },
+    {
+      "id": 23046,
+      "record": "records/skills/devotion/tier3_12d.dbr"
+    },
+    {
+      "id": 23047,
+      "record": "records/skills/devotion/tier3_12e.dbr"
+    },
+    {
+      "id": 23048,
+      "record": "records/skills/devotion/tier3_12f.dbr"
+    },
+    {
+      "id": 23049,
+      "record": "records/skills/devotion/tier3_12g_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23119,
+      "record": "records/skills/devotion/tier3_13a.dbr"
+    },
+    {
+      "id": 23120,
+      "record": "records/skills/devotion/tier3_13b.dbr"
+    },
+    {
+      "id": 23121,
+      "record": "records/skills/devotion/tier3_13c.dbr"
+    },
+    {
+      "id": 23122,
+      "record": "records/skills/devotion/tier3_13d.dbr"
+    },
+    {
+      "id": 23123,
+      "record": "records/skills/devotion/tier3_13e.dbr"
+    },
+    {
+      "id": 23124,
+      "record": "records/skills/devotion/tier3_13f.dbr"
+    },
+    {
+      "id": 23125,
+      "record": "records/skills/devotion/tier3_13g_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23588,
+      "record": "records/skills/devotion/tier3_14a.dbr"
+    },
+    {
+      "id": 23589,
+      "record": "records/skills/devotion/tier3_14b.dbr"
+    },
+    {
+      "id": 23590,
+      "record": "records/skills/devotion/tier3_14c.dbr"
+    },
+    {
+      "id": 23591,
+      "record": "records/skills/devotion/tier3_14d.dbr"
+    },
+    {
+      "id": 23592,
+      "record": "records/skills/devotion/tier3_14e.dbr"
+    },
+    {
+      "id": 23593,
+      "record": "records/skills/devotion/tier3_14f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23662,
+      "record": "records/skills/devotion/tier3_15a.dbr"
+    },
+    {
+      "id": 23663,
+      "record": "records/skills/devotion/tier3_15b.dbr"
+    },
+    {
+      "id": 23664,
+      "record": "records/skills/devotion/tier3_15c.dbr"
+    },
+    {
+      "id": 23665,
+      "record": "records/skills/devotion/tier3_15d.dbr"
+    },
+    {
+      "id": 23666,
+      "record": "records/skills/devotion/tier3_15e.dbr"
+    },
+    {
+      "id": 23667,
+      "record": "records/skills/devotion/tier3_15f_skill.dbr",
+      "type": 2,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23688,
+      "record": "records/skills/devotion/tier3_16a.dbr"
+    },
+    {
+      "id": 23689,
+      "record": "records/skills/devotion/tier3_16b.dbr"
+    },
+    {
+      "id": 23690,
+      "record": "records/skills/devotion/tier3_16c.dbr"
+    },
+    {
+      "id": 23691,
+      "record": "records/skills/devotion/tier3_16d.dbr"
+    },
+    {
+      "id": 23692,
+      "record": "records/skills/devotion/tier3_16e.dbr"
+    },
+    {
+      "id": 23693,
+      "record": "records/skills/devotion/tier3_16f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23713,
+      "record": "records/skills/devotion/tier3_17a.dbr"
+    },
+    {
+      "id": 23714,
+      "record": "records/skills/devotion/tier3_17b.dbr"
+    },
+    {
+      "id": 23715,
+      "record": "records/skills/devotion/tier3_17c.dbr"
+    },
+    {
+      "id": 23716,
+      "record": "records/skills/devotion/tier3_17d.dbr"
+    },
+    {
+      "id": 23717,
+      "record": "records/skills/devotion/tier3_17e.dbr"
+    },
+    {
+      "id": 23718,
+      "record": "records/skills/devotion/tier3_17f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23784,
+      "record": "records/skills/devotion/tier3_18a.dbr"
+    },
+    {
+      "id": 23785,
+      "record": "records/skills/devotion/tier3_18b.dbr"
+    },
+    {
+      "id": 23786,
+      "record": "records/skills/devotion/tier3_18c.dbr"
+    },
+    {
+      "id": 23787,
+      "record": "records/skills/devotion/tier3_18d.dbr"
+    },
+    {
+      "id": 23788,
+      "record": "records/skills/devotion/tier3_18e.dbr"
+    },
+    {
+      "id": 23789,
+      "record": "records/skills/devotion/tier3_18f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 23977,
+      "record": "records/skills/devotion/tier3_19a.dbr"
+    },
+    {
+      "id": 23978,
+      "record": "records/skills/devotion/tier3_19b.dbr"
+    },
+    {
+      "id": 23979,
+      "record": "records/skills/devotion/tier3_19c.dbr"
+    },
+    {
+      "id": 23980,
+      "record": "records/skills/devotion/tier3_19d.dbr"
+    },
+    {
+      "id": 23981,
+      "record": "records/skills/devotion/tier3_19e_skill.dbr",
+      "type": 1,
+      "devotion_max_level": 15
+    },
+    {
+      "id": 24049,
+      "record": "records/skills/devotion/tier3_19f.dbr"
+    },
+    {
+      "id": 24050,
+      "record": "records/skills/devotion/tier3_20a.dbr"
+    },
+    {
+      "id": 24051,
+      "record": "records/skills/devotion/tier3_20b.dbr"
+    },
+    {
+      "id": 24052,
+      "record": "records/skills/devotion/tier3_20c.dbr"
+    },
+    {
+      "id": 24053,
+      "record": "records/skills/devotion/tier3_20d.dbr"
+    },
+    {
+      "id": 24054,
+      "record": "records/skills/devotion/tier3_20e_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 24123,
+      "record": "records/skills/devotion/tier3_20f.dbr"
+    },
+    {
+      "id": 24124,
+      "record": "records/skills/devotion/tier3_21a.dbr"
+    },
+    {
+      "id": 24125,
+      "record": "records/skills/devotion/tier3_21b.dbr"
+    },
+    {
+      "id": 24126,
+      "record": "records/skills/devotion/tier3_21c.dbr"
+    },
+    {
+      "id": 24127,
+      "record": "records/skills/devotion/tier3_21d.dbr"
+    },
+    {
+      "id": 24128,
+      "record": "records/skills/devotion/tier3_21e.dbr"
+    },
+    {
+      "id": 24129,
+      "record": "records/skills/devotion/tier3_21f_skill.dbr",
+      "devotion_max_level": 15
+    },
+    {
+      "id": 24272,
+      "record": "records/skills/itemskills/consumableskills/bonus_burrwitchbrew.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25655,
+      "record": "records/skills/itemskills/consumableskills/bonus_summoncrate.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24274,
+      "record": "records/skills/itemskills/consumableskills/bonus_summonwillowisp.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24225,
+      "record": "records/skills/itemskills/consumableskills/item_aetherresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24227,
+      "record": "records/skills/itemskills/consumableskills/item_chaosresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24229,
+      "record": "records/skills/itemskills/consumableskills/item_coldresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24269,
+      "record": "records/skills/itemskills/consumableskills/item_crystal_aethercluster_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24231,
+      "record": "records/skills/itemskills/consumableskills/item_elixir_aether_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24233,
+      "record": "records/skills/itemskills/consumableskills/item_elixir_ancients_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24267,
+      "record": "records/skills/itemskills/consumableskills/item_elixir_celestial_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24235,
+      "record": "records/skills/itemskills/consumableskills/item_elixir_chaos_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24257,
+      "record": "records/skills/itemskills/consumableskills/item_elixir_hunt_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24237,
+      "record": "records/skills/itemskills/consumableskills/item_fireresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24239,
+      "record": "records/skills/itemskills/consumableskills/item_freezeresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24241,
+      "record": "records/skills/itemskills/consumableskills/item_lightningresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24243,
+      "record": "records/skills/itemskills/consumableskills/item_oil_bleed_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25408,
+      "record": "records/skills/itemskills/consumableskills/item_oil_dermapteran.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24245,
+      "record": "records/skills/itemskills/consumableskills/item_oil_elemental_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25410,
+      "record": "records/skills/itemskills/consumableskills/item_oil_heartseeker.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25412,
+      "record": "records/skills/itemskills/consumableskills/item_oil_iceblood.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25414,
+      "record": "records/skills/itemskills/consumableskills/item_oil_kymon.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24247,
+      "record": "records/skills/itemskills/consumableskills/item_oil_lifesteal_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24249,
+      "record": "records/skills/itemskills/consumableskills/item_oil_poison_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25416,
+      "record": "records/skills/itemskills/consumableskills/item_oil_rhowari.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25418,
+      "record": "records/skills/itemskills/consumableskills/item_oil_stoneheart.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24251,
+      "record": "records/skills/itemskills/consumableskills/item_poisonresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24253,
+      "record": "records/skills/itemskills/consumableskills/item_royaljellybalm_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24259,
+      "record": "records/skills/itemskills/consumableskills/item_royaljellyessence_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24261,
+      "record": "records/skills/itemskills/consumableskills/item_royaljellyextract_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24263,
+      "record": "records/skills/itemskills/consumableskills/item_royaljellyointment_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24265,
+      "record": "records/skills/itemskills/consumableskills/item_royaljellysalve_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25420,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_bladeward.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25422,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_courage.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25425,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_frostguard.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25427,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_kymonwrath.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25432,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_slithblood.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25434,
+      "record": "records/skills/itemskills/consumableskills/item_tincture_wrathofbeast.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24255,
+      "record": "records/skills/itemskills/consumableskills/item_vitalityresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24791,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_bleedresist_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24793,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_elixir_dranghoul_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24795,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_elixir_mogdrogen_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25436,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_oil_coven.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25438,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_oil_malmouth.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25440,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_oil_wendigo.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25442,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_tincture_coven.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25446,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_tincture_malmouth.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25451,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_tincture_wendigo.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24787,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_ugdenjuice_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24789,
+      "record": "records/skills/itemskillsgdx1/consumableskills/item_ugdensalve_01.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24455,
+      "record": "records/skills/itemskillsgdx1/consumableskills/quest_summonhargatecrystal.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24622,
+      "record": "records/skills/itemskillsgdx1/consumableskills/quest_summonkasparovcrystal.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25653,
+      "record": "records/skills/itemskillsgdx1/consumableskills/xppotion_malmouth.dbr",
+      "type": 1,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25897,
+      "record": "records/skills/itemskillsgdx2/consumableskills/item_elixir_special_01.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25217,
+      "record": "records/skills/itemskillsgdx2/consumableskills/special_summondevourer.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25010,
+      "record": "records/skills/itemskillsgdx2/consumableskills/special_summonmaggot.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24797,
+      "record": "records/skills/itemskillsgdx2/consumableskills/special_summonminilizard.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 25901,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight01_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 26197,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight01b_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 26437,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight02_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 26720,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight02b_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 26974,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight03_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 27237,
+      "record": "records/skills/itemskillsgdx3/consumableskills/item_wight03b_bindingstone.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 27487,
+      "record": "records/skills/itemskillsgdx3/consumableskills/special_summonbeaver.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 27696,
+      "record": "records/skills/itemskillsgdx3/consumableskills/special_summonroc.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 27905,
+      "record": "records/skills/itemskillsgdx3/consumableskills/special_summonyeti.dbr",
+      "type": 2,
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24173,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_energypotion_flask.dbr"
+    },
+    {
+      "id": 24174,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_energypotion_tincture.dbr"
+    },
+    {
+      "id": 24175,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_energypotion_vial.dbr"
+    },
+    {
+      "id": 24150,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_healthpotion_flask.dbr"
+    },
+    {
+      "id": 24151,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_healthpotion_tincture.dbr"
+    },
+    {
+      "id": 24152,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/container_healthpotion_vial.dbr"
+    },
+    {
+      "id": 24177,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_absorbing.dbr"
+    },
+    {
+      "id": 24178,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_amplification.dbr"
+    },
+    {
+      "id": 24179,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_bloodrite.dbr"
+    },
+    {
+      "id": 24180,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_electrified.dbr"
+    },
+    {
+      "id": 24181,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_energyovertime.dbr"
+    },
+    {
+      "id": 24182,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_explosive.dbr"
+    },
+    {
+      "id": 24183,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_freezeimmunity.dbr"
+    },
+    {
+      "id": 24176,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_healovertime.dbr"
+    },
+    {
+      "id": 24184,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_infusion.dbr"
+    },
+    {
+      "id": 24185,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_instantenergy.dbr"
+    },
+    {
+      "id": 24186,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_instantheal.dbr"
+    },
+    {
+      "id": 24187,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_pure.dbr"
+    },
+    {
+      "id": 24188,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_savior.dbr"
+    },
+    {
+      "id": 24189,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_selfless.dbr"
+    },
+    {
+      "id": 24190,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_stoneskin.dbr"
+    },
+    {
+      "id": 24191,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_swift.dbr"
+    },
+    {
+      "id": 24192,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_transfusion.dbr"
+    },
+    {
+      "id": 24193,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_truesight.dbr"
+    },
+    {
+      "id": 24194,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_vampire.dbr"
+    },
+    {
+      "id": 24195,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/energypotion_wealth.dbr"
+    },
+    {
+      "id": 24154,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_absorbing.dbr"
+    },
+    {
+      "id": 24155,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_amplification.dbr"
+    },
+    {
+      "id": 24156,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_bloodrite.dbr"
+    },
+    {
+      "id": 24157,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_electrified.dbr"
+    },
+    {
+      "id": 24158,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_energyovertime.dbr"
+    },
+    {
+      "id": 24159,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_explosive.dbr"
+    },
+    {
+      "id": 24160,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_freezeimmunity.dbr"
+    },
+    {
+      "id": 24153,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_healovertime.dbr",
+      "level": 1,
+      "current_level": 1
+    },
+    {
+      "id": 24161,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_infusion.dbr"
+    },
+    {
+      "id": 24162,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_instantenergy.dbr"
+    },
+    {
+      "id": 24163,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_instantheal.dbr"
+    },
+    {
+      "id": 24164,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_pure.dbr"
+    },
+    {
+      "id": 24165,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_savior.dbr"
+    },
+    {
+      "id": 24166,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_selfless.dbr"
+    },
+    {
+      "id": 24167,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_stoneskin.dbr"
+    },
+    {
+      "id": 24168,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_swift.dbr"
+    },
+    {
+      "id": 24169,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_transfusion.dbr"
+    },
+    {
+      "id": 24170,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_truesight.dbr"
+    },
+    {
+      "id": 24171,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_vampire.dbr"
+    },
+    {
+      "id": 24172,
+      "record": "records/skills/itemskillsgdx3/potionmodifiers/healthpotion_wealth.dbr"
+    },
+    {
+      "id": 19673,
+      "record": "records/skills/playerclass01/_classtraining_class01.dbr"
+    },
+    {
+      "id": 19700,
+      "record": "records/skills/playerclass01/bladearc1.dbr",
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19702,
+        19703
+      ]
+    },
+    {
+      "id": 19702,
+      "record": "records/skills/playerclass01/bladearc1b.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19703,
+      "record": "records/skills/playerclass01/bladearc2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19691,
+      "record": "records/skills/playerclass01/blitz1.dbr",
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19694
+      ]
+    },
+    {
+      "id": 19694,
+      "record": "records/skills/playerclass01/blitz2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19674,
+      "record": "records/skills/playerclass01/cadence1.dbr",
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19675,
+        19676
+      ]
+    },
+    {
+      "id": 19675,
+      "record": "records/skills/playerclass01/cadence1b.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19676,
+      "record": "records/skills/playerclass01/cadence2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19677,
+      "record": "records/skills/playerclass01/cadence3.dbr",
+      "augmented_level": 3,
+      "mastery_id": 19673
+    },
+    {
+      "id": 19695,
+      "record": "records/skills/playerclass01/counterstrike1.dbr",
+      "type": 1,
+      "mastery_id": 19673
+    },
+    {
+      "id": 19708,
+      "record": "records/skills/playerclass01/fieldcommand1.dbr",
+      "type": 2,
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19711
+      ]
+    },
+    {
+      "id": 19711,
+      "record": "records/skills/playerclass01/fieldcommand2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19724,
+      "record": "records/skills/playerclass01/fightingspirit1.dbr",
+      "mastery_id": 19673,
+      "augmented_level": 3
+    },
+    {
+      "id": 19721,
+      "record": "records/skills/playerclass01/overguard1.dbr",
+      "type": 2,
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19723
+      ]
+    },
+    {
+      "id": 19723,
+      "record": "records/skills/playerclass01/overguard1b.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19678,
+      "record": "records/skills/playerclass01/passive1.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19680,
+      "record": "records/skills/playerclass01/passive2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19681,
+      "record": "records/skills/playerclass01/passive3.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19682,
+      "record": "records/skills/playerclass01/passive4.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19679,
+      "record": "records/skills/playerclass01/passiveshield.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19683,
+      "record": "records/skills/playerclass01/shieldhammer1.dbr",
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19688,
+        19689,
+        19690
+      ]
+    },
+    {
+      "id": 19688,
+      "record": "records/skills/playerclass01/shieldhammer1b.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19689,
+      "record": "records/skills/playerclass01/shieldhammer2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19690,
+      "record": "records/skills/playerclass01/shieldhammer3.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19704,
+      "record": "records/skills/playerclass01/stancedefensive.dbr",
+      "type": 1,
+      "mastery_id": 19673
+    },
+    {
+      "id": 19706,
+      "record": "records/skills/playerclass01/stanceoffensive.dbr",
+      "type": 1,
+      "mastery_id": 19673
+    },
+    {
+      "id": 19714,
+      "record": "records/skills/playerclass01/warcry1.dbr",
+      "type": 2,
+      "mastery_id": 19673,
+      "modifier_ids": [
+        19716,
+        19717
+      ]
+    },
+    {
+      "id": 19716,
+      "record": "records/skills/playerclass01/warcry1b.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19717,
+      "record": "records/skills/playerclass01/warcry2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19712,
+      "record": "records/skills/playerclass01/weaponpool1.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19713,
+      "record": "records/skills/playerclass01/weaponpool2.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19718,
+      "record": "records/skills/playerclass01/willtolive1.dbr",
+      "mastery_id": 19673
+    },
+    {
+      "id": 19727,
+      "record": "records/skills/playerclass02/_classtraining_class02.dbr"
+    },
+    {
+      "id": 19748,
+      "record": "records/skills/playerclass02/blackwater1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19750,
+        19751,
+        19752
+      ]
+    },
+    {
+      "id": 19750,
+      "record": "records/skills/playerclass02/blackwater1b.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19751,
+      "record": "records/skills/playerclass02/blackwater2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19752,
+      "record": "records/skills/playerclass02/blackwater3.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19728,
+      "record": "records/skills/playerclass02/blastshield1.dbr",
+      "type": 2,
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19731
+      ]
+    },
+    {
+      "id": 19731,
+      "record": "records/skills/playerclass02/blastshield2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19757,
+      "record": "records/skills/playerclass02/canisterbomb1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19759,
+        19760,
+        19742
+      ]
+    },
+    {
+      "id": 19759,
+      "record": "records/skills/playerclass02/canisterbomb1b.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19760,
+      "record": "records/skills/playerclass02/canisterbomb2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19732,
+      "record": "records/skills/playerclass02/flamestrike1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19733,
+        19734,
+        19736,
+        19737
+      ]
+    },
+    {
+      "id": 19735,
+      "record": "records/skills/playerclass02/flamestrike2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19733,
+      "record": "records/skills/playerclass02/flamestrike2b.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19734,
+      "record": "records/skills/playerclass02/flamestrike2c.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19736,
+      "record": "records/skills/playerclass02/flamestrike3.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19737,
+      "record": "records/skills/playerclass02/flamestrike4.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19768,
+      "record": "records/skills/playerclass02/flashbang1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19770
+      ]
+    },
+    {
+      "id": 19770,
+      "record": "records/skills/playerclass02/flashbang2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19743,
+      "record": "records/skills/playerclass02/grenado1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19745,
+        19746,
+        19747,
+        19742
+      ]
+    },
+    {
+      "id": 19745,
+      "record": "records/skills/playerclass02/grenado1b.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19746,
+      "record": "records/skills/playerclass02/grenado2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19747,
+      "record": "records/skills/playerclass02/grenado3.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19753,
+      "record": "records/skills/playerclass02/mortartrap1.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19755,
+      "record": "records/skills/playerclass02/mortartrap2_petmod.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19756,
+      "record": "records/skills/playerclass02/mortartrap3_petmod.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19771,
+      "record": "records/skills/playerclass02/passive1.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19742,
+      "record": "records/skills/playerclass02/passive2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19738,
+      "record": "records/skills/playerclass02/stunjacks1.dbr",
+      "mastery_id": 19727,
+      "modifier_ids": [
+        19740,
+        19741,
+        19742
+      ]
+    },
+    {
+      "id": 19740,
+      "record": "records/skills/playerclass02/stunjacks1b.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19741,
+      "record": "records/skills/playerclass02/stunjacks2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19765,
+      "record": "records/skills/playerclass02/thermitemines1.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19767,
+      "record": "records/skills/playerclass02/thermitemines2_petmod.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19761,
+      "record": "records/skills/playerclass02/vindictiveflame1.dbr",
+      "type": 1,
+      "mastery_id": 19727
+    },
+    {
+      "id": 19764,
+      "record": "records/skills/playerclass02/vindictiveflame2.dbr",
+      "mastery_id": 19727
+    },
+    {
+      "id": 19774,
+      "record": "records/skills/playerclass03/_classtraining_class03.dbr",
+      "level": 20,
+      "current_level": 20,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 1,
+            "name": "Strength",
+            "value": 50.0
+          },
+          {
+            "type": 2,
+            "name": "Dexterity",
+            "value": 60.0
+          },
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "value": 90.0
+          },
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 400.0
+          },
+          {
+            "type": 5,
+            "name": "Mana",
+            "value": 360.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 19794,
+      "record": "records/skills/playerclass03/bloodofdreeg1.dbr",
+      "type": 2,
+      "level": 1,
+      "augmented_level": 2,
+      "current_level": 3,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19797
+      ],
+      "buff_active": true
+    },
+    {
+      "id": 19797,
+      "record": "records/skills/playerclass03/bloodofdreeg2.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19818,
+      "record": "records/skills/playerclass03/bondsofbysmiel1.dbr",
+      "type": 1,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19820
+      ]
+    },
+    {
+      "id": 19820,
+      "record": "records/skills/playerclass03/bondsofbysmiel2.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19821,
+      "record": "records/skills/playerclass03/curse1.dbr",
+      "level": 5,
+      "current_level": 5,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19823
+      ]
+    },
+    {
+      "id": 19823,
+      "record": "records/skills/playerclass03/curse2.dbr",
+      "level": 10,
+      "current_level": 10,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19798,
+      "record": "records/skills/playerclass03/doombolt1.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19802,
+      "record": "records/skills/playerclass03/evileye1.dbr",
+      "level": 12,
+      "augmented_level": 3,
+      "current_level": 15,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19804,
+        19805,
+        19806,
+        19807
+      ]
+    },
+    {
+      "id": 19805,
+      "record": "records/skills/playerclass03/evileye1b.dbr",
+      "level": 1,
+      "current_level": 1,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19804,
+      "record": "records/skills/playerclass03/evileye2.dbr",
+      "level": 1,
+      "current_level": 1,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19806,
+      "record": "records/skills/playerclass03/evileye3.dbr",
+      "level": 1,
+      "current_level": 1,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19807,
+      "record": "records/skills/playerclass03/evileye4.dbr",
+      "augmented_level": 3,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19800,
+      "record": "records/skills/playerclass03/possession1.dbr",
+      "type": 1,
+      "mastery_id": 19774
+    },
+    {
+      "id": 19811,
+      "record": "records/skills/playerclass03/pox1.dbr",
+      "level": 1,
+      "current_level": 1,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19815,
+        19816,
+        19817
+      ]
+    },
+    {
+      "id": 19815,
+      "record": "records/skills/playerclass03/pox1b.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19816,
+      "record": "records/skills/playerclass03/pox2.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19817,
+      "record": "records/skills/playerclass03/pox3.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19808,
+      "record": "records/skills/playerclass03/sigilofdestruction1.dbr",
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19810
+      ]
+    },
+    {
+      "id": 19810,
+      "record": "records/skills/playerclass03/sigilofdestruction2.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19783,
+      "record": "records/skills/playerclass03/summon_hellhound1.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19785,
+      "record": "records/skills/playerclass03/summon_hellhound2_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19788,
+      "record": "records/skills/playerclass03/summon_hellhound3_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19789,
+      "record": "records/skills/playerclass03/summon_hellhound4_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19775,
+      "record": "records/skills/playerclass03/summon_raven1.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19777,
+      "record": "records/skills/playerclass03/summon_raven2_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19779,
+      "record": "records/skills/playerclass03/summon_raven3_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19782,
+      "record": "records/skills/playerclass03/summon_raven4_petmodifier.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19790,
+      "record": "records/skills/playerclass03/witchfire1.dbr",
+      "type": 1,
+      "mastery_id": 19774,
+      "modifier_ids": [
+        19792,
+        19793
+      ]
+    },
+    {
+      "id": 19792,
+      "record": "records/skills/playerclass03/witchfire1b.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19793,
+      "record": "records/skills/playerclass03/witchfire2.dbr",
+      "mastery_id": 19774
+    },
+    {
+      "id": 19824,
+      "record": "records/skills/playerclass04/_classtraining_class04.dbr"
+    },
+    {
+      "id": 19834,
+      "record": "records/skills/playerclass04/bladebarrier1.dbr",
+      "type": 1,
+      "mastery_id": 19824
+    },
+    {
+      "id": 19841,
+      "record": "records/skills/playerclass04/bladetrap1.dbr",
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19842
+      ]
+    },
+    {
+      "id": 19842,
+      "record": "records/skills/playerclass04/bladetrap2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19839,
+      "record": "records/skills/playerclass04/eviscerate1.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19840,
+      "record": "records/skills/playerclass04/eviscerate2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19843,
+      "record": "records/skills/playerclass04/nightbladeenchant1.dbr",
+      "type": 2,
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19846,
+        19847,
+        19848
+      ]
+    },
+    {
+      "id": 19846,
+      "record": "records/skills/playerclass04/nightbladeenchant1b.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19847,
+      "record": "records/skills/playerclass04/nightbladeenchant2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19848,
+      "record": "records/skills/playerclass04/nightbladeenchant3.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19836,
+      "record": "records/skills/playerclass04/passive1.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19837,
+      "record": "records/skills/playerclass04/passive2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19838,
+      "record": "records/skills/playerclass04/passive3.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19825,
+      "record": "records/skills/playerclass04/phantomblade.dbr",
+      "augmented_level": 4,
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19827,
+        19828,
+        19829
+      ]
+    },
+    {
+      "id": 19827,
+      "record": "records/skills/playerclass04/phantomblade_mod0.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19828,
+      "record": "records/skills/playerclass04/phantomblade_mod1.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19829,
+      "record": "records/skills/playerclass04/phantomblade_mod2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19855,
+      "record": "records/skills/playerclass04/ringofsteel.dbr",
+      "type": 1,
+      "augmented_level": 2,
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19857,
+        19858
+      ]
+    },
+    {
+      "id": 19857,
+      "record": "records/skills/playerclass04/ringofsteel_mod0.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19858,
+      "record": "records/skills/playerclass04/ringofsteel_mod1.dbr",
+      "augmented_level": 3,
+      "mastery_id": 19824
+    },
+    {
+      "id": 19830,
+      "record": "records/skills/playerclass04/shadowstrike.dbr",
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19832
+      ]
+    },
+    {
+      "id": 19832,
+      "record": "records/skills/playerclass04/shadowstrike_mod1.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19833,
+      "record": "records/skills/playerclass04/shadowstrike_mod2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19859,
+      "record": "records/skills/playerclass04/summon_bladespirit.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19861,
+      "record": "records/skills/playerclass04/veilofshadows1.dbr",
+      "type": 1,
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19864
+      ]
+    },
+    {
+      "id": 19864,
+      "record": "records/skills/playerclass04/veilofshadows2.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19849,
+      "record": "records/skills/playerclass04/wpattack0.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19850,
+      "record": "records/skills/playerclass04/wpattack1.dbr",
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19851
+      ]
+    },
+    {
+      "id": 19852,
+      "record": "records/skills/playerclass04/wpattack2.dbr",
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19851
+      ]
+    },
+    {
+      "id": 19853,
+      "record": "records/skills/playerclass04/wpattack3.dbr",
+      "mastery_id": 19824,
+      "modifier_ids": [
+        19851
+      ]
+    },
+    {
+      "id": 19851,
+      "record": "records/skills/playerclass04/wpattack4.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19854,
+      "record": "records/skills/playerclass04/wpattack5.dbr",
+      "mastery_id": 19824
+    },
+    {
+      "id": 19865,
+      "record": "records/skills/playerclass05/_classtraining_class05.dbr"
+    },
+    {
+      "id": 19915,
+      "record": "records/skills/playerclass05/aetherray1.dbr",
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19924,
+        19925
+      ]
+    },
+    {
+      "id": 19925,
+      "record": "records/skills/playerclass05/aetherray1b.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19924,
+      "record": "records/skills/playerclass05/aetherray2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19911,
+      "record": "records/skills/playerclass05/arcanemissile.dbr",
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19912,
+        19913,
+        19914
+      ]
+    },
+    {
+      "id": 19912,
+      "record": "records/skills/playerclass05/arcanemissile2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19913,
+      "record": "records/skills/playerclass05/arcanemissile3.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19914,
+      "record": "records/skills/playerclass05/arcanemissile4.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19885,
+      "record": "records/skills/playerclass05/arcaneshield.dbr",
+      "type": 2,
+      "mastery_id": 19865
+    },
+    {
+      "id": 19866,
+      "record": "records/skills/playerclass05/chillingsurge.dbr",
+      "type": 1,
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19868
+      ]
+    },
+    {
+      "id": 19868,
+      "record": "records/skills/playerclass05/chillingsurge2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19880,
+      "record": "records/skills/playerclass05/devastation.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19903,
+      "record": "records/skills/playerclass05/elementalinfusion1.dbr",
+      "type": 1,
+      "augmented_level": 2,
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19905,
+        19906,
+        19907
+      ]
+    },
+    {
+      "id": 19907,
+      "record": "records/skills/playerclass05/elementalinfusion1b.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19905,
+      "record": "records/skills/playerclass05/elementalinfusion2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19906,
+      "record": "records/skills/playerclass05/elementalinfusion3.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19895,
+      "record": "records/skills/playerclass05/mindovermatter1.dbr",
+      "type": 1,
+      "mastery_id": 19865
+    },
+    {
+      "id": 19898,
+      "record": "records/skills/playerclass05/mindovermatter2.dbr",
+      "type": 1,
+      "mastery_id": 19865
+    },
+    {
+      "id": 19901,
+      "record": "records/skills/playerclass05/nullification.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19874,
+      "record": "records/skills/playerclass05/passive01.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19875,
+      "record": "records/skills/playerclass05/passive02.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19878,
+      "record": "records/skills/playerclass05/passive03.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19879,
+      "record": "records/skills/playerclass05/passive04.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19908,
+      "record": "records/skills/playerclass05/razorwind1.dbr",
+      "type": 1,
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19909,
+        19910
+      ]
+    },
+    {
+      "id": 19910,
+      "record": "records/skills/playerclass05/razorwind1b.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19909,
+      "record": "records/skills/playerclass05/razorwind2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19888,
+      "record": "records/skills/playerclass05/skyshard1.dbr",
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19893,
+        19894
+      ]
+    },
+    {
+      "id": 19893,
+      "record": "records/skills/playerclass05/skyshard2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19894,
+      "record": "records/skills/playerclass05/skyshard3.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19869,
+      "record": "records/skills/playerclass05/sphereofprotection1.dbr",
+      "type": 2,
+      "mastery_id": 19865,
+      "modifier_ids": [
+        19873
+      ]
+    },
+    {
+      "id": 19873,
+      "record": "records/skills/playerclass05/sphereofprotection2.dbr",
+      "mastery_id": 19865
+    },
+    {
+      "id": 19926,
+      "record": "records/skills/playerclass06/_classtraining_class06.dbr",
+      "level": 5,
+      "current_level": 5,
+      "passive": {
+        "char_attributes": [
+          {
+            "type": 1,
+            "name": "Strength",
+            "value": 20.0
+          },
+          {
+            "type": 2,
+            "name": "Dexterity",
+            "value": 15.0
+          },
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "value": 15.0
+          },
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 130.0
+          },
+          {
+            "type": 5,
+            "name": "Mana",
+            "value": 60.0
+          }
+        ]
+      }
+    },
+    {
+      "id": 19955,
+      "record": "records/skills/playerclass06/devouringswarm1.dbr",
+      "level": 6,
+      "current_level": 6,
+      "mastery_id": 19926
+    },
+    {
+      "id": 19970,
+      "record": "records/skills/playerclass06/graspingvines1.dbr",
+      "level": 1,
+      "current_level": 1,
+      "mastery_id": 19926,
+      "modifier_ids": [
+        19972
+      ]
+    },
+    {
+      "id": 19972,
+      "record": "records/skills/playerclass06/graspingvines2.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19936,
+      "record": "records/skills/playerclass06/natureblessing1.dbr",
+      "type": 1,
+      "mastery_id": 19926,
+      "modifier_ids": [
+        19939,
+        19940
+      ]
+    },
+    {
+      "id": 19939,
+      "record": "records/skills/playerclass06/naturesblessing2.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19940,
+      "record": "records/skills/playerclass06/naturesblessing3.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19962,
+      "record": "records/skills/playerclass06/passive01.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19946,
+      "record": "records/skills/playerclass06/primalbond01.dbr",
+      "type": 1,
+      "mastery_id": 19926
+    },
+    {
+      "id": 19927,
+      "record": "records/skills/playerclass06/savagery1.dbr",
+      "mastery_id": 19926,
+      "modifier_ids": [
+        19928,
+        19929,
+        19930
+      ]
+    },
+    {
+      "id": 19928,
+      "record": "records/skills/playerclass06/savagery1b.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19929,
+      "record": "records/skills/playerclass06/savagery2.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19930,
+      "record": "records/skills/playerclass06/savagery3.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19931,
+      "record": "records/skills/playerclass06/savagestrike1.dbr",
+      "mastery_id": 19926,
+      "modifier_ids": [
+        19933,
+        19934
+      ]
+    },
+    {
+      "id": 19933,
+      "record": "records/skills/playerclass06/savagestrike1b.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19935,
+      "record": "records/skills/playerclass06/savagestrike2.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19934,
+      "record": "records/skills/playerclass06/savagestrike3.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19958,
+      "record": "records/skills/playerclass06/squall1.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19960,
+      "record": "records/skills/playerclass06/squall2.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19961,
+      "record": "records/skills/playerclass06/squall3.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19949,
+      "record": "records/skills/playerclass06/stormcaller1.dbr",
+      "type": 1,
+      "mastery_id": 19926
+    },
+    {
+      "id": 19967,
+      "record": "records/skills/playerclass06/stormtotem01.dbr",
+      "mastery_id": 19926,
+      "modifier_ids": [
+        19969
+      ]
+    },
+    {
+      "id": 19969,
+      "record": "records/skills/playerclass06/stormtotem01b_petmodifier.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19941,
+      "record": "records/skills/playerclass06/summon_briarthorn1.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19943,
+      "record": "records/skills/playerclass06/summon_briarthorn2_petmodifier.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19944,
+      "record": "records/skills/playerclass06/summon_briarthorn3_petmodifier.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19963,
+      "record": "records/skills/playerclass06/summon_manticore1.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19952,
+      "record": "records/skills/playerclass06/totem1.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19954,
+      "record": "records/skills/playerclass06/totem2_petmodifier.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19965,
+      "record": "records/skills/playerclass06/weaponpool01.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19966,
+      "record": "records/skills/playerclass06/weaponpool02.dbr",
+      "mastery_id": 19926
+    },
+    {
+      "id": 19973,
+      "record": "records/skills/playerclass07/_classtraining_class07.dbr"
+    },
+    {
+      "id": 20023,
+      "record": "records/skills/playerclass07/arcaneseal1.dbr",
+      "mastery_id": 19973,
+      "modifier_ids": [
+        20025
+      ]
+    },
+    {
+      "id": 20025,
+      "record": "records/skills/playerclass07/arcaneseal1b.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20026,
+      "record": "records/skills/playerclass07/arcaneseal2_petmodifier.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19983,
+      "record": "records/skills/playerclass07/auracensure1.dbr",
+      "type": 1,
+      "mastery_id": 19973
+    },
+    {
+      "id": 19980,
+      "record": "records/skills/playerclass07/auraconviction1.dbr",
+      "type": 1,
+      "mastery_id": 19973
+    },
+    {
+      "id": 20020,
+      "record": "records/skills/playerclass07/concussiverune1.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20022,
+      "record": "records/skills/playerclass07/concussiverune2_petmodifier.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20010,
+      "record": "records/skills/playerclass07/hunteraura1.dbr",
+      "type": 2,
+      "mastery_id": 19973,
+      "modifier_ids": [
+        20012,
+        20013,
+        20014
+      ]
+    },
+    {
+      "id": 20012,
+      "record": "records/skills/playerclass07/hunteraura1b.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20013,
+      "record": "records/skills/playerclass07/hunteraura2.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20014,
+      "record": "records/skills/playerclass07/hunteraura3.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19996,
+      "record": "records/skills/playerclass07/icerune.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19999,
+      "record": "records/skills/playerclass07/icerune2_petmodifier.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20000,
+      "record": "records/skills/playerclass07/icerune3_petmodifier.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20001,
+      "record": "records/skills/playerclass07/lightningnet1.dbr",
+      "mastery_id": 19973,
+      "modifier_ids": [
+        20004
+      ]
+    },
+    {
+      "id": 20004,
+      "record": "records/skills/playerclass07/lightningnet1b.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20005,
+      "record": "records/skills/playerclass07/lightningnet2.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20027,
+      "record": "records/skills/playerclass07/passive01.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20015,
+      "record": "records/skills/playerclass07/passive02.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19998,
+      "record": "records/skills/playerclass07/passive03.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19986,
+      "record": "records/skills/playerclass07/purifyingflame1.dbr",
+      "mastery_id": 19973,
+      "modifier_ids": [
+        19992,
+        19993,
+        19994,
+        19995
+      ]
+    },
+    {
+      "id": 19992,
+      "record": "records/skills/playerclass07/purifyingflame1b.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19993,
+      "record": "records/skills/playerclass07/purifyingflame2.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19994,
+      "record": "records/skills/playerclass07/purifyingflame3.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19995,
+      "record": "records/skills/playerclass07/purifyingflame4.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19978,
+      "record": "records/skills/playerclass07/voiceofcommand1.dbr",
+      "type": 1,
+      "mastery_id": 19973
+    },
+    {
+      "id": 19974,
+      "record": "records/skills/playerclass07/wordofpain1.dbr",
+      "augmented_level": 2,
+      "mastery_id": 19973,
+      "modifier_ids": [
+        19976,
+        19977
+      ]
+    },
+    {
+      "id": 19976,
+      "record": "records/skills/playerclass07/wordofpain2.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 19977,
+      "record": "records/skills/playerclass07/wordofpain3.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20017,
+      "record": "records/skills/playerclass07/wpattack01.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20018,
+      "record": "records/skills/playerclass07/wpattack02.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20019,
+      "record": "records/skills/playerclass07/wpattack03.dbr",
+      "mastery_id": 19973
+    },
+    {
+      "id": 20028,
+      "record": "records/skills/playerclass08/_classtraining_class08.dbr"
+    },
+    {
+      "id": 20090,
+      "record": "records/skills/playerclass08/callofthegrave.dbr",
+      "type": 2,
+      "mastery_id": 20028
+    },
+    {
+      "id": 20068,
+      "record": "records/skills/playerclass08/illomen1.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20029,
+      "record": "records/skills/playerclass08/lifetap1.dbr",
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20036,
+        20037,
+        20038
+      ]
+    },
+    {
+      "id": 20036,
+      "record": "records/skills/playerclass08/lifetap1b.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20037,
+      "record": "records/skills/playerclass08/lifetap2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20038,
+      "record": "records/skills/playerclass08/lifetap3.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20075,
+      "record": "records/skills/playerclass08/masterofdeath1.dbr",
+      "type": 1,
+      "mastery_id": 20028
+    },
+    {
+      "id": 20039,
+      "record": "records/skills/playerclass08/ravenousearth1.dbr",
+      "augmented_level": 2,
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20041
+      ]
+    },
+    {
+      "id": 20041,
+      "record": "records/skills/playerclass08/ravenousearth2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20042,
+      "record": "records/skills/playerclass08/ravenousearth3.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20072,
+      "record": "records/skills/playerclass08/reaper1.dbr",
+      "type": 1,
+      "mastery_id": 20028
+    },
+    {
+      "id": 20070,
+      "record": "records/skills/playerclass08/reapspirit1.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20043,
+      "record": "records/skills/playerclass08/soulscythe1.dbr",
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20049,
+        20050
+      ]
+    },
+    {
+      "id": 20049,
+      "record": "records/skills/playerclass08/soulscythe1b.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20050,
+      "record": "records/skills/playerclass08/soulscythe2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20051,
+      "record": "records/skills/playerclass08/soulscythe3.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20064,
+      "record": "records/skills/playerclass08/soulsiphon1.dbr",
+      "type": 1,
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20066,
+        20067
+      ]
+    },
+    {
+      "id": 20066,
+      "record": "records/skills/playerclass08/soulsiphon1b.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20067,
+      "record": "records/skills/playerclass08/soulsiphon2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20083,
+      "record": "records/skills/playerclass08/soultransfer.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20078,
+      "record": "records/skills/playerclass08/spectralarmor1.dbr",
+      "type": 1,
+      "mastery_id": 20028
+    },
+    {
+      "id": 20081,
+      "record": "records/skills/playerclass08/spectralarmor2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20058,
+      "record": "records/skills/playerclass08/summon_blightbeast1.dbr",
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20060
+      ]
+    },
+    {
+      "id": 20060,
+      "record": "records/skills/playerclass08/summon_blightbeast1b.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20061,
+      "record": "records/skills/playerclass08/summon_blightbeast2_petmodifier.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20063,
+      "record": "records/skills/playerclass08/summon_blightbeast3_petmodifier.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20052,
+      "record": "records/skills/playerclass08/summon_skeleton1.dbr",
+      "mastery_id": 20028,
+      "modifier_ids": [
+        20054
+      ]
+    },
+    {
+      "id": 20054,
+      "record": "records/skills/playerclass08/summon_skeleton2.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20055,
+      "record": "records/skills/playerclass08/summon_skeleton3_petmodifier.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20056,
+      "record": "records/skills/playerclass08/weaponpool01.dbr",
+      "mastery_id": 20028,
+      "augmented_level": 3
+    },
+    {
+      "id": 20057,
+      "record": "records/skills/playerclass08/weaponpool02.dbr",
+      "mastery_id": 20028
+    },
+    {
+      "id": 20093,
+      "record": "records/skills/playerclass09/_classtraining_class09.dbr"
+    },
+    {
+      "id": 20094,
+      "record": "records/skills/playerclass09/aegis1.dbr",
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20095,
+        20096,
+        20097
+      ]
+    },
+    {
+      "id": 20095,
+      "record": "records/skills/playerclass09/aegis1b.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20096,
+      "record": "records/skills/playerclass09/aegis2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20097,
+      "record": "records/skills/playerclass09/aegis3.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20098,
+      "record": "records/skills/playerclass09/ascension1.dbr",
+      "type": 2,
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20101
+      ]
+    },
+    {
+      "id": 20101,
+      "record": "records/skills/playerclass09/ascension2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20102,
+      "record": "records/skills/playerclass09/divinemandate1.dbr",
+      "type": 1,
+      "mastery_id": 20093
+    },
+    {
+      "id": 20139,
+      "record": "records/skills/playerclass09/eyeofreckoning1.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20142,
+      "record": "records/skills/playerclass09/eyeofreckoning2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20105,
+      "record": "records/skills/playerclass09/judgment1.dbr",
+      "type": 1,
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20106
+      ]
+    },
+    {
+      "id": 20106,
+      "record": "records/skills/playerclass09/judgment2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20107,
+      "record": "records/skills/playerclass09/judgment3.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20109,
+      "record": "records/skills/playerclass09/passive01.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20110,
+      "record": "records/skills/playerclass09/passive02.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20112,
+      "record": "records/skills/playerclass09/pathofthethree1.dbr",
+      "type": 1,
+      "mastery_id": 20093
+    },
+    {
+      "id": 20115,
+      "record": "records/skills/playerclass09/presenceofvirtue1.dbr",
+      "type": 1,
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20118,
+        20119
+      ]
+    },
+    {
+      "id": 20118,
+      "record": "records/skills/playerclass09/presenceofvirtue2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20119,
+      "record": "records/skills/playerclass09/presenceofvirtue3.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20120,
+      "record": "records/skills/playerclass09/righteousfervor1.dbr",
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20121,
+        20122,
+        20123
+      ],
+      "augmented_level": 2
+    },
+    {
+      "id": 20121,
+      "record": "records/skills/playerclass09/righteousfervor1b.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20122,
+      "record": "records/skills/playerclass09/righteousfervor2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20123,
+      "record": "records/skills/playerclass09/righteousfervor3.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20124,
+      "record": "records/skills/playerclass09/summon_celestialguardian1.dbr",
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20126
+      ]
+    },
+    {
+      "id": 20126,
+      "record": "records/skills/playerclass09/summon_celestialguardian1b.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20127,
+      "record": "records/skills/playerclass09/summon_celestialguardian2_petmodifier.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20129,
+      "record": "records/skills/playerclass09/viremight1.dbr",
+      "mastery_id": 20093,
+      "modifier_ids": [
+        20132,
+        20134
+      ]
+    },
+    {
+      "id": 20132,
+      "record": "records/skills/playerclass09/viremight1b.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20133,
+      "record": "records/skills/playerclass09/viremight2.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20134,
+      "record": "records/skills/playerclass09/viremight3.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20135,
+      "record": "records/skills/playerclass09/wpattack01.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20136,
+      "record": "records/skills/playerclass09/wpattack02.dbr",
+      "mastery_id": 20093
+    },
+    {
+      "id": 20143,
+      "record": "records/skills/playerclass10/_classtraining_class10.dbr"
+    },
+    {
+      "id": 20144,
+      "record": "records/skills/playerclass10/amatokpact1.dbr",
+      "type": 1,
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20147,
+        20148
+      ]
+    },
+    {
+      "id": 20147,
+      "record": "records/skills/playerclass10/amatokpact2.dbr",
+      "augmented_level": 3,
+      "mastery_id": 20143
+    },
+    {
+      "id": 20148,
+      "record": "records/skills/playerclass10/amatokpact3.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20214,
+      "record": "records/skills/playerclass10/bloodborne1.dbr",
+      "type": 1,
+      "mastery_id": 20143
+    },
+    {
+      "id": 20157,
+      "record": "records/skills/playerclass10/bonechillingcry1.dbr",
+      "type": 2,
+      "mastery_id": 20143
+    },
+    {
+      "id": 20217,
+      "record": "records/skills/playerclass10/heartofastekarn1.dbr",
+      "type": 1,
+      "mastery_id": 20143
+    },
+    {
+      "id": 20207,
+      "record": "records/skills/playerclass10/leap1.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20209,
+      "record": "records/skills/playerclass10/leap2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20149,
+      "record": "records/skills/playerclass10/onslaught1.dbr",
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20150,
+        20151,
+        20152
+      ]
+    },
+    {
+      "id": 20150,
+      "record": "records/skills/playerclass10/onslaught1b.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20151,
+      "record": "records/skills/playerclass10/onslaught2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20152,
+      "record": "records/skills/playerclass10/onslaught3.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20220,
+      "record": "records/skills/playerclass10/passive01.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20228,
+      "record": "records/skills/playerclass10/passive02.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20230,
+      "record": "records/skills/playerclass10/passive03.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20186,
+      "record": "records/skills/playerclass10/passive04.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20153,
+      "record": "records/skills/playerclass10/rallyingcry1.dbr",
+      "type": 2,
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20155,
+        20156
+      ]
+    },
+    {
+      "id": 20155,
+      "record": "records/skills/playerclass10/rallyingcry1b.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20156,
+      "record": "records/skills/playerclass10/rallyingcry2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20159,
+      "record": "records/skills/playerclass10/wereraven1.dbr",
+      "type": 1,
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20184,
+        20185,
+        20186
+      ]
+    },
+    {
+      "id": 20187,
+      "record": "records/skills/playerclass10/wereraven1_skill01_icicles.dbr",
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20184,
+        20189
+      ]
+    },
+    {
+      "id": 20190,
+      "record": "records/skills/playerclass10/wereraven1_skill02_icering.dbr",
+      "type": 1,
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20184
+      ]
+    },
+    {
+      "id": 20184,
+      "record": "records/skills/playerclass10/wereraven1b.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20189,
+      "record": "records/skills/playerclass10/wereraven2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20185,
+      "record": "records/skills/playerclass10/wereraven3.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20192,
+      "record": "records/skills/playerclass10/werewolf1.dbr",
+      "type": 1,
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20201,
+        20202,
+        20186
+      ]
+    },
+    {
+      "id": 20203,
+      "record": "records/skills/playerclass10/werewolf1_skill01_claws.dbr",
+      "mastery_id": 20143,
+      "modifier_ids": [
+        20204
+      ]
+    },
+    {
+      "id": 20205,
+      "record": "records/skills/playerclass10/werewolf1_skill02_charge.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20201,
+      "record": "records/skills/playerclass10/werewolf1b.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20204,
+      "record": "records/skills/playerclass10/werewolf2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20202,
+      "record": "records/skills/playerclass10/werewolf3.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20210,
+      "record": "records/skills/playerclass10/windsofasterkarn1.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20213,
+      "record": "records/skills/playerclass10/windsofasterkarn2.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20221,
+      "record": "records/skills/playerclass10/wpattack01.dbr",
+      "mastery_id": 20143
+    },
+    {
+      "id": 20222,
+      "record": "records/skills/playerclass10/wpattack02.dbr",
+      "mastery_id": 20143
+    }
+  ],
+  "item_skill_modifiers": [
+    {
+      "skill_id": 19674,
+      "skill_record": "records/skills/playerclass01/cadence1.dbr",
+      "modifier_id": 28185,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/medal_b014_cadence.dbr",
+      "location": 3,
+      "location_name": "Medal",
+      "stats": {
+        "offensive_damage": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "min": 100.0,
+            "max": 100.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot": true,
+            "min": 180.0,
+            "max": 180.0,
+            "duration": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 19708,
+      "skill_record": "records/skills/playerclass01/fieldcommand1.dbr",
+      "modifier_id": 28196,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/mace1h_b014_fieldcommand.dbr",
+      "location": 0,
+      "location_name": "R Hand",
+      "stats": {
+        "offensive_damage": [
+          {
+            "type": 9,
+            "name": "Life",
+            "min": 22.0,
+            "max": 22.0
+          },
+          {
+            "type": 20,
+            "name": "LifeLeach",
+            "min": 6.0,
+            "max": 6.0
+          }
+        ],
+        "conversions": [
+          {
+            "from": 2,
+            "to": 9,
+            "from_name": "Physical",
+            "to_name": "Life",
+            "percent": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 19724,
+      "skill_record": "records/skills/playerclass01/fightingspirit1.dbr",
+      "modifier_id": 28197,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/mace1h_b014_fightingspirit.dbr",
+      "location": 0,
+      "location_name": "R Hand",
+      "stats": {
+        "offensive_damage": [
+          {
+            "type": 9,
+            "name": "Life",
+            "min": 30.0,
+            "max": 30.0
+          },
+          {
+            "type": 20,
+            "name": "LifeLeach",
+            "min": 8.0,
+            "max": 8.0
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 19794,
+      "skill_record": "records/skills/playerclass03/bloodofdreeg1.dbr",
+      "modifier_id": 28138,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/necklace_b001_bloodofdreeg.dbr",
+      "location": 2,
+      "location_name": "Neck",
+      "stats": {
+        "offensive_modifiers": [
+          {
+            "type": 59,
+            "name": "CritDamageModifier",
+            "damage_modifier": 0.14999999
+          }
+        ],
+        "conversions": [
+          {
+            "from": 58,
+            "to": 7,
+            "from_name": "Elemental",
+            "to_name": "Poison",
+            "percent": 0.45
+          },
+          {
+            "from": 11,
+            "to": 7,
+            "from_name": "Aether",
+            "to_name": "Poison",
+            "percent": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 19802,
+      "skill_record": "records/skills/playerclass03/evileye1.dbr",
+      "modifier_id": 28210,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/focus_b011_dreegevileye.dbr",
+      "location": 1,
+      "location_name": "L Hand",
+      "stats": {}
+    },
+    {
+      "skill_id": 19855,
+      "skill_record": "records/skills/playerclass04/ringofsteel.dbr",
+      "modifier_id": 28186,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/medal_b014_ringofsteel.dbr",
+      "location": 3,
+      "location_name": "Medal",
+      "stats": {
+        "offensive_damage": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "min": 150.0,
+            "max": 150.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot": true,
+            "min": 110.0,
+            "max": 110.0,
+            "duration": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 19903,
+      "skill_record": "records/skills/playerclass05/elementalinfusion1.dbr",
+      "modifier_id": 28139,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/necklace_b001_iskandraelementalexchange.dbr",
+      "location": 2,
+      "location_name": "Neck",
+      "stats": {
+        "offensive_modifiers": [
+          {
+            "type": 59,
+            "name": "CritDamageModifier",
+            "damage_modifier": 0.08
+          }
+        ]
+      }
+    },
+    {
+      "skill_id": 20056,
+      "skill_record": "records/skills/playerclass08/weaponpool01.dbr",
+      "modifier_id": 28198,
+      "modifier_record": "records/skills/itemskillsgdx1/skillmodifiers/monsterinfrequents/mace1h_b014_reapingstrike.dbr",
+      "location": 0,
+      "location_name": "R Hand",
+      "stats": {
+        "offensive_damage": [
+          {
+            "type": 9,
+            "name": "Life",
+            "min": 140.0,
+            "max": 140.0
+          }
+        ],
+        "conversions": [
+          {
+            "from": 2,
+            "to": 9,
+            "from_name": "Physical",
+            "to_name": "Life",
+            "percent": 1.0
+          }
+        ]
+      }
+    }
+  ],
+  "item_skills": [
+    {
+      "id": 28206,
+      "record": "records/skills/itemskills/item_poisondotnova_01.dbr",
+      "type": 1,
+      "level": 6,
+      "current_level": 6,
+      "item_id": 28200
+    }
+  ],
+  "equipped": [
+    {
+      "id": 28187,
+      "location": 0,
+      "location_name": "R Hand",
+      "record": "records/items/gearweapons/blunt1h/b014c_blunt.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearweapons/blunt1h/b014c_blunt.dbr",
+        "prefix": "records/items/lootaffixes/prefix/b_wpn011_melee1h_a.dbr",
+        "suffix": "records/items/lootaffixes/suffix/a014a_ch_speedattack_01_we.dbr",
+        "seed": 2125414813,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "modifier": 1.0
+          },
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 276.0
+          },
+          {
+            "type": 15,
+            "name": "AttackSpeed",
+            "modifier": 5.0
+          },
+          {
+            "type": 17,
+            "name": "BaseAttackSpeed",
+            "value": -0.1
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "dot_modifier": 18.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "damage_modifier": 44.0
+          }
+        ],
+        "offensive_damage": [
+          {
+            "type": 1,
+            "name": "BasePhysical",
+            "min": 18.0,
+            "max": 47.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "min": 9.0,
+            "max": 18.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "min": 14.0,
+            "max": 14.0
+          }
+        ],
+        "conversions": [
+          {
+            "from": 2,
+            "to": 9,
+            "from_name": "Physical",
+            "to_name": "Life",
+            "percent": 0.1616342
+          }
+        ]
+      },
+      "requirements": {
+        "level": 20,
+        "physique": 186,
+        "reductions": [
+          [
+            32,
+            29,
+            0
+          ],
+          [
+            33,
+            30,
+            0
+          ],
+          [
+            34,
+            31,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28200,
+      "location": 1,
+      "location_name": "L Hand",
+      "record": "records/items/gearweapons/focus/b011b_focus.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearweapons/focus/b011b_focus.dbr",
+        "prefix": "records/items/lootaffixes/prefix/aa009a_oamod_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_sh010_a.dbr",
+        "seed": 1905123542,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 7,
+            "name": "ManaRegen",
+            "modifier": 42.0
+          },
+          {
+            "type": 21,
+            "name": "OffensiveAbility",
+            "value": 8.0
+          },
+          {
+            "type": 22,
+            "name": "OffensiveAbilityModifier",
+            "value": 4.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 11,
+            "name": "Aether",
+            "defense": 16.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "damage_modifier": 62.0,
+            "dot_modifier": 72.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "damage_modifier": 35.0,
+            "dot_modifier": 34.0
+          },
+          {
+            "type": 59,
+            "name": "CritDamageModifier",
+            "damage_modifier": 0.08
+          }
+        ],
+        "skill_attributes": [
+          {
+            "type": 1,
+            "name": "CooldownReduction",
+            "value": 12.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 20,
+        "spirit": 224,
+        "reductions": [
+          [
+            44,
+            29,
+            0
+          ],
+          [
+            45,
+            30,
+            0
+          ],
+          [
+            46,
+            31,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28125,
+      "location": 2,
+      "location_name": "Neck",
+      "record": "records/items/gearaccessories/necklaces/b001_necklace.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearaccessories/necklaces/b001_necklace.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ao011a_acid_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/a020b_ch_oada_02.dbr",
+        "relic": "records/items/materia/compa_corpsedust.dbr",
+        "seed": 1362560609,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 249.0,
+            "modifier": 4.0
+          },
+          {
+            "type": 6,
+            "name": "LifeRegen",
+            "modifier": 24.0
+          },
+          {
+            "type": 21,
+            "name": "OffensiveAbility",
+            "value": 22.0
+          },
+          {
+            "type": 23,
+            "name": "DefensiveAbility",
+            "value": 13.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "defense": 21.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "defense": 10.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "dot_modifier": 18.0
+          }
+        ],
+        "offensive_damage": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "min": 1.0,
+            "max": 2.0
+          }
+        ]
+      },
+      "relic": {
+        "record": "records/items/materia/compa_corpsedust.dbr",
+        "stats": {
+          "char_attributes": [
+            {
+              "type": 4,
+              "name": "Life",
+              "modifier": 4.0
+            },
+            {
+              "type": 6,
+              "name": "LifeRegen",
+              "modifier": 24.0
+            }
+          ],
+          "defense": [
+            {
+              "type": 9,
+              "name": "Life",
+              "defense": 10.0
+            }
+          ]
+        }
+      },
+      "requirements": {
+        "level": 8,
+        "spirit": 41,
+        "reductions": [
+          [
+            50,
+            0,
+            0
+          ],
+          [
+            51,
+            0,
+            0
+          ],
+          [
+            52,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28179,
+      "location": 3,
+      "location_name": "Medal",
+      "record": "records/items/gearaccessories/medals/b014a_medal.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearaccessories/medals/b014a_medal.dbr",
+        "prefix": "records/items/lootaffixes/prefix/aa006b_spimod_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/a035b_off_dmg%bleed_02_je.dbr",
+        "seed": 1920969423,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "modifier": 7.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 7,
+            "name": "Poison",
+            "defense": 27.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "damage_modifier": 28.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot_modifier": 32.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 18,
+        "reductions": [
+          [
+            50,
+            0,
+            0
+          ],
+          [
+            51,
+            0,
+            0
+          ],
+          [
+            52,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28156,
+      "location": 4,
+      "location_name": "Finger",
+      "record": "records/items/gearaccessories/rings/a002_ring02.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearaccessories/rings/a002_ring02.dbr",
+        "prefix": "records/items/lootaffixes/prefix/aa007b_lifemod_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar030_je.dbr",
+        "seed": 1483889057,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 58.0,
+            "modifier": 9.0
+          },
+          {
+            "type": 7,
+            "name": "ManaRegen",
+            "value": 1.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 15.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 15.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 15.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 9,
+            "name": "Life",
+            "damage_modifier": 13.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot_modifier": 15.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 5,
+        "spirit": 84,
+        "reductions": [
+          [
+            50,
+            0,
+            0
+          ],
+          [
+            51,
+            0,
+            0
+          ],
+          [
+            52,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28160,
+      "location": 5,
+      "location_name": "Finger",
+      "record": "records/items/gearaccessories/rings/a002_ring02.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearaccessories/rings/a002_ring02.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ao003a_pierce_02.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar030_je.dbr",
+        "relic": "records/items/materia/compa_frozenheart.dbr",
+        "seed": 171148157,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 136.0
+          },
+          {
+            "type": 7,
+            "name": "ManaRegen",
+            "value": 1.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 25.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 15.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 15.0
+          },
+          {
+            "type": 45,
+            "name": "Freeze",
+            "defense": 21.0
+          },
+          {
+            "type": 46,
+            "name": "Petrify",
+            "defense": 21.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 9,
+            "name": "Life",
+            "damage_modifier": 14.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot_modifier": 16.0
+          }
+        ],
+        "offensive_damage": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "min": 1.0,
+            "max": 1.0
+          }
+        ]
+      },
+      "relic": {
+        "record": "records/items/materia/compa_frozenheart.dbr",
+        "stats": {
+          "char_attributes": [
+            {
+              "type": 4,
+              "name": "Life",
+              "value": 70.0
+            }
+          ],
+          "defense": [
+            {
+              "type": 5,
+              "name": "Cold",
+              "defense": 10.0
+            },
+            {
+              "type": 45,
+              "name": "Freeze",
+              "defense": 21.0
+            },
+            {
+              "type": 46,
+              "name": "Petrify",
+              "defense": 21.0
+            }
+          ]
+        }
+      },
+      "requirements": {
+        "level": 5,
+        "spirit": 84,
+        "reductions": [
+          [
+            50,
+            0,
+            0
+          ],
+          [
+            51,
+            0,
+            0
+          ],
+          [
+            52,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28171,
+      "location": 6,
+      "location_name": "Waist",
+      "record": "records/items/gearaccessories/waist/a02_waist001.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearaccessories/waist/a02_waist001.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ad006b_res_piercefire_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar104_ar_a.dbr",
+        "seed": 1807748443,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 88.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "defense": 15.0
+          },
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 9.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 20.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 9.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 7.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "damage_modifier": 15.0,
+            "dot_modifier": 9.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "damage_modifier": 15.0,
+            "dot_modifier": 9.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "damage_modifier": 15.0,
+            "dot_modifier": 11.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 5,
+        "physique": 69,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28121,
+      "location": 7,
+      "location_name": "Head",
+      "record": "records/items/gearhead/a03_head002.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearhead/a03_head002.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ad010a_res_firecold_02.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar029_je.dbr",
+        "seed": 247191467,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 95.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 11.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 13.0
+          },
+          {
+            "type": 10,
+            "name": "Chaos",
+            "defense": 10.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 76.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "damage_modifier": 11.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "dot_modifier": 19.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 10,
+        "physique": 127,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28140,
+      "location": 8,
+      "location_name": "Chest",
+      "record": "records/items/geartorso/b003a_torso.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/geartorso/b003a_torso.dbr",
+        "seed": 1523126893,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 139.0
+          },
+          {
+            "type": 7,
+            "name": "ManaRegen",
+            "value": 1.0
+          },
+          {
+            "type": 23,
+            "name": "DefensiveAbility",
+            "value": 18.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 17.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 17.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 17.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "defense": 12.0
+          },
+          {
+            "type": 11,
+            "name": "Aether",
+            "defense": 9.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 173.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 20,
+        "physique": 190,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28175,
+      "location": 9,
+      "location_name": "Shoulders",
+      "record": "records/items/gearshoulders/b007a_shoulder.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearshoulders/b007a_shoulder.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar002_ar.dbr",
+        "seed": 1877267199,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 1,
+            "name": "Strength",
+            "value": 7.0
+          },
+          {
+            "type": 2,
+            "name": "Dexterity",
+            "value": 7.0
+          },
+          {
+            "type": 4,
+            "name": "Life",
+            "value": 74.0
+          },
+          {
+            "type": 23,
+            "name": "DefensiveAbility",
+            "value": 9.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 4,
+            "name": "Pierce",
+            "defense": 10.0
+          },
+          {
+            "type": 9,
+            "name": "Life",
+            "defense": 8.0
+          },
+          {
+            "type": 15,
+            "name": "Bleeding",
+            "defense": 11.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 71.0
+          },
+          {
+            "type": 40,
+            "name": "Protection",
+            "defense_modifier": 3.0
+          }
+        ],
+        "retaliation": [
+          {
+            "type": 2,
+            "name": "Physical",
+            "min": 24.0,
+            "max": 24.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 7,
+        "physique": 73,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28152,
+      "location": 10,
+      "location_name": "Hands",
+      "record": "records/items/gearhands/a03_hands01.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearhands/a03_hands01.dbr",
+        "prefix": "records/items/lootaffixes/prefix/aa007a_lifemod_01.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar038_ar.dbr",
+        "seed": 2130687344,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "value": 12.0
+          },
+          {
+            "type": 4,
+            "name": "Life",
+            "modifier": 6.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 12.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 12.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 12.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 49.0
+          },
+          {
+            "type": 42,
+            "name": "Stun",
+            "defense": 11.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 8,
+            "name": "Lightning",
+            "damage_modifier": 9.0
+          },
+          {
+            "type": 11,
+            "name": "Aether",
+            "damage_modifier": 15.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 5,
+        "physique": 48,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28144,
+      "location": 11,
+      "location_name": "Legs",
+      "record": "records/items/gearlegs/a04_legs01.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearlegs/a04_legs01.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ad012a_res_firepoison_02.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar038_ar.dbr",
+        "seed": 206352141,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "value": 14.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 8.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 19.0
+          },
+          {
+            "type": 7,
+            "name": "Poison",
+            "defense": 11.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 8.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 155.0
+          },
+          {
+            "type": 42,
+            "name": "Stun",
+            "defense": 16.0
+          }
+        ],
+        "offensive_modifiers": [
+          {
+            "type": 8,
+            "name": "Lightning",
+            "damage_modifier": 10.0
+          },
+          {
+            "type": 11,
+            "name": "Aether",
+            "damage_modifier": 15.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 10,
+        "physique": 176,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    },
+    {
+      "id": 28148,
+      "location": 12,
+      "location_name": "Feet",
+      "record": "records/items/gearfeet/a04_feet01.dbr",
+      "kind": "ItemEquipment",
+      "replica": {
+        "base": "records/items/gearfeet/a04_feet01.dbr",
+        "prefix": "records/items/lootaffixes/prefix/ad004a_res_lightning_02.dbr",
+        "suffix": "records/items/lootaffixes/suffix/b_ar056_ar.dbr",
+        "seed": 1332535458,
+        "stack_count": 1
+      },
+      "stats": {
+        "char_attributes": [
+          {
+            "type": 3,
+            "name": "Intelligence",
+            "value": 22.0
+          },
+          {
+            "type": 14,
+            "name": "RunSpeed",
+            "modifier": 4.0
+          }
+        ],
+        "defense": [
+          {
+            "type": 5,
+            "name": "Cold",
+            "defense": 11.0
+          },
+          {
+            "type": 6,
+            "name": "Fire",
+            "defense": 11.0
+          },
+          {
+            "type": 8,
+            "name": "Lightning",
+            "defense": 35.0
+          },
+          {
+            "type": 11,
+            "name": "Aether",
+            "defense": 10.0
+          },
+          {
+            "type": 16,
+            "name": "TotalSpeed",
+            "defense": 24.0
+          },
+          {
+            "type": 17,
+            "name": "AttackSpeed",
+            "defense": 24.0
+          },
+          {
+            "type": 18,
+            "name": "SpellCastSpeed",
+            "defense": 24.0
+          },
+          {
+            "type": 19,
+            "name": "RunSpeed",
+            "defense": 24.0
+          },
+          {
+            "type": 38,
+            "name": "AbsorptionProtection",
+            "defense": 117.0
+          }
+        ]
+      },
+      "requirements": {
+        "level": 10,
+        "physique": 104,
+        "reductions": [
+          [
+            47,
+            0,
+            0
+          ],
+          [
+            48,
+            0,
+            0
+          ],
+          [
+            49,
+            0,
+            0
+          ]
+        ],
+        "met": true
+      }
+    }
+  ]
+}

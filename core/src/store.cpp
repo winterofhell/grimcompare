@@ -21,7 +21,7 @@ using J = nlohmann::ordered_json;
 namespace fs = std::filesystem;
 
 constexpr const char* kFormat = "gdc-snap/1";
-constexpr std::uint32_t kMaxInflated = 256u << 20;  // one record; a full snapshot is ~1 MB of JSON
+constexpr std::uint32_t kMaxInflated = 256u << 20;  // a full snapshot is ~1 MB of JSON
 
 void put_u32(std::string& out, std::uint32_t v) {
   for (int i = 0; i < 4; ++i) out.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
@@ -35,7 +35,7 @@ std::uint32_t get_u32(std::string_view s, std::size_t at) {
 
 struct Rule {
   const char* section;
-  std::string (*key)(const J&);  // "" = no key
+  std::string (*key)(const J&);
 };
 
 std::string num_or_str(const J& j, const char* field) {
@@ -55,6 +55,7 @@ const Rule kRules[] = {
        const auto f = num_or_str(e, "from"), t = num_or_str(e, "to");
        return f.empty() || t.empty() ? std::string{} : f + ">" + t;
      }},
+    {"skill_attributes", [](const J& e) { return num_or_str(e, "type"); }},
     {"skills", [](const J& e) { return num_or_str(e, "record"); }},
     {"item_skill_modifiers",
      [](const J& e) {
@@ -70,8 +71,7 @@ bool numeric(const std::string& k) {
   return !k.empty() && std::all_of(k.begin(), k.end(), [](char c) { return (c >= '0' && c <= '9') || c == '-'; });
 }
 
-// Keyed sections in key order (numeric when every key is): a canonical order, so a rebuilt snapshot
-// matches regardless of where a patch inserted a key.
+// Canonical order, so a rebuilt snapshot matches wherever a patch inserted a key.
 J sorted_values(const J& obj) {
   std::vector<std::pair<std::string, const J*>> items;
   for (const auto& [k, v] : obj.items()) items.emplace_back(k, &v);
@@ -122,11 +122,10 @@ J parse(std::string_view text, const char* what) {
 }
 
 std::string segment_of(const std::string& taken_at) {
-  // "2026-11-14T12:03:19.056Z" -> "20261114-120319-056"
   std::string d;
   for (char c : taken_at)
     if (c >= '0' && c <= '9') d.push_back(c);
-  d.resize(17, '0');  // taken_at missing or short: zeros
+  d.resize(17, '0');
   return d.substr(0, 8) + "-" + d.substr(8, 6) + "-" + d.substr(14, 3);
 }
 
@@ -152,7 +151,7 @@ std::string gzip(std::string_view data) {
   std::size_t n = 0;
   void* raw = tdefl_compress_mem_to_heap(data.data(), data.size(), &n, TDEFL_DEFAULT_MAX_PROBES);
   if (!raw && !data.empty()) throw std::runtime_error("gzip: deflate failed");
-  std::string out = {'\x1f', '\x8b', '\x08', '\0', '\0', '\0', '\0', '\0', '\0', '\xff'};  // no mtime, OS unknown
+  std::string out = {'\x1f', '\x8b', '\x08', '\0', '\0', '\0', '\0', '\0', '\0', '\xff'};
   out.append(static_cast<const char*>(raw), n);
   mz_free(raw);
   put_u32(out, static_cast<std::uint32_t>(
@@ -171,20 +170,20 @@ std::string gunzip(std::string_view gz) {
   auto need = [&](std::size_t n) {
     if (p + n > end) throw std::runtime_error("gunzip: truncated header");
   };
-  if (flags & 4) {  // FEXTRA
+  if (flags & 4) {
     need(2);
     const std::size_t xlen = static_cast<unsigned char>(gz[p]) | (static_cast<unsigned char>(gz[p + 1]) << 8);
     p += 2;
     need(xlen);
     p += xlen;
   }
-  for (unsigned bit : {8u, 16u})  // FNAME, FCOMMENT: zero-terminated
+  for (unsigned bit : {8u, 16u})
     if (flags & bit) {
       while (p < end && gz[p] != 0) ++p;
       need(1);
       ++p;
     }
-  if (flags & 2) {  // FHCRC
+  if (flags & 2) {
     need(2);
     p += 2;
   }
@@ -217,7 +216,7 @@ std::string keyed(const snap::Snapshot& s) {
     if (!ok) continue;
     J out = J::object();
     for (auto& e : sorted_values(obj)) {
-      const std::string k = r.key(e);  // before the move: operator= takes its argument by value
+      const std::string k = r.key(e);  // operator= takes its argument by value
       out[k] = std::move(e);
     }
     *it = std::move(out);
@@ -280,7 +279,6 @@ std::vector<std::string> tags(unsigned t) {
 }
 
 void read(const fs::path& char_dir, const std::function<void(const Record&)>& each) {
-  // <segment 19 chars>-<seq 4 digits>-<full|delta>.json.gz; name order = time order within a segment
   std::map<std::string, std::map<unsigned, std::pair<bool, fs::path>>> segs;
   for (const auto& f : fs::directory_iterator(char_dir)) {
     const std::string n = f.path().filename().string();
@@ -291,7 +289,7 @@ void read(const fs::path& char_dir, const std::function<void(const Record&)>& ea
     segs[n.substr(0, 19)][static_cast<unsigned>(std::stoul(n.substr(20, 4)))] = {full, f.path()};
   }
   for (const auto& [segment, recs] : segs) {
-    J state;  // keyed snapshot; null until the segment's full record
+    J state;  // null until the segment's full record
     for (const auto& [seq, fp] : recs) {
       const auto& [full, path] = fp;
       std::ifstream f(path, std::ios::binary);
@@ -325,8 +323,7 @@ Store::Written Store::write(const snap::Snapshot& s, unsigned triggers) {
   fs::create_directories(dir);
   const std::string k = keyed(s);
   Chain& c = chains_[folder];
-  // A new segment (full baseline) for the first record and once a chain holds a quarter of the cap, so
-  // finished segments can be rotated away whole.
+  // New segment once a chain holds a quarter of the cap, so finished segments rotate away whole.
   const bool full = c.prev.empty() || c.bytes > cap_ / 4;
   if (full) c = Chain{segment_of(s.taken_at), 0, {}, 0};
   else ++c.seq;
@@ -342,7 +339,7 @@ Store::Written Store::write(const snap::Snapshot& s, unsigned triggers) {
   try {
     write_file(file, bytes);
   } catch (...) {
-    c.prev.clear();  // restart with a full record
+    c.prev.clear();
     throw;
   }
   c.prev = k;
@@ -352,14 +349,13 @@ Store::Written Store::write(const snap::Snapshot& s, unsigned triggers) {
   return w;
 }
 
-// Deletes the oldest whole segments (any character) until the total is within the cap. Active segments
-// (the current chain of each character in this Store) are kept.
+// Active segments are kept.
 std::vector<fs::path> Store::rotate() {
   struct Seg {
     std::vector<fs::path> files;
     std::uint64_t bytes = 0;
   };
-  std::map<std::string, Seg> segs;  // "segment\x01folder", oldest first
+  std::map<std::string, Seg> segs;
   std::uint64_t total = 0;
   std::error_code ec;
   for (const auto& d : fs::directory_iterator(root_, ec)) {

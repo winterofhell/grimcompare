@@ -17,23 +17,22 @@ namespace gdc::model {
 namespace {
 
 constexpr int kPhysique = 1, kCunning = 2, kSpirit = 3, kLife = 4, kEnergy = 5, kRunSpeed = 14;
-constexpr int kArmor = 38, kAbsorption = 39, kProtection = 40;  // re/CombatAttributeType.tsv
+constexpr int kArmor = 38, kAbsorption = 39, kProtection = 40;
 
-// records/creatures/pc/playerlevels.dbr: lifeIncrement 20, lifeIncrementDexterity 8,
-// lifeIncrementIntelligence 12, manaIncrement 16 per attribute point of strength/dexterity/
-// intelligenceIncrement 8. Applied to attribute totals (item and % bonuses included): verified for
-// Spirit by the poison swap fixture (+12.1 Spirit -> +18.15 Life, +24.2 Energy before Life %).
+// playerlevels.dbr: lifeIncrement 20, lifeIncrementDexterity 8, lifeIncrementIntelligence 12, manaIncrement 16
+// per 8 attribute points. Applies to attribute totals, bonuses included: the poison swap fixture shows
+// +12.1 Spirit -> +18.15 Life, +24.2 Energy.
 constexpr double kLifePerPhysique = 20.0 / 8, kLifePerCunning = 8.0 / 8, kLifePerSpirit = 12.0 / 8;
 constexpr double kEnergyPerSpirit = 16.0 / 8;
 
-// Types with a DefenseAttributeDefenseCap_* class (re/CombatAttributeType.tsv): their defense is capped
-// at defense_cap + cap_bonus by CombatAttributeAbsDefense::Process.
+// Types with a DefenseAttributeDefenseCap_* class: CombatAttributeAbsDefense::Process caps them at
+// defense_cap + cap_bonus.
 bool cappable(int t) {
   static const std::set<int> types = {2, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 20, 21, 42, 43, 44, 45, 46};
   return types.contains(t);
 }
 
-// combatformulas.dbr combatRegion*Chance (%), by EquipLocations; waist (6) adds its armor whole (fit).
+// combatformulas.dbr combatRegion*Chance by EquipLocations; waist adds its armor whole (fit).
 double region_weight(int location) {
   switch (location) {
     case 7: return 0.15;   // Head: combatRegionHeadChance
@@ -42,7 +41,7 @@ double region_weight(int location) {
     case 10: return 0.12;  // Hands: combatRegionArmsChance
     case 11: return 0.20;  // Legs: combatRegionLegsChance
     case 12: return 0.12;  // Feet: combatRegionFeetChance
-    case 6: return 1.0;    // Waist
+    case 6: return 1.0;    // fit
     default: return 0.0;
   }
 }
@@ -91,20 +90,17 @@ const snap::Item* at(const snap::Snapshot& s, int location) {
 }
 
 
-// What item stats do not show: skill / mastery grants and max-resist bonuses, summed over the item's
-// records (base, affixes, components, completion bonus).
 struct Hidden {
-  std::map<std::string, double> skills;      // augmentSkillName* record -> levels
-  std::map<std::string, double> masteries;   // augmentMasteryName* record -> levels
+  std::map<std::string, double> skills;      // augmentSkillName*
+  std::map<std::string, double> masteries;   // augmentMasteryName*
   double all = 0;                            // augmentAllLevel
-  std::map<std::string, double> max_resist;  // defensive*MaxResist field -> value
-  // modifiedSkillName<n> -> modifierSkillName<n>: item skill modifiers (b013a_sword: two on possession1)
+  std::map<std::string, double> max_resist;  // defensive*MaxResist
+  // b013a_sword has two modifiers on possession1.
   std::multiset<std::pair<std::string, std::string>> modifiers;
-  // The same from set bonuses at the current piece count (sets::Bonus); they are not tied to the slot.
+  // Set bonuses are not tied to the slot.
   std::multiset<std::pair<std::string, std::string>> set_modifiers;
 };
 
-// Adds a set bonus's skill parts and max resists (sets.h).
 void merge(Hidden& h, const sets::Bonus& b) {
   for (const auto& [k, v] : b.skills) h.skills[k] += v;
   for (const auto& [k, v] : b.masteries) h.masteries[k] += v;
@@ -112,8 +108,6 @@ void merge(Hidden& h, const sets::Bonus& b) {
   h.set_modifiers.insert(b.modifiers.begin(), b.modifiers.end());
   for (const auto& [k, v] : b.max_resist) h.max_resist[k] += v;
 }
-
-// The item's records: base, affixes, components, completion bonus.
 
 Hidden hidden(const snap::Item* it, const arz::Database& db) {
   Hidden h;
@@ -145,10 +139,9 @@ double get(const std::map<std::string, double>& m, const std::string& k) {
   return it != m.end() ? it->second : 0;
 }
 
-// Augmented levels the swap adds to skill `sk` (negative: removes). Targets as the engine applies
-// grants: SetSkillLevelAugment (0x5375B0) by record; SetMasteryAugment (0x5373D0) to the mastery skill
-// itself and every skill whose GetMasteryId (Skill+0x13C) is its id; SetAllSkillAugment (0x537230) to
-// every skill but one the caller names (not traced; see the warning in swap()).
+// SetSkillLevelAugment 0x5375B0 by record; SetMasteryAugment 0x5373D0 to the mastery and every skill whose
+// GetMasteryId (Skill+0x13C) matches; SetAllSkillAugment 0x537230 to every skill but one the caller names
+// (not traced, warned in swap()).
 double grant_delta(const snap::Skill& sk, const snap::Snapshot& s, const Hidden& before, const Hidden& after) {
   double d = get(after.skills, sk.record) - get(before.skills, sk.record) + after.all - before.all;
   std::set<std::string> masteries;
@@ -163,8 +156,6 @@ double grant_delta(const snap::Skill& sk, const snap::Snapshot& s, const Hidden&
   return d;
 }
 
-// Value of a per-level field at `level` (1-based); arrays are indexed by level - 1, a single value holds
-// for every level. nullopt past the end of an array.
 std::optional<double> at_level(const arz::Field& f, std::uint32_t level) {
   if (level == 0 || f.numbers.empty()) return 0.0;
   if (f.numbers.size() == 1) return f.numbers[0];
@@ -172,19 +163,15 @@ std::optional<double> at_level(const arz::Field& f, std::uint32_t level) {
   return f.numbers[level - 1];
 }
 
-// Contributions of one skill record at a level, keyed by (kind, type, modifier).
-using Contribution = std::map<std::tuple<fields::Kind, int, bool>, double>;
-
 struct SkillEffect {
-  Contribution delta;    // after - before
-  Contribution at_from;  // the record's mapped stats at the old level
+  Contribution delta;
+  Contribution at_from;
   std::string problem;   // non-empty: not modeled, why
 };
 
-// What an item skill modifier (Skill_Modifier record, skillMaxLevel 1) adds to its skill. The engine adds
-// it through the skill's own collector: possession1's captured passive has AttackSpeed modifier 16 = two
-// sword1h_b013_possession.dbr (characterAttackSpeedModifier 8, one per dual-wielded b013 sword), its own
-// record has none (auto-snapshot store 2026-11-14, record 20261114-123319-910-0001).
+// Added through the skill's own collector: possession1's captured passive has AttackSpeed modifier 16 = two
+// sword1h_b013_possession.dbr (characterAttackSpeedModifier 8, one per dual-wielded b013 sword); its own record
+// has none (auto-snapshot 2026-11-14).
 SkillEffect modifier_effect(const std::string& record, const arz::Database& db) {
   SkillEffect e;
   const auto rec = db.record(record);
@@ -212,7 +199,6 @@ SkillEffect modifier_effect(const std::string& record, const arz::Database& db) 
   return e;
 }
 
-// A skill record's mapped stats at `from` and their change to `to`.
 SkillEffect level_effect(const arz::Record& rec, std::uint32_t from, std::uint32_t to) {
   SkillEffect e;
   for (const auto& [key, field] : rec.fields) {
@@ -221,8 +207,7 @@ SkillEffect level_effect(const arz::Record& rec, std::uint32_t from, std::uint32
     double scale = 1;
     const fields::Target* t = fields::lookup(key, scale);
     if (!t) {
-      // Compared stats come only from defensive* / character* fields; others (offensive*, pet, ...) don't
-      // reach the sheet values the model predicts.
+      // Only defensive* / character* fields reach the sheet values the model predicts.
       if ((key.starts_with("defensive") || key.starts_with("character")) && a != b)
         e.problem = key + " is not modeled";
       continue;
@@ -237,9 +222,8 @@ SkillEffect level_effect(const arz::Record& rec, std::uint32_t from, std::uint32
   return e;
 }
 
-// The engine's own numbers for this skill (schema 4) must equal its record at the current level plus what
-// is attached to it (`attached`: learned modifiers, item skill modifiers), or something else (a conditional
-// part) is in play and the record delta can't be trusted. Sets e.problem.
+// Engine numbers must equal record + attached modifiers, or a conditional part is in play and the record
+// delta can't be trusted.
 void engine_check(const snap::Snapshot& s, const snap::Skill& sk, std::uint32_t from, const Contribution& attached,
                   SkillEffect& e) {
   if (e.problem.empty() && sk.passive) {
@@ -254,7 +238,6 @@ void engine_check(const snap::Snapshot& s, const snap::Skill& sk, std::uint32_t 
       if (c.defense_modifier != 0) engine[{fields::Kind::Defense, c.type, true}] += c.defense_modifier;
     }
     for (const auto& [k, v] : attached) at_from[k] += v;
-    // The capture holds char / defense collectors only (snap::Skill::passive).
     std::erase_if(at_from, [](const auto& kv) { return kv.second == 0 || std::get<0>(kv.first) == fields::Kind::Damage; });
     const bool same = engine.size() == at_from.size() &&
                       std::all_of(engine.begin(), engine.end(), [&](const auto& kv) {
@@ -267,7 +250,6 @@ void engine_check(const snap::Snapshot& s, const snap::Skill& sk, std::uint32_t 
   }
 }
 
-// The skill whose collector adds modifier skill `id` (snap::Skill::modifier_ids, schema 5), or null.
 const snap::Skill* modifier_parent(const std::vector<snap::Skill>& skills, std::uint32_t id) {
   for (const auto& k : skills)
     if (std::find(k.modifier_ids.begin(), k.modifier_ids.end(), id) != k.modifier_ids.end()) return &k;
@@ -285,7 +267,7 @@ void add_to(snap::ItemStats& passive, const Contribution& delta) {
   for (const auto& [k, v] : delta) {
     if (v == 0) continue;
     const auto [kind, type, modifier] = k;
-    if (kind == fields::Kind::Damage) continue;  // not part of the captured passive
+    if (kind == fields::Kind::Damage) continue;
     if (kind == fields::Kind::Char) {
       auto& c = row(passive.char_attributes, type);
       (modifier ? c.modifier : c.value) += static_cast<float>(v);
@@ -298,7 +280,6 @@ void add_to(snap::ItemStats& passive, const Contribution& delta) {
 
 using Deltas = std::map<int, std::pair<double, double>>;  // type -> (value delta, modifier delta)
 
-// Char / defense: (value, modifier). Damage: (direct %, duration %).
 struct AllDeltas {
   Deltas chr, def, dmg;
   void add(const Contribution& c, bool damage_only = false) {
@@ -306,7 +287,7 @@ struct AllDeltas {
       const auto [kind, type, modifier] = k;
       if (damage_only && kind != fields::Kind::Damage) continue;
       if (kind == fields::Kind::Damage && (type == 58 || type == 60)) {
-        // Skill fields: spread like the engine's own rows (items arrive spread already, see swap()).
+        // Items arrive spread already (see swap()).
         for (int t : fields::spread(type, modifier)) (modifier ? dmg[t].second : dmg[t].first) += v;
         if (type == 60 && !modifier) dmg[60].first += v;  // b002e_torso: row 60 direct only
         continue;
@@ -321,8 +302,7 @@ bool has_damage(const Contribution& c) {
   return std::any_of(c.begin(), c.end(), [](const auto& kv) { return std::get<0>(kv.first) == fields::Kind::Damage && kv.second != 0; });
 }
 
-// Whether any damage the skill deals or adds differs between two levels: flat damage, damage %, weapon
-// damage %, in the record or its buffSkillName record (where Skill_AttackBuffRadius-style skills keep them).
+// Skill_AttackBuffRadius-style skills keep damage on their buffSkillName record.
 bool damage_changes(const arz::Record& r, std::uint32_t from, std::uint32_t to, const arz::Database& db) {
   auto differs = [&](const arz::Record& x, std::string_view key) {
     if (key.empty()) return false;
@@ -346,28 +326,21 @@ double value_at(const arz::Record& r, std::string_view key, std::uint32_t level)
   return at_level(it->second, level).value_or(it->second.numbers.empty() ? 0 : it->second.numbers.back());
 }
 
-// The record holding a skill's stats and timing: its buffSkillName record when it has one (bloodofdreeg1 ->
-// bloodofdreeg1_buff.dbr, SkillBuff_Passive), else the skill's own.
+// bloodofdreeg1 -> bloodofdreeg1_buff.dbr (SkillBuff_Passive).
 const arz::Record& stats_record(const arz::Record& rec, const arz::Database& db) {
   const std::string buff(rec.string("buffSkillName"));
   const arz::Record* b = buff.empty() ? nullptr : db.record(buff);
   return b ? *b : rec;
 }
 
-// Uptime of a timed buff the snapshot caught between casts: skillActiveDuration / skillCooldownTime at
-// `level` (bloodofdreeg1_buff.dbr: 60 s / 12 s -> 1), capped at 1; no cooldown: 1. 0 when it has no
-// duration (a toggle or aura that is off) or is not a self buff: SkillBuff_Passive (the buffSkillName record
-// of Skill_BuffRadius / SkillSecondary_BuffSelfDuration / Skill_BuffOther in 1.3.1.1) or Skill_BuffSelfDuration
-// (overguard1). Debuffs (SkillBuff_Debuf*: gdc::effects), attacks and triggered buffs
-// (Skill_PassiveOn*BuffSelf) stay unapplied.
-// Design choice: recast whenever the cooldown allows (docs/MECHANICS.md §4).
-// shortcut: preset [uptime] does not reach the stat model — revisit when a buff needs an override.
-double buff_uptime(const arz::Record& stats, std::uint32_t level) {
-  if (stats.cls != "SkillBuff_Passive" && stats.cls != "Skill_BuffSelfDuration") return 0;
+// SkillBuff_Passive (buffSkillName of Skill_BuffRadius / SkillSecondary_BuffSelfDuration / Skill_BuffOther in
+// 1.3.1.1) or Skill_BuffSelfDuration (overguard1) with skillActiveDuration. Toggles, auras, debuffs, attacks and
+// Skill_PassiveOn*BuffSelf are not timed buffs.
+std::optional<BuffTiming> timing(const arz::Record& stats, std::uint32_t level) {
+  if (stats.cls != "SkillBuff_Passive" && stats.cls != "Skill_BuffSelfDuration") return std::nullopt;
   const double duration = value_at(stats, "skillActiveDuration", level);
-  if (duration <= 0) return 0;
-  const double cooldown = value_at(stats, "skillCooldownTime", level);
-  return cooldown > 0 ? std::min(1.0, duration / cooldown) : 1.0;
+  if (duration <= 0) return std::nullopt;
+  return BuffTiming{duration, value_at(stats, "skillCooldownTime", level)};
 }
 
 Contribution scaled(const Contribution& c, double f) {
@@ -376,13 +349,74 @@ Contribution scaled(const Contribution& c, double f) {
   return out;
 }
 
-// Item-granted skill levels and item skill modifiers. GetCurrentLevel (0x4909C0) = level ? min(level +
-// augmented, cap) : 0 outside devotions, cap = SkillProfile+0x150 = max(skillUltimateLevel, skillMaxLevel)
-// (SkillProfile::LoadProfile 0x545A27). A skill counts only while it contributes (Skill::passive non-empty);
-// its stats at the new level come from its record (gdc::fields), a removed / added modifier's from the
-// modifier record. Without passive data (schema < 4) passives and toggles are assumed on.
+void add_conversion(std::vector<snap::Conversion>& v, int from, int to, double delta) {
+  auto at = std::find_if(v.begin(), v.end(), [&](const snap::Conversion& x) { return x.from == from && x.to == to; });
+  if (at == v.end()) at = v.insert(v.end(), snap::Conversion{from, to, 0});
+  at->percent = static_cast<float>(at->percent + delta);
+  if (std::abs(at->percent) < 1e-6) v.erase(at);
+}
+
+void drop_zeros(Contribution& c) {
+  std::erase_if(c, [](const auto& kv) { return kv.second == 0; });
+}
+
+// Fields read at min(level - 1, size - 1), as sets::bonus does.
+void add_unmodeled(const arz::Record& r, std::uint32_t level, BuffEffect& out) {
+  if (level == 0) return;
+  for (const char* name : {"skillCooldownReduction", "skillManaCostReduction"}) {
+    const auto it = r.fields.find(name);
+    if (it == r.fields.end() || it->second.numbers.empty()) continue;
+    const auto& n = it->second.numbers;
+    if (const double v = n[std::min<std::size_t>(level - 1, n.size() - 1)]; v != 0) out.unmodeled[name] += v;
+  }
+}
+
+std::optional<BuffEffect> learned_effect(const snap::Snapshot& s, const snap::Skill& sk, const arz::Database& db) {
+  if (!buff_timing(sk, db)) return std::nullopt;
+  const arz::Record& stats = stats_record(*db.record(sk.record), db);
+  std::vector<std::pair<const arz::Record*, std::uint32_t>> parts{{&stats, sk.current_level}};
+  for (const std::uint32_t id : sk.modifier_ids) {
+    const auto ms = std::find_if(s.skills.begin(), s.skills.end(), [&](const snap::Skill& k) { return k.id == id; });
+    if (ms == s.skills.end()) return std::nullopt;
+    if (ms->current_level == 0) continue;
+    const arz::Record* mrec = db.record(ms->record);
+    if (!mrec) return std::nullopt;
+    parts.emplace_back(mrec, ms->current_level);
+  }
+  for (const auto& m : s.item_skill_modifiers) {
+    if (m.skill_id != sk.id || m.modifier_record.empty()) continue;
+    const arz::Record* mrec = db.record(m.modifier_record);
+    if (!mrec) return std::nullopt;
+    parts.emplace_back(mrec, 1);  // skillMaxLevel 1
+  }
+  BuffEffect out;
+  for (const auto& [r, level] : parts) {
+    const sets::Bonus b = sets::bonus(*r, static_cast<int>(level));
+    for (const auto& [k, v] : b.stats) out.stats[k] += v;
+    for (const auto& c : b.conversions) add_conversion(out.conversions, c.from, c.to, c.percent);
+    add_unmodeled(*r, level, out);
+  }
+  drop_zeros(out.stats);
+  return out;
+}
+
+void add_effect(const BuffEffect& e, double f, AllDeltas& all, std::vector<snap::Conversion>& out) {
+  all.add(scaled(e.stats, f));
+  for (const auto& c : e.conversions) add_conversion(out, c.from, c.to, f * c.percent);
+}
+
+bool add_buff(const snap::Snapshot& s, const snap::Skill& sk, double f, const arz::Database& db, AllDeltas& all,
+              std::vector<snap::Conversion>& out) {
+  const auto e = learned_effect(s, sk, db);
+  if (e) add_effect(*e, f, all, out);
+  return e.has_value();
+}
+
+// GetCurrentLevel 0x4909C0 = level ? min(level + augmented, cap) : 0 outside devotions; cap = SkillProfile+0x150 =
+// max(skillUltimateLevel, skillMaxLevel) (SkillProfile::LoadProfile 0x545A27). Without passive data (schema < 4)
+// passives and toggles are assumed on.
 void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& before, const Hidden& after,
-                        const arz::Database& db, bool expected, AllDeltas& out_d, Prediction& p) {
+                        const arz::Database& db, AllDeltas& out_d, Prediction& p) {
   if (before.all != after.all)
     p.warnings.push_back("all-skills grant changes: applied to every skill (the engine's one exclusion is not traced)");
   auto of = [](const std::multiset<std::pair<std::string, std::string>>& m, const std::string& skill) {
@@ -396,10 +430,11 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
     return out;
   };
   bool assumed = false;
+  std::set<const snap::Skill*> running;
   for (const auto& sk : s.skills) {
     if (sk.devotion_max_level != 0) continue;
     const double d = grant_delta(sk, s, before, after);
-    if (sk.level == 0) {  // unlearned: GetCurrentLevel stays 0 whatever the bonus
+    if (sk.level == 0) {  // GetCurrentLevel stays 0 whatever the bonus
       if (d != 0) p.unused.push_back({sk.record, sk.augmented_level, static_cast<std::uint32_t>(std::max(0.0, sk.augmented_level + d))});
       continue;
     }
@@ -411,12 +446,11 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       p.warnings.push_back("skill " + name + ": record not in the database");
       continue;
     }
-    // The mastery bar takes no item bonus: with +1 Occultist added (d016_relic, store 20261114-172933-952
-    // records 1 -> 2) every Occultist skill's augmented level rose by 1, _classtraining_class03.dbr's stayed 0
-    // (level 50; its record has no skillMaxLevel / skillUltimateLevel).
+    // The mastery bar takes no item bonus: with +1 Occultist (d016_relic) every Occultist skill rose by 1,
+    // _classtraining_class03.dbr stayed (no skillMaxLevel / skillUltimateLevel in its record).
     if (rec->cls == "Skill_Mastery") continue;
-    // Skill_BuffRadius records (bloodofdreeg1) keep the levels in their buffSkillName record.
-    // shortcut: assumed to be what GetCurrentLevel's profile (vt+0x578) reads — revisit when a buff skill at its cap disagrees.
+    // shortcut: Skill_BuffRadius levels taken from the buffSkillName record, assumed to be what GetCurrentLevel's
+    // profile (vt+0x578) reads — revisit when a buff skill at its cap disagrees.
     auto cap_of = [](const arz::Record& r) { return std::max(r.number("skillUltimateLevel"), r.number("skillMaxLevel")); };
     double cap = cap_of(*rec);
     if (cap == 0 && !rec->string("buffSkillName").empty())
@@ -440,7 +474,6 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       out.augmented_level = static_cast<std::uint32_t>(aug);
       out.current_level = to;
     }
-    // What the engine adds to the skill now: item skill modifiers and learned modifier skills.
     Contribution attached;
     std::string problem;
     auto add_mod = [&](const std::string& record, double sign, Contribution& into) {
@@ -459,8 +492,8 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       }
       const SkillEffect m = level_effect(*mrec, ms->current_level, ms->current_level);
       if (!m.problem.empty()) problem = m.problem;
-      // AddModifierDefenseAttributes (0x494970) adds only objects that are-a Skill_Modifier; whether
-      // Skill_Transmuter is one is not traced, so a transmuter with stats is not modeled.
+      // AddModifierDefenseAttributes 0x494970 adds only Skill_Modifier objects; whether Skill_Transmuter is one is
+      // not traced, so transmuters with stats are not modeled.
       const bool any = std::any_of(m.at_from.begin(), m.at_from.end(), [](const auto& kv) { return kv.second != 0; });
       if (mrec->cls != "Skill_Modifier" && any) problem = "linked " + mrec->cls + " " + ms->record + " has stats";
       for (const auto& [k, v] : m.at_from) attached[k] += v;
@@ -478,7 +511,7 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       std::erase_if(list, [&](const snap::ItemSkillModifier& m) { return m.skill_id == sk.id && m.location == location; });
       for (const auto& r : item_added) push(r, location);
     }
-    // Set modifiers: the slot the engine records for them is not known, so they are matched by record.
+    // The slot the engine records for set modifiers is unknown, so match by record.
     const auto set_before = of(before.set_modifiers, sk.record), set_after = of(after.set_modifiers, sk.record);
     for (const auto& r : std::set<std::string>(set_before.begin(), set_before.end()))
       for (auto n = set_before.count(r); n > set_after.count(r); --n) {
@@ -489,7 +522,7 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       }
     for (const auto& r : std::set<std::string>(set_after.begin(), set_after.end()))
       for (auto n = set_after.count(r); n > set_before.count(r); --n) push(r, -1);
-    if (rec->cls == "Skill_Modifier") {  // added through its parent's collector (Skill::AddModifierDefenseAttributes)
+    if (rec->cls == "Skill_Modifier") {  // added through the parent's collector
       if (to == from) continue;
       const snap::Skill* parent = modifier_parent(s.skills, sk.id);
       const auto prec = parent ? db.record(parent->record) : nullptr;
@@ -500,11 +533,9 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       }
       const SkillEffect e = level_effect(*rec, from, to);
       if (!contributes(*parent, *prec, assumed)) {
-        // A modifier of a timed buff (bloodofdreeg2 of bloodofdreeg1): its change x the buff's uptime.
-        const double up = expected ? buff_uptime(stats_record(*prec, db), parent->current_level) : 0;
-        if (up > 0 && e.problem.empty()) {
-          out_d.add(scaled(e.delta, up));
-          p.inactive.push_back({sk.record, parent->record, from, to, up});
+        if (parent->buff_active && buff_timing(*parent, db)) {
+          p.inactive.push_back({sk.record, parent->record, from, to, true});
+          if (*parent->buff_active) running.insert(parent);
         } else if (damage_changes(*rec, from, to, db)) {
           p.inactive.push_back({sk.record, parent->record, from, to});
         }
@@ -523,16 +554,15 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
     SkillEffect e = level_effect(*rec, from, to);
     if (!contributes(sk, *rec, assumed)) {
       const arz::Record& srec = stats_record(*rec, db);
-      const double up = expected ? buff_uptime(srec, to) : 0;
       if (&srec != rec) e = level_effect(srec, from, to);
-      // The capture sees char / defense collectors only: a Skill_Passive with only damage bonuses is on.
+      // The capture sees char / defense collectors only, so a damage-only Skill_Passive counts as on.
       if (has_damage(e.delta) && e.problem.empty() && rec->cls == "Skill_Passive" && removed == added) {
         out_d.add(e.delta, true);
-      } else if (up > 0 && e.problem.empty() && removed == added) {
-        // A timed buff between casts: its change at uptime. shortcut: `before` lacks the buff itself, so the
-        // ratio is a little high — revisit when snapshots carry the buff's stats while it is down.
-        out_d.add(scaled(e.delta, up));
-        p.inactive.push_back({sk.record, {}, from, to, up});
+      } else if (sk.buff_active && buff_timing(sk, db)) {
+        if (to != from) p.inactive.push_back({sk.record, {}, from, to, true});
+        if (*sk.buff_active) running.insert(&sk);
+      } else if (triggered_buff(*rec)) {
+        if (to != from) p.inactive.push_back({sk.record, {}, from, to, true});
       } else if (damage_changes(*rec, from, to, db)) {
         p.inactive.push_back({sk.record, {}, from, to});
       }
@@ -547,9 +577,8 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
       continue;
     }
     out_d.add(e.delta);
-    if (out.passive) add_to(*out.passive, e.delta);  // keep the engine numbers in step for a following swap
+    if (out.passive) add_to(*out.passive, e.delta);  // keep engine numbers in step for a following swap
   }
-  // Skills of masteries the character does not have are not in the snapshot: unused as well.
   for (const auto* h : {&before, &after})
     for (const auto& [record, _] : h->skills)
       if (std::none_of(s.skills.begin(), s.skills.end(), [&](const snap::Skill& k) { return k.record == record; }) &&
@@ -558,12 +587,16 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
         if (a != b) p.unused.push_back({record, static_cast<std::uint32_t>(b), static_cast<std::uint32_t>(a)});
       }
   if (assumed) p.warnings.push_back("skill activity not in snapshot: passives and toggles assumed on");
+  for (const snap::Skill* sk : running) {
+    const auto now = std::find_if(p.after.skills.begin(), p.after.skills.end(),
+                                  [&](const snap::Skill& k) { return k.id == sk->id && k.record == sk->record; });
+    add_buff(s, *sk, -1, db, out_d, p.after.conversions);
+    add_buff(p.after, *now, +1, db, out_d, p.after.conversions);
+  }
 }
 
 
-// Non-zero numeric fields of a skill record at `level` that the model does not apply: not mapped by
-// gdc::fields, not flat damage (the score reads it), not the level caps or weapon flags. `char_def` false:
-// defensive* / character* fields are left out (the caller has the engine's numbers for them).
+// Excludes gdc::fields mappings, flat damage (scored), level caps and weapon flags.
 std::vector<std::string> unapplied(const arz::Record& r, std::uint32_t level, bool char_def) {
   std::vector<std::string> out;
   for (const auto& [key, field] : r.fields) {
@@ -587,30 +620,26 @@ Contribution only(const Contribution& c, fields::Kind kind) {
   return out;
 }
 
-// itemSkillLevelEq when it is a plain number (most items: "1", "2"); 0 for an equation ("itemLevel/4+1").
+// 0 for an equation ("itemLevel/4+1").
 std::uint32_t constant_level(std::string_view eq) {
   std::uint32_t v = 0;
   const auto [end, ec] = std::from_chars(eq.data(), eq.data() + eq.size(), v);
   return ec == std::errc{} && end == eq.data() + eq.size() ? v : 0;
 }
 
-// Skills the removed and the added item grant (itemSkillName / itemSkillLevelEq on their records). The engine
-// adds an item skill's collectors to the totals like a learned skill's (snapshot.h `item_skills`). Applied:
-//   removed: its captured contribution (schema 6) — char / defense exactly, damage % from its record at its
-//            level when it is on; a skill that adds nothing now changes nothing.
-//   added:   a Skill_Passive without weapon flags at a constant level: its record (gdc::fields).
-// Everything else (procs, buffs, pets, weapon-gated passives, level equations) is reported, not scored.
+// Removed: its captured contribution (schema 6), damage % from its record when on. Added: only a
+// Skill_Passive without weapon flags at a constant level. Procs, buffs, pets, weapon-gated passives and level
+// equations are reported, not scored.
 void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::Item& cand, const arz::Database& db,
                    AllDeltas& out_d, Prediction& p) {
   auto grants = [&](const snap::Item& it) {
-    std::vector<std::pair<std::string, std::string>> out;  // skill record, level equation
+    std::vector<std::pair<std::string, std::string>> out;
     for (const auto& name : item_records(it))
       if (const auto rec = db.record(name); rec && !rec->string("itemSkillName").empty())
         out.emplace_back(std::string(rec->string("itemSkillName")), std::string(rec->string("itemSkillLevelEq")));
     return out;
   };
   auto kind = [](const arz::Record* r) { return r ? r->cls : std::string("record not in the database"); };
-  // A grant both items carry (the same base item with other components) changes nothing.
   auto lost = old ? grants(*old) : decltype(grants(cand)){}, gained = grants(cand);
   for (auto it = lost.begin(); it != lost.end();)
     if (const auto g = std::find(gained.begin(), gained.end(), *it); g != gained.end()) {
@@ -629,8 +658,8 @@ void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::I
     else if (k == s.item_skills.end()) g.why = "not in snapshot";
     else if (!rec || rec->cls != "Skill_Passive") g.why = kind(rec);
     else {
-      // Without weapon flags the collectors always run (SkillManager::GetCharAttributes 0x52F920 checks only
-      // the level), so a passive that captured nothing adds only damage %.
+      // SkillManager::GetCharAttributes 0x52F920 checks only the level, so a passive that captured nothing adds only
+      // damage %.
       const bool on = (k->passive && (!k->passive->char_attributes.empty() || !k->passive->defense.empty())) ||
                       !fields::weapon_gated(*rec);
       const Contribution at = level_effect(*rec, k->current_level, k->current_level).at_from;
@@ -638,7 +667,7 @@ void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::I
         return std::get<0>(kv.first) != fields::Kind::Damage && kv.second != 0;
       });
       if (!k->passive) {
-        g.why = "capture failed";  // the adapter dropped its passive (fault)
+        g.why = "capture failed";
       } else if (!on && !has_char_def && has_damage(at)) {
         g.why = "on or off unknown (damage only)";
       } else if (on) {
@@ -657,7 +686,7 @@ void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::I
         g.scored = rest.empty();
         if (!rest.empty()) g.why = rest.front();
       } else {
-        g.scored = true;  // off (weapon type): adds nothing now
+        g.scored = true;
       }
     }
     if (k != s.item_skills.end())
@@ -676,7 +705,7 @@ void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::I
     else if (const SkillEffect e = level_effect(*rec, level, level); !e.problem.empty()) g.why = e.problem;
     else {
       out_d.add(e.at_from);
-      snap::Skill k;  // so the score sees its flat damage (score.cpp weapon_flat)
+      snap::Skill k;  // score.cpp weapon_flat reads its flat damage
       k.record = record;
       k.level = k.current_level = level;
       k.item_id = cand.id;
@@ -768,12 +797,10 @@ Sheet sheet(const snap::Snapshot& s) {
 
 namespace {
 
-// Applies `all` to p.after: char attributes (total = flat x (1 + modifier%), so flat = total / (1 + modifier%);
-// Life / Energy from the attribute totals' change), defense rows, Absorption, processed values, damage
-// modifiers. `s` is the state before.
+// Char attributes: total = flat x (1 + modifier%).
 void derive(const snap::Snapshot& s, const arz::Database* db, AllDeltas& all, Prediction& p) {
   Deltas& d = all.chr;
-  std::map<int, double> derived;  // flat added from attribute totals
+  std::map<int, double> derived;
   auto apply = [&](int t) {
     const auto [dv, dm] = d[t];
     const double extra = derived[t];
@@ -798,20 +825,18 @@ void derive(const snap::Snapshot& s, const arz::Database* db, AllDeltas& all, Pr
   for (int t : rest)
     if (t != kPhysique && t != kCunning && t != kSpirit) apply(t);
 
-  // Defense rows: sums, except Absorption, which GetTotalDefenseType (0x11A90E..0x11A954) averages over
-  // entries with a positive GetTotalAbsorption.
+  // Absorption is averaged over entries with positive GetTotalAbsorption (GetTotalDefenseType
+  // 0x11A90E..0x11A954); the rest sum.
   for (const auto& [t, v] : all.def) {
     if (v.first == 0 && v.second == 0) continue;
     snap::CombatTotals& r = row(p.after.defense, t);
     r.defense = static_cast<float>(r.defense + v.first);
     r.defense_modifier = static_cast<float>(r.defense_modifier + v.second);
   }
-  // Absorption (39): every armor entry (CombatAttributeDefense_AbsorptionProtection, items and skills alike)
-  // carries GameEngine::GetArmorDefensiveAbsorption (DefenseAttribute_BaseProtectionAbsorption::LoadFromTable
-  // 0x204420 copies GameEngine+0x1328, loaded from gameengine.dbr armorDefensiveAbsorption by
-  // GameEngine::LoadFromDatabase 0x2C8830; AddToAccumulator 0x204BF0 builds the entry only when its armor
-  // > 0), and GetTotalDefenseType(39) (0x11A880) averages the positive ones. So the total is that constant
-  // while any armor entry exists, else 0. The snapshot has no type-39 row until an absorption modifier exists.
+  // Every armor entry carries GameEngine::GetArmorDefensiveAbsorption:
+  // BaseProtectionAbsorption::LoadFromTable 0x204420 copies GameEngine+0x1328 (gameengine.dbr
+  // armorDefensiveAbsorption, LoadFromDatabase 0x2C8830); AddToAccumulator 0x204BF0 builds it only for armor > 0;
+  // GetTotalDefenseType(39) 0x11A880 averages them. So the total is that constant while any armor exists, else 0.
   if (snap::CombatTotals* r = find_mut(p.after.defense, kAbsorption)) {
     const snap::CombatTotals* a = find(p.after.defense, kArmor);
     if (a && a->defense > 0) {
@@ -827,15 +852,13 @@ void derive(const snap::Snapshot& s, const arz::Database* db, AllDeltas& all, Pr
     for (snap::CombatTotals& r : p.after.defense) {
       if (cappable(r.type))
         r.processed = static_cast<float>(std::min(uncapped(r), static_cast<double>(s.defense_cap + r.cap_bonus)));
-      else if (r.type == kArmor)  // fixture: 6614 x (1 + 13%) = 7473.82
+      else if (r.type == kArmor)  // fixture: 6614 x 1.13 = 7473.82
         r.processed = static_cast<float>(r.defense * (1 + (prot ? prot->defense_modifier : 0) / 100.0));
-      else if (r.type == kAbsorption)  // fixtures: 70 x 1.4 = 98, 70 x 1.2 = 84; capped at 100 (Process 0x118370)
+      else if (r.type == kAbsorption)  // fixtures: 70 x 1.4 = 98; capped at 100 (Process 0x118370)
         r.processed = static_cast<float>(std::min(100.0, r.defense * (1 + r.defense_modifier / 100.0)));
     }
   }
 
-  // Damage modifiers per type (items: as their getter reports them, 58 / 60 already spread; skill fields:
-  // spread like the engine, fields::spread).
   for (const auto& [t, v] : all.dmg) {
     if (v.first == 0 && v.second == 0) continue;
     snap::CombatTotals& r = row(p.after.damage_modifiers, t);
@@ -844,23 +867,15 @@ void derive(const snap::Snapshot& s, const arz::Database* db, AllDeltas& all, Pr
   }
 }
 
-void add_conversion(std::vector<snap::Conversion>& v, int from, int to, double delta) {
-  auto at = std::find_if(v.begin(), v.end(), [&](const snap::Conversion& x) { return x.from == from && x.to == to; });
-  if (at == v.end()) at = v.insert(v.end(), snap::Conversion{from, to, 0});
-  at->percent = static_cast<float>(at->percent + delta);
-  if (std::abs(at->percent) < 1e-6) v.erase(at);
-}
-
 }  // namespace
 
-Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int location, const arz::Database* db, Mode mode) {
+Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int location, const arz::Database* db) {
   Prediction p;
   p.after = s;
   const snap::Item* old = at(s, location);
   if (!candidate.stats) p.warnings.push_back("candidate item has no stats");
 
-  // The items' own getter output: char attributes, defense rows (Absorption values are averaged by derive(),
-  // so only its modifier moves), damage modifiers as their getter reports them (58 / 60 already spread).
+  // Absorption values are averaged by derive(), so only its modifier moves.
   AllDeltas all;
   auto add_item = [&](const snap::Item* it, double sign) {
     if (!it || !it->stats) return;
@@ -879,9 +894,19 @@ Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int locati
   };
   add_item(old, -1);
   add_item(&candidate, +1);
+  // SkillAttributeAccumulator::AddValue 0x51F160 / AddChanceValue / AddModifier / AddChanceModifier sum each array.
+  if (s.schema >= 9)
+    for (const auto* it : {old, static_cast<const snap::Item*>(&candidate)}) {
+      if (!it || !it->stats) continue;
+      const float sign = it == old ? -1.0f : 1.0f;
+      for (const auto& a : it->stats->skill_attributes) {
+        snap::SkillAttribute& t = row(p.after.skill_attributes, a.type);
+        t.value += sign * a.value, t.chance_value += sign * a.chance_value;
+        t.modifier += sign * a.modifier, t.chance_modifier += sign * a.chance_modifier;
+      }
+    }
 
-  // Equipped items and sets. Set bonuses (sets.h) at the old and new piece count of every set whose count
-  // changes, including the set the removed item belonged to.
+  // Includes the removed item's set.
   snap::Item placed = candidate;
   placed.location = location;
   auto& eq = p.after.equipped;
@@ -930,7 +955,7 @@ Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int locati
   }
   if (unmodeled_sets) p.warnings.push_back("set bonuses change (set record not in the database)");
   if (db) {
-    apply_skill_levels(s, location, hb, ha, *db, mode == Mode::Expected, all, p);
+    apply_skill_levels(s, location, hb, ha, *db, all, p);
     apply_granted(s, old, candidate, *db, all, p);
   }
   derive(s, db, all, p);
@@ -945,38 +970,91 @@ Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int locati
 }
 
 std::optional<Prediction> toggle_buff(const snap::Snapshot& s, const snap::Skill& sk, bool on, const arz::Database& db) {
-  if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) return std::nullopt;
-  const arz::Record* rec = db.record(sk.record);
-  if (!rec) return std::nullopt;
-  const arz::Record& stats = stats_record(*rec, db);
-  if (buff_uptime(stats, sk.current_level) <= 0) return std::nullopt;
   Prediction p;
   p.after = s;
   AllDeltas all;
-  const double sign = on ? 1 : -1;
-  // sets::bonus reads every field at min(level - 1, size - 1), the skill's per-level arrays included.
-  auto add = [&](const arz::Record& r, std::uint32_t level) {
-    const sets::Bonus b = sets::bonus(r, static_cast<int>(level));
-    all.add(scaled(b.stats, sign));
-    for (const auto& c : b.conversions) add_conversion(p.after.conversions, c.from, c.to, sign * c.percent);
-  };
-  add(stats, sk.current_level);
-  for (const std::uint32_t id : sk.modifier_ids) {
-    const auto ms = std::find_if(s.skills.begin(), s.skills.end(), [&](const snap::Skill& k) { return k.id == id; });
-    if (ms == s.skills.end()) return std::nullopt;
-    if (ms->current_level == 0) continue;
-    const arz::Record* mrec = db.record(ms->record);
-    if (!mrec) return std::nullopt;
-    add(*mrec, ms->current_level);
-  }
-  for (const auto& m : s.item_skill_modifiers) {
-    if (m.skill_id != sk.id || m.modifier_record.empty()) continue;
-    const arz::Record* mrec = db.record(m.modifier_record);
-    if (!mrec) return std::nullopt;
-    add(*mrec, 1);  // item skill modifiers have one level (skillMaxLevel 1)
-  }
+  if (!add_buff(s, sk, on ? 1 : -1, db, all, p.after.conversions)) return std::nullopt;
   derive(s, &db, all, p);
   return p;
+}
+
+bool self_buff(const arz::Record& r) {
+  return r.cls == "Skill_BuffSelfDuration" || r.cls == "Skill_BuffSelfShield" || r.cls == "Skill_GiveBonus" ||
+         r.cls == "Skill_PassiveOnLifeBuffSelf" || r.cls == "Skill_PassiveOnHitBuffSelf" ||
+         r.cls == "Skill_PassiveOnHitBuffShield" || r.cls == "SkillBuff_Passive";
+}
+
+bool triggered_buff(const arz::Record& r) {
+  return r.cls == "Skill_PassiveOnLifeBuffSelf" || r.cls == "Skill_PassiveOnHitBuffSelf";
+}
+
+std::optional<BuffTiming> buff_timing(const snap::Skill& sk, const arz::Database& db) {
+  if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) return std::nullopt;
+  if (!sk.record.starts_with("records/skills/playerclass")) return std::nullopt;
+  const arz::Record* rec = db.record(sk.record);
+  return rec ? timing(stats_record(*rec, db), sk.current_level) : std::nullopt;
+}
+
+snap::Snapshot expected(const snap::Snapshot& s, const arz::Database* db) {
+  if (!db) return s;
+  Prediction p;
+  p.after = s;
+  AllDeltas all;
+  bool any = false;
+  for (auto* list : {&p.after.skills, &p.after.item_skills})
+    for (snap::Skill& sk : *list) {
+      if (!sk.buff_active) continue;  // schema < 8: leave the engine totals
+      const bool active = *sk.buff_active;
+      if (list == &p.after.skills && buff_timing(sk, *db)) {
+        if (active) any |= add_buff(s, sk, -1, *db, all, p.after.conversions);
+        sk.buff_active = false;
+        continue;
+      }
+      sk.buff_active.reset();  // idempotent
+      if (active && sk.current_level > 0) {
+        // Toggles and auras stay in the totals as captured.
+        const arz::Record* rec = db->record(sk.record);
+        if (!rec) continue;
+        if (list == &p.after.skills && sk.devotion_max_level == 0 && !triggered_buff(*rec)) continue;
+        const arz::Record& stats = stats_record(*rec, *db);
+        if (!self_buff(stats)) continue;
+        all.add(scaled(level_effect(stats, sk.current_level, sk.current_level).at_from, -1));
+        any = true;
+      }
+    }
+  if (any) derive(s, db, all, p);
+  return std::move(p.after);
+}
+
+BuffEffect buff_effect(const arz::Record& stats, std::uint32_t level) {
+  BuffEffect out{level_effect(stats, level, level).at_from, {}, {}};
+  add_unmodeled(stats, level, out);
+  drop_zeros(out.stats);
+  return out;
+}
+
+BuffEffect buff_effect(const snap::Snapshot& s, const snap::Skill& learned, const arz::Database& db) {
+  return learned_effect(s, learned, db).value_or(BuffEffect{});
+}
+
+void buffed(const snap::Snapshot& s, std::span<const std::pair<const BuffEffect*, double>> buffs,
+            const arz::Database& db, snap::Snapshot& out) {
+  out.char_attributes = s.char_attributes;
+  out.defense = s.defense;
+  out.damage_modifiers = s.damage_modifiers;
+  out.conversions = s.conversions;
+  AllDeltas all;
+  bool any = false;
+  for (const auto& [e, share] : buffs) {
+    if (share == 0 || e->empty()) continue;
+    add_effect(*e, share, all, out.conversions);
+    any = true;
+  }
+  if (!any) return;
+  Prediction p;
+  p.after = std::move(out);
+  derive(s, &db, all, p);
+  out = std::move(p.after);
 }
 
 }  // namespace gdc::model

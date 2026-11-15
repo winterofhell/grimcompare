@@ -27,7 +27,8 @@ Whether `offensiveSlow*Min` is per second (tooltip shows total over the duration
 | RR stacking: category 1 additive, category 2 highest-only, category 3 highest-only | **community** (the guide says category 2 stacks) | `docs/MECHANICS.md` §1. |
 | Skill-local conversion (item skill modifiers) applies before global conversion | **community** | `docs/MECHANICS.md` §2. Same-level sum > 100 % unverified → calibrate on the skill tooltip. Phase 3 swap test with a conversion item. |
 | DoTs can crit (OA vs DA) and crit damage applies to the whole DoT | **community** | `docs/MECHANICS.md` §3. |
-| Bleeding cannot be converted | **✔ (DB side)** | No record in the merged DB uses Bleeding as `conversionInType`/`OutType`; the template enum is `Physical;Pierce;Elemental;Cold;Fire;Poison;Lightning;Life;Chaos;Aether;Stun`. Whether Physical conversion also moves Internal Trauma is **?**. |
+| Bleeding cannot be converted | **✔ (DB side)** | No record in the merged DB uses Bleeding as `conversionInType`/`OutType`; the template enum is `Physical;Pierce;Elemental;Cold;Fire;Poison;Lightning;Life;Chaos;Aether;Stun` (`Poison` = Acid, the DoT moves with it). |
+| A conversion also moves the type's DoT (Vitality→Acid takes Vitality Decay to Poison, Physical→X Internal Trauma) | **✔ engine** | `ConvertDamage` 0x119ED0 matches entries by type, direct and DoT; a DoT is not moved to Pierce / Chaos / Aether. `docs/MECHANICS.md` §2. |
 
 ## 2. Skills (`records/skills/playerclass03` = Occultist, `playerclass06` = Shaman; `skillMaxLevel` / `skillUltimateLevel`)
 | Claim | Status | Evidence |
@@ -66,7 +67,7 @@ Members: Gaze `gearhead/d316_head`, Thicket `gearshoulders/d318_shoulder`, Vines
 ## 4. Other gear
 | Claim | Status | Evidence |
 |---|---|---|
-| Conduit of Wild Whispers: Grasping Vines 100% Vitality→Acid | **✘** | `necklaces/d113f_necklace.dbr` has no skill modifier and no conversion. Grasping Vines has no Vitality to convert anyway. |
+| Conduit of Wild Whispers: Grasping Vines 100% Vitality→Acid | **✘** (re-checked 2026-11-15) | `necklaces/d113f_necklace.dbr` (GDX1 only; `itemNameTag` "Conduit of Wild Whispers", its `FileDescription` says "Eldritch" — a stale comment): +1 Shaman, +2 Heart of the Wild (`natureblessing1`, a `SkillBuff_Passive`: regen, energy, physical, pet bonus). No skill modifier, no conversion. Grasping Vines has no Vitality to convert anyway. |
 | Mythical Bramblevine: 5% ADCtH on Vines, 15% ADCtH + 2 s CD on Evil Eye | **✔** | `shields/d203_shield.dbr` (style tag = "Mythical"); `shield_d203_evileye.dbr` also has 100% Vitality→Acid and 60% retaliation added. Shield also 15% Physical→Acid global. |
 | Dung Divider level 101, wearable at 100 with Fewmet Grips | **✔ / ?** | `gearweapons/caster/c307_dagger.dbr` (both versions) `levelRequirement` 101; `maxPlayerLevel` 100. Grips: `characterLevelReqReduction` 1 = "−1 Player Level Requirement for **Items**" (generic, not DD-only). How the engine applies it (all equipped items? itself?) is **?** — deferred until the user owns the Grips. |
 | Dung Divider 396 Cunning / 495 Spirit; Crane −10% Spirit | **✔** | `itemcostformulas_caster_legend.dbr` `daggerIntelligenceEquation` at itemLevel 94 = 494.5; `daggerDexterityEquation` = 0.8× = 395.6. Rounding rule **?**. Crane star 3: `characterWeaponIntelligenceReqReduction` 10 → 445. |
@@ -85,6 +86,7 @@ Members: Gaze `gearhead/d316_head`, Thicket `gearshoulders/d318_shoulder`, Vines
 |---|---|---|
 | Living Bloom (helm): up to 4, 200 Acid + 1000 Poison/5 s, 26% Reduced | **✔** | `conjurelivingbud.dbr` petLimit 4, TTL 12 s, 20% on attack (`d316_head`); attack `petskill_livingplant_poisonbloom.dbr` 200 Acid, 200 Poison × 5 s, 26% cat. 2 for 5 s, 15% fumble. |
 | Living Blossom (4pc): up to 6, 200–350 Acid + 1500 Poison/5 s, 28 flat RR 5 s | **✔** | `conjurelivingbloom.dbr` petLimit 6, TTL 24 s; `petskill_livingplant_venomousseed.dbr` 200–350 Acid, 300 Poison × 5 s, 28 cat. 3 for 5 s. |
+| Bloom and Blossom scale with the player, pet bonuses do nothing for them | **✔ engine** | Spawned records `itempet_livingplantbulb_01` / `itempet_livingplantbloom_01`: `Class = PetPlayerScaling`. No pet bonus, the player's combat parameters (`docs/MECHANICS.md` §5). |
 | Blossom 28 flat makes Manticore unnecessary | **✔ if cat. 3 is highest-only** | Acid Spray `tier2_18f_skill.dbr`: flat RR 10 (lvl 1) … 28 (lvl 20), same field. |
 
 ## 6. Devotions (`records/ui/skills/devotion/constellations/*.dbr`, star skills `records/skills/devotion/*`)

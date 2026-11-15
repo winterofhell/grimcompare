@@ -16,15 +16,14 @@
 namespace gdc::adapter {
 namespace {
 
-constexpr LONGLONG kRotateBytes = 2LL << 20;  // at init: a larger file moves to GDCompare.calibration.old.txt
+constexpr LONGLONG kRotateBytes = 2LL << 20;
 
 std::wstring g_path;
 std::string g_version;
 std::atomic<bool> g_on{false};
 std::atomic<int> g_failures{0};
-// Writer thread only.
 std::optional<snap::Snapshot> g_prev;
-std::set<std::string> g_req_seen;  // requirement disagreements already written this session
+std::set<std::string> g_req_seen;
 bool g_header = false;
 
 void append(const std::vector<std::string>& lines) {

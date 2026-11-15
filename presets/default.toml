@@ -24,6 +24,13 @@ negligible_percent = 0.1  # |change| below this shows as "~0%"
 threshold_below = 1.0
 threshold_above = 0.05
 threshold_width = 0.05
+# Timed buffs you cast (Blood of Dreeg): true = recast whenever the recharge allows, up
+# min(1, duration / (recharge x (1 - cooldown reduction))) of the time (rank values from the database, your
+# total cooldown reduction). false = the [uptime] entry of the skill's record where there is one.
+recast_buffs = true
+# "average": buffs that are not always up split the score into states (up / down), mixed by uptime.
+# "live": your timed buffs as they are right now, on or off (procs stay averaged).
+buff_mode = "average"
 
 [damage]
 # Skill records to score; empty = auto: the 3 learned class attack skills with the most points spent,
@@ -36,8 +43,8 @@ auto_skills = 3
 # share of Damage, the skills the rest.
 filler_weight = 0.5
 # Conversions that show a red line when an item adds them and their output is not a [match] damage type:
-# "from->to" with physical, pierce, cold, fire, poison (Acid and Poison), lightning, vitality, chaos, aether,
-# elemental, or * for any. Empty: no warnings. Example: conversion_warn = ["vitality->*", "*->chaos"]
+# "from->to" with physical, pierce, cold, fire, acid (= poison: Acid, its DoT Poison moves along), lightning,
+# vitality, chaos, aether, elemental, or * for any. Empty: no warnings. Example: conversion_warn = ["vitality->*", "*->chaos"]
 conversion_warn = []
 # Enemy Defensive Ability for your hit / crit chance = this x your level. 0 = the median monster of your
 # level from the game database (re/EnemyByLevel.tsv: 413 at level 15, 1188 at 50, 2283 at 100).
@@ -45,6 +52,8 @@ enemy_da_per_level = 0
 # Attacks per second of one pet (pet damage and RR). 0 = unknown: pets are listed "+? unscored". Not in
 # the database (the attack animation's length is not a record field).
 pet_attack_rate = 0
+# Enemies you kill per second while fighting: drives "on kill" procs. A guess; lower it for boss fights.
+kills_per_sec = 0.5
 
 [survival]
 # Enemy Offensive Ability for their chance to hit and crit you = this x your level. 0 = the same table
@@ -65,6 +74,11 @@ damage_reduction_uptime = 0.5
 resist_reduction = 0
 # Hits you take per second: drives "when hit" procs (docs/PRESETS.md threat profile).
 incoming_hits_per_sec = 2
+# How often your life falls under a low-health trigger's threshold (per second): drives "at x% health" procs.
+low_health_per_sec = 0.05
+# Share of incoming damage dealt by enemies that a proc's stun / freeze / knockdown / fear actually stops
+# (bosses resist it, not every enemy is in range). x the share of the time such a proc is up.
+cc_share = 0.1
 
 # Share of incoming damage per type (normalized, need not sum to 1).
 [survival.threat]
@@ -113,8 +127,10 @@ bleeding = 0
 # "!" negates ("!shield"). Weights may be negative (-10..10); 0 = ignore.
 # % Armor, absorption, resists, life, DA, OA, % damage, crit, attack / cast speed and RR are not here: Damage
 # and Survivability compute them. So do dodge / deflect, shield block and the "reduced target's damage"
-# debuff since 0.9.0 (stages of Survivability, [survival]). Item-only below (cooldown, cost, life leech,
-# retaliation, pet bonus): skills' parts of those are not seen.
+# debuff since 0.9.0 (stages of Survivability, [survival]), and skill cooldown reduction since 0.9.6 (Damage: a
+# main skill with a cooldown is used more often, up to your attack / cast speed; timed buffs' uptime). Skill
+# energy cost reduction is not scored (no energy model). Item-only below (life leech, retaliation, pet bonus):
+# skills' parts of those are not seen.
 [other]
 run_speed = 0.5                               # per 100% run speed
 life_regen = 0.02                             # per 1% of Life regenerated per second (low levels: 3-5%/s)
@@ -128,8 +144,6 @@ trap_resist = 0.05                            # per 100% reduced entrapment dura
 knockdown_resist = 0.05                       # per 100% reduced knockdown duration
 slow_resist = 0.05                            # per 100% slow resistance
 disruption_resist = 0.05                      # per 100% skill disruption protection
-cooldown_reduction = 0.5                      # per 100% skill cooldown reduction
-skill_cost_reduction = 0.1                    # per 100% skill energy cost reduction
 experience = 0.2                              # per 100% experience gained, x (1 - level / 100): 0 at max level
 retaliation = 0.02                            # per 1000 retaliation damage
 retaliation_modifier = 0.02                   # per 100% retaliation damage

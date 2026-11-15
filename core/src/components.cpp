@@ -8,7 +8,7 @@
 namespace gdc::components {
 namespace {
 
-constexpr int kAbsorption = 39;  // re/CombatAttributeType.tsv
+constexpr int kAbsorption = 39;
 constexpr double kEps = 1e-4;
 
 template <class Row>
@@ -80,8 +80,6 @@ void add(snap::ItemStats& to, const snap::ItemStats& from, float sign) {
   add(to.conversions, from.conversions, sign);
 }
 
-// The record's flat offensive damage, as the parent item's getter reports it (chance entries: expected
-// min / max, chance and the 100% values).
 std::vector<snap::Damage> flat_damage(const arz::Record& rec) {
   std::vector<snap::Damage> out;
   for (const auto& f : fields::flat_damage()) {
@@ -145,8 +143,7 @@ void add_damage(snap::Item& it, const std::string& record, const arz::Database* 
   for (const auto& d : flat_damage(*rec)) it.stats->offensive_damage.push_back(d);
 }
 
-// Whether a completion bonus record has stats (fields the model maps), as opposed to only skill grants.
-// Unknown record: assumed to.
+// Unknown record: assume it has stats.
 bool has_stats(const std::string& record, const arz::Database* db) {
   const arz::Record* rec = db ? db->record(record) : nullptr;
   if (!rec) return true;
@@ -159,8 +156,8 @@ bool has_stats(const std::string& record, const arz::Database* db) {
   return false;
 }
 
-// ItemReplicaInfo +0xB0 holds the component's completion bonus on an item with a component, and the
-// artifact's own completion bonus on an ItemArtifact (no component slot; d016_relic: completionrelics/aocc_20a).
+// ItemReplicaInfo +0xB0: the component's completion bonus, or an artifact's own (d016_relic:
+// completionrelics/aocc_20a).
 bool component_bonus(const snap::Item& it) {
   return it.replica && !it.replica->relic_bonus.empty() && (it.relic || !it.replica->relic.empty());
 }
@@ -177,9 +174,8 @@ snap::Item strip(const snap::Item& it, const arz::Database* db, std::vector<std:
   }
   if (it.replica && ((!it.replica->relic.empty() && !it.relic) || (!it.replica->augment.empty() && !it.augment)))
     notes.push_back("component in the item's replica but not captured: not removed");
-  // shortcut: a completion bonus's rolled stats (most bonus records have lootRandomizerJitter) are not in the
-  // component's own getter (ItemRelic::GetCharAttributes 0x349C00 reads only the relic's AttributePak at
-  // +0xD50) and where the item keeps them is not traced — revisit with a component-with-bonus capture.
+  // shortcut: a completion bonus's rolled stats are not in ItemRelic::GetCharAttributes (0x349C00 reads only the
+  // AttributePak at +0xD50) and their location is not traced — revisit with a component-with-bonus capture.
   if (component_bonus(it) && has_stats(it.replica->relic_bonus, db))
     notes.push_back("component completion bonus " + it.replica->relic_bonus + ": its stats stay on the item (not traced)");
   out.relic.reset();
@@ -209,7 +205,7 @@ snap::Item attach(const snap::Item& base, const snap::Item& donor, bool with_rel
   if (with_relic) {
     put(donor.relic, out.relic, out.replica->relic);
     if (donor.relic && component_bonus(donor)) {
-      out.replica->relic_bonus = donor.replica->relic_bonus;  // its skill grants move with it (stat_model hidden())
+      out.replica->relic_bonus = donor.replica->relic_bonus;  // skill grants move with it
       if (has_stats(donor.replica->relic_bonus, db))
         notes.push_back("completion bonus " + donor.replica->relic_bonus + ": stats not moved (not traced)");
     }
@@ -221,7 +217,7 @@ snap::Item attach(const snap::Item& base, const snap::Item& donor, bool with_rel
 bool fits(const std::string& component_record, const std::string& item_record, int item_type,
           const arz::Database& db) {
   const char* field = nullptr;
-  switch (item_type) {  // Item::GetItemType values: tooltip::locations_for
+  switch (item_type) {
     case 1: field = "head"; break;
     case 2: field = "amulet"; break;
     case 3: field = "chest"; break;

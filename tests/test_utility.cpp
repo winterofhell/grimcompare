@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include "game_db.h"
+#include "gdc/stat_model.h"
 #include "gdc/utility.h"
 
 using namespace gdc;
@@ -38,6 +39,7 @@ TEST_CASE("utility: when conditions") {
 
 TEST_CASE("utility: avoidance, item cooldown reduction, experience, unlisted stats") {
   snap::Snapshot s;
+  s.schema = 8;  // no character total for skill attributes: the items' sum
   s.level = 50;
   s.char_attributes = {{27, 12, 0, 0, 0}, {28, 8, 0, 0, 0}, {55, 10, 0, 0, 0}, {57, 30, 0, 0, 0}};
   auto ring = item(1, 4, "records/items/x.dbr");
@@ -107,4 +109,35 @@ TEST_CASE("utility: pets context and pet bonus (installed game; skips if absent)
   // defensiveConvert 100): mean 52.5%.
   s.equipped = {item(1, 3, "records/items/gearaccessories/medals/b012a_medal.dbr")};
   CHECK(utility::values(s, db).keys.at("pet_bonus") == doctest::Approx(0.525));
+}
+
+TEST_CASE("utility: cooldown reduction is the character's total from schema 9; a swap moves it by the items' parts") {
+  snap::Snapshot s;
+  s.char_attributes = {{4, 1000, 0, 0, 0}};
+  auto ring = item(1, 4, "records/items/x.dbr");
+  ring.stats->skill_attributes = {{1, 5, 0, 0, 0}};
+  s.equipped = {ring};
+  // 5 from the ring + 12 from skills and devotions; +10% of it from a modifier
+  // (SkillAttributeAccumulator::GetValue: value + |value| x modifier / 100).
+  s.skill_attributes = {{1, 17, 0, 10, 0}, {2, 8, 0, 0, 0}};
+  const auto v = utility::values(s, nullptr);
+  CHECK(v.keys.at("cooldown_reduction") == doctest::Approx(0.187));
+  CHECK(v.keys.at("skill_cost_reduction") == doctest::Approx(0.08));
+  auto other = item(2, 4, "records/items/y.dbr");
+  other.stats->skill_attributes = {{1, 8, 0, 0, 0}};
+  const auto after = model::swap(s, other, 4, nullptr).after;
+  CHECK(utility::values(after, nullptr).keys.at("cooldown_reduction") == doctest::Approx(0.22));  // (17 - 5 + 8) x 1.1
+  // An older snapshot has no total: the items alone.
+  s.schema = 8;
+  s.skill_attributes.clear();
+  CHECK(utility::values(s, nullptr).keys.at("cooldown_reduction") == doctest::Approx(0.05));
+}
+
+TEST_CASE("utility: slow resist counts once (defense 17..19 are copies of 16)") {
+  snap::Snapshot s;
+  // One defensiveTotalSpeedResistance 24 as the engine shows it (fixture lvl15-wp-after-feet-dreeg-on).
+  for (int t : {16, 17, 18, 19}) s.defense.push_back({t, 24, 0, 0, 0, 0, 24, 0});
+  const auto v = utility::values(s, nullptr);
+  CHECK(v.keys.at("slow_resist") == doctest::Approx(0.24));
+  CHECK(v.unlisted.empty());
 }

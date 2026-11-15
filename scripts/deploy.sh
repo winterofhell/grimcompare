@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the adapter, install it + Ultimate ASI Loader (+ its dinput8.ini) into the game folder,
-# print the Steam launch options to paste. Never overwrites a file it did not install itself.
+# Builds the adapter, installs it with Ultimate ASI Loader into the game folder, prints Steam launch options.
+# Never overwrites a file it did not install.
 #
 # usage: deploy.sh [--loader-only]
 #   --loader-only  install only the loader + ini and remove our .asi (safe-mode test, docs/BUILD.md)
@@ -41,7 +41,6 @@ find_game() {
   die "Grim Dawn (219990) not found in any Steam library; set GD_DIR"
 }
 
-# 1. Build
 ASI="$ROOT/build/adapter/adapter/GDCompare.asi"
 UAL_INI="$ROOT/adapter/ual/dinput8.ini"
 if [[ $LOADER_ONLY == 0 ]]; then
@@ -53,14 +52,13 @@ if [[ $LOADER_ONLY == 0 ]]; then
   [[ -f "$ASI" ]] || die "build produced no $ASI"
 fi
 
-# 2. Locate game
 GAME="$(find_game)"
 TARGET="$GAME/${GD_SUBDIR:-compat}"
 [[ -f "$TARGET/Grim Dawn.exe" ]] || die "no 'Grim Dawn.exe' in $TARGET"
 # wine names the process after the exe; its cmdline starts with a Windows path (S:\...\Grim Dawn.exe)
 if pgrep -x 'Grim Dawn.exe' >/dev/null || pgrep -f '^[A-Za-z]:\\.*Grim Dawn\.exe' >/dev/null; then die "Grim Dawn is running; quit it first"; fi
 
-# 3. ASI loader (download once, verify both hashes)
+# ASI loader: download once, verify both hashes.
 mkdir -p "$CACHE"
 UAL_ZIP="$CACHE/Ultimate-ASI-Loader_x64-$UAL_VERSION.zip"
 UAL_DLL="$CACHE/dinput8-$UAL_VERSION.dll"
@@ -75,13 +73,13 @@ if [[ ! -f "$UAL_DLL" ]]; then
 fi
 [[ "$(sha "$UAL_DLL")" == "$UAL_DLL_SHA256" ]] || { rm -f "$UAL_DLL"; die "dinput8.dll hash mismatch"; }
 
-# 4. Install. A destination may be replaced only if absent, identical, or recorded in our manifest.
+# A destination may be replaced only if absent, identical, or in our manifest.
 MANIFEST="$TARGET/$MANIFEST_NAME"
 declare -A OWNED=()
 if [[ -f "$MANIFEST" ]]; then
   while IFS=$'\t' read -r name hash; do [[ -n "$name" ]] && OWNED["$name"]="${hash:-?}"; done < "$MANIFEST"
 fi
-install_file() {  # src name
+install_file() {
   local src="$1" dst="$TARGET/$2"
   if [[ -e "$dst" && -z "${OWNED[$2]:-}" && "$(sha "$dst")" != "$(sha "$src")" ]]; then
     die "$dst exists and was not installed by us; not overwriting"
@@ -90,7 +88,7 @@ install_file() {  # src name
   printf '%s\t%s\n' "$2" "$(sha "$dst")" >> "$MANIFEST.new"
   echo "installed $dst"
 }
-install_preset() {  # src name: like install_file, but a copy you edited since we installed it is kept
+install_preset() {  # keeps a copy edited since install
   local src="$1" dst="$TARGET/$2"
   if [[ -e "$dst" && "$(sha "$dst")" != "$(sha "$src")" && "${OWNED[$2]:-}" != "$(sha "$dst")" ]]; then
     echo "kept $dst (edited; shipped version: $src)"
@@ -104,9 +102,8 @@ install_file "$UAL_DLL" dinput8.dll
 install_file "$UAL_INI" dinput8.ini
 if [[ $LOADER_ONLY == 0 ]]; then
   install_file "$ASI" GDCompare.asi
-  # Score preset: yours once copied (edited in place, hot-reloaded), not in the manifest. Replaced only while it
-  # is byte-identical to a presets/default.toml some commit shipped (never edited: an old default may no longer
-  # parse); an edited copy is never overwritten.
+  # The score preset is the user's once copied. Replaced only while byte-identical to a default.toml some commit
+  # shipped; an old default may no longer parse.
   preset="$TARGET/GDCompare.preset.toml"
   shipped_default() {
     local have c
@@ -125,7 +122,6 @@ if [[ $LOADER_ONLY == 0 ]]; then
   else
     echo "kept $preset (defaults: presets/default.toml)"
   fi
-  # Named presets (Auto picks the one made for the character): every presets/*.toml but the default.
   mkdir -p "$TARGET/GDCompare.presets"
   for src in "$ROOT"/presets/*.toml; do
     [[ "$(basename "$src")" == default.toml ]] || install_preset "$src" "GDCompare.presets/$(basename "$src")"
@@ -137,7 +133,6 @@ elif [[ -e "$TARGET/GDCompare.asi" ]]; then
 fi
 mv -f "$MANIFEST.new" "$MANIFEST"
 
-# 5. Launch options
 echo
 echo "Steam → Grim Dawn → Properties → Launch Options:"
 python3 -I "$ROOT/scripts/launch_options.py" add "$STEAM" "$TARGET"

@@ -101,7 +101,7 @@ TEST_CASE("labels: installed game text and database (skips if absent)") {
   const Labels l(&db, &text);
   CHECK(l.resist(21) == "Energy Leech Resist");
   CHECK(l.resist(9) == "Vitality Resist");
-  CHECK(l.resist(7) == "Poison & Acid Resist");
+  CHECK(l.resist(7) == "Poison/Acid Resist");
   CHECK(l.resist(42) == "Reduced Stun Duration");
   CHECK(l.skill("records/skills/playerclass03/bloodofdreeg2.dbr") == "Aspect of the Guardian");
   CHECK(l.skill("records/skills/playerclass03/bloodofdreeg1.dbr") == "Blood of Dreeg");  // via buffSkillName

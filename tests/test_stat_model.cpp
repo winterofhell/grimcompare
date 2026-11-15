@@ -35,7 +35,7 @@ const snap::Item& at(const snap::Snapshot& s, int location) {
   return s.equipped.front();
 }
 
-// Calibration tolerance (PROMPT.md: +-1 / +-0.1%): the fits below are exact to float rounding.
+// Calibration tolerance (+-1 / +-0.1%): the fits below are exact to float rounding.
 bool near(double a, double b) { return std::abs(a - b) <= std::max(0.01, 0.001 * std::abs(b)); }
 
 const model::Resist* resist(const model::Sheet& s, int type) {
@@ -383,21 +383,28 @@ TEST_CASE("swap model: +1 Occultist (d016_relic) on a timed buff between casts, 
     return 0.0;
   };
 
-  // Engine: the buff is down, so the totals do not move.
-  const auto engine = model::swap(s, relic, 13, db);
-  for (const auto& w : engine.warnings) CHECK_MESSAGE(false, w);
-  CHECK(row(engine.after.char_attributes, 21) == 2000);
-  CHECK(def(engine.after.defense, 7) == 50);
-
-  // Expected: bloodofdreeg1_buff.dbr 11 -> 12 (60 s / 12 s cooldown: up 100%): OA 93 -> 102, life regen 94 -> 104;
-  // bloodofdreeg2.dbr 11 -> 12: defensivePoison 92 -> 100.
-  const auto p = model::swap(s, relic, 13, db, model::Mode::Expected);
+  // The buff is out of the totals (model::expected), so they do not move: the score adds it per buff state at
+  // the new levels (bloodofdreeg1_buff.dbr 11 -> 12, bloodofdreeg2.dbr 11 -> 12).
+  s.skills[1].buff_active = false;
+  const auto p = model::swap(s, relic, 13, db);
   for (const auto& w : p.warnings) CHECK_MESSAGE(false, w);
-  CHECK(row(p.after.char_attributes, 21) == doctest::Approx(2009));
-  CHECK(row(p.after.char_attributes, 6) == doctest::Approx(60));
-  CHECK(def(p.after.defense, 7) == doctest::Approx(58));
+  CHECK(row(p.after.char_attributes, 21) == 2000);
+  CHECK(def(p.after.defense, 7) == 50);
   REQUIRE(p.inactive.size() == 2);
-  CHECK(p.inactive[0].uptime == 1);
+  CHECK(p.inactive[0].timed);
+  CHECK(p.inactive[1].timed);
+  // Switched on at the new levels: OA 102, life regen 104 (rank 12), defensivePoison 100 (modifier rank 12).
+  const snap::Skill* dreeg = &p.after.skills[1];
+  const model::BuffEffect effect = model::buff_effect(p.after, *dreeg, *db);
+  const std::pair<const model::BuffEffect*, double> up[] = {{&effect, 1.0}};
+  snap::Snapshot on = p.after;
+  model::buffed(p.after, up, *db, on);
+  CHECK(row(on.char_attributes, 21) == doctest::Approx(2102));
+  CHECK(row(on.char_attributes, 6) == doctest::Approx(154));
+  CHECK(def(on.defense, 7) == doctest::Approx(150));
+  REQUIRE(model::buff_timing(*dreeg, *db));
+  CHECK(model::buff_timing(*dreeg, *db)->duration == 60);
+  CHECK(model::buff_timing(*dreeg, *db)->recharge == 12);
   // The mastery bar takes no item bonus; Dreeg's Evil Eye has no points: unused, 0 -> 1 bonus level.
   CHECK(std::none_of(p.skills.begin(), p.skills.end(), [](const auto& k) { return k.record.ends_with("_classtraining_class03.dbr"); }));
   REQUIRE(p.unused.size() == 1);

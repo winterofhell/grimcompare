@@ -1,6 +1,6 @@
 #pragma once
-// Run a callable under SEH. The frame with __try holds no C++ objects (clang-cl/MSVC rule);
-// destructors inside the callable do not run on a fault (leak, never a crash).
+// The __try frame must hold no C++ objects (clang-cl / MSVC). Destructors inside skip on a fault: leak,
+// never crash.
 #include <windows.h>
 
 #include <cstdint>
@@ -13,7 +13,7 @@ struct Fault {
 };
 
 using Thunk = void (*)(void*);
-bool call(Thunk fn, void* arg, Fault& fault);  // false: an exception was caught, see fault
+bool call(Thunk fn, void* arg, Fault& fault);  // false: see fault
 
 template <class F>
 bool run(F& f, Fault& fault) {

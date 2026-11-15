@@ -119,7 +119,7 @@ def annotate(pe, exports, other, ins):
     return "   ; " + " | ".join(notes) if notes else ""
 
 
-def disasm(pe, exports, other, rva, length):
+def disasm(pe, exports, other, rva, length, past_int3=False):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
     md.detail = True
     o = pe.off(rva)
@@ -130,7 +130,7 @@ def disasm(pe, exports, other, rva, length):
         if tag:
             print(tag)
         print(f"  {r:08x}  {ins.mnemonic:7} {ins.op_str}{annotate(pe, exports, other, ins)}")
-        if ins.mnemonic == "int3" and r > rva:
+        if ins.mnemonic == "int3" and r > rva and not past_int3:
             break
 
 
@@ -166,6 +166,8 @@ def xrefs(pe, exports, target):
 def main(argv):
     dll, tsv, what = argv[1], argv[2], argv[3]
     pe = PE(dll)
+    global BASE  # the module's ImageBase (DLLs 0x180000000, Grim Dawn.exe 0x140000000)
+    BASE = struct.unpack_from("<Q", pe.data, struct.unpack_from("<I", pe.data, 0x3C)[0] + 24 + 24)[0]
     exports = load_exports(tsv)
     other = None
     length = None
@@ -192,10 +194,11 @@ def main(argv):
             sys.exit(f"{len(matches)} matches")
         rva = matches[0][0]
     print(f"== {rva:08x} {exports.get(rva, '?')}")
+    explicit = length is not None  # an explicit --len runs through int3 (a function with a noreturn call inside)
     if length is None:
         nxt = min((r for r in exports if r > rva), default=rva + 0x400)
         length = min(nxt - rva, 0x2000)
-    disasm(pe, exports, other, rva, length)
+    disasm(pe, exports, other, rva, length, explicit)
 
 
 if __name__ == "__main__":

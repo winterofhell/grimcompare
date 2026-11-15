@@ -5,7 +5,7 @@
 namespace gdc::names {
 namespace {
 
-// Index = CharAttributeType. Suffix of CharAttributeVal_* (else CharAttributeMod_*).
+// Suffix of CharAttributeVal_* (else CharAttributeMod_*).
 constexpr std::array<std::string_view, kCharAttributeMax + 1> kChar = {
     "",
     "Strength",
@@ -67,8 +67,7 @@ constexpr std::array<std::string_view, kCharAttributeMax + 1> kChar = {
     "LightRadius",
 };
 
-// Index = CombatAttributeType. Most common class-name suffix for the value (game spelling kept,
-// e.g. "LifeLeach").
+// Most common class-name suffix; game spelling kept ("LifeLeach").
 constexpr std::array<std::string_view, kCombatAttributeMax + 1> kCombat = {
     "BasePhysical",
     "BasePhysical",

@@ -1,14 +1,5 @@
-// Detours (MinHook 1.3.4, third_party/minhook):
-//   GameEngine::Update(int)              game-thread tick: calls the original first, then polls the
-//                                        snapshot key and the auto-snapshot probe; a capture copies the
-//                                        engine numbers into a snap::Snapshot and queues it.
-//   ItemEquipment/ItemArtifact::GetUIDisplayText
-//                                        records the id of the item whose tooltip is built, calls the
-//                                        original, then appends the tooltip block (tooltip.h).
-// Writer thread: serializes queued snapshots, writes the F9 file and the auto-snapshot store (gdc::store),
-// then checks each new record against the previous one (calibration.h).
-// Nothing here writes game memory. A faulting snapshot turns snapshots off for the session; any probe or
-// writer failure turns auto snapshots off.
+// Nothing here writes game memory. A faulting snapshot turns snapshots off for the session; a probe or writer
+// failure turns auto snapshots off.
 #include "hooks.h"
 
 #include <windows.h>
@@ -41,20 +32,19 @@ constexpr std::size_t kMaxTooltipItems = 8;
 
 HookConfig g_cfg;
 int g_vk = VK_F9;
-// Freeze key (GDCompare.ini [freeze] key, 0 = off). F10 by default: the game binds F1..F7 only
-// (Documents/My Games/Grim Dawn/Settings/keybindings.txt, DirectInput codes 59..65 on 2026-11-14), Steam takes
-// F12, KDE's default global shortcuts take Ctrl+F1..F12 (Ctrl+F9 was the old freeze chord) and Alt+F-keys.
+// F10 by default: the game binds F1..F7 (keybindings.txt, DirectInput 59..65), Steam takes F12, KDE takes
+// Ctrl+F1..F12 and Alt+F-keys.
 int g_freeze_vk = VK_F10;
 UpdateFn g_update = nullptr;
 TooltipFn g_tip_equipment = nullptr, g_tip_artifact = nullptr;
 std::atomic<bool> g_snapshots{false};
 std::atomic<std::uint64_t> g_tick{0};
-bool g_was_down = false;  // game thread only
-bool g_freeze_was_down = false;  // game thread only
+bool g_was_down = false;
+bool g_freeze_was_down = false;
 
-SRWLOCK g_tip_lock = SRWLOCK_INIT;  // no exceptions, unlike std::mutex
-std::vector<u32> g_tip_ids;  // reserved at install; ids of the latest tick that built tooltips
-std::vector<u32> g_tips;     // game thread: the capture's copy of g_tip_ids, reserved at install
+SRWLOCK g_tip_lock = SRWLOCK_INIT;
+std::vector<u32> g_tip_ids;
+std::vector<u32> g_tips;
 std::uint64_t g_tip_tick = ~0ull;
 ULONGLONG g_tip_ms = 0;
 
@@ -68,7 +58,7 @@ void latch(const void* item) noexcept {
     g_tip_tick = tick;
   }
   if (g_tip_ids.size() < kMaxTooltipItems && std::find(g_tip_ids.begin(), g_tip_ids.end(), id) == g_tip_ids.end())
-    g_tip_ids.push_back(id);  // within reserved capacity: no allocation
+    g_tip_ids.push_back(id);  // reserved: no allocation
   g_tip_ms = GetTickCount64();
   ReleaseSRWLockExclusive(&g_tip_lock);
 }
@@ -91,7 +81,6 @@ bool foreground_is_ours() {
   return pid == GetCurrentProcessId();
 }
 
-// UTC now, ISO 8601, into `out` (assign keeps its buffer).
 void utc_iso(std::string& out) {
   SYSTEMTIME t;
   GetSystemTime(&t);
@@ -116,27 +105,24 @@ bool write_file(const std::wstring& path, const std::string& text) {
   return true;
 }
 
-// --- writer thread
-
-// Jobs are recycled: the writer resets a finished job (snap::recycle) and returns it to g_free, so the
-// game thread refills strings and vectors that already have their capacity.
+// Jobs are recycled so the game thread refills buffers that already have capacity.
 struct Job {
   snap::Snapshot snap;
-  snap::Spares spare;     // snap's recycled skills / items / item skill modifiers
-  unsigned triggers = 0;  // store::Trigger bits
-  bool manual = false;    // F9: also the pretty snapshots\snapshot-*.json file
-  long long game_us = 0;  // game-thread capture time
-  Probe probe;            // state at capture: the tooltip block uses the snapshot while the live probe equals it
-  Timing timing;          // per section
+  snap::Spares spare;
+  unsigned triggers = 0;
+  bool manual = false;
+  long long game_us = 0;
+  Probe probe;            // the tooltip block uses the snapshot while the live probe equals it
+  Timing timing;
 };
 
 constexpr std::size_t kMaxJobs = 8;
 SRWLOCK g_job_lock = SRWLOCK_INIT;
 CONDITION_VARIABLE g_job_cv = CONDITION_VARIABLE_INIT;
 std::deque<std::unique_ptr<Job>> g_jobs;
-std::vector<std::unique_ptr<Job>> g_free;  // reserved kMaxJobs at install; recycled jobs
+std::vector<std::unique_ptr<Job>> g_free;
 std::atomic<bool> g_auto{false};
-std::unique_ptr<store::Store> g_store;  // writer thread only after install
+std::unique_ptr<store::Store> g_store;
 
 std::string sections(const Timing& t) {
   std::string out;
@@ -148,11 +134,10 @@ std::string sections(const Timing& t) {
   return out;
 }
 
-// Resets the job and keeps it for the next capture (or frees it if enough are kept). Any thread.
 void release(std::unique_ptr<Job> j) {
   snap::recycle(j->snap, j->spare);
   AcquireSRWLockExclusive(&g_job_lock);
-  if (g_free.size() < kMaxJobs) g_free.push_back(std::move(j));  // within the reserve: no allocation
+  if (g_free.size() < kMaxJobs) g_free.push_back(std::move(j));
   ReleaseSRWLockExclusive(&g_job_lock);
 }
 
@@ -173,7 +158,6 @@ void process(Job& j) {
     log::printf("snapshot key: game thread %lld us (sections us: %s)", j.game_us, sections(j.timing).c_str());
     const std::wstring dir = g_cfg.mod_dir + L"snapshots";
     CreateDirectoryW(dir.c_str(), nullptr);
-    // snapshot-YYYYMMDD-HHMMSS-mmm.json from taken_at
     std::string d;
     for (char ch : j.snap.taken_at)
       if (ch >= '0' && ch <= '9') d.push_back(ch);
@@ -196,7 +180,7 @@ void process(Job& j) {
               static_cast<unsigned long long>(GetTickCount64() - t0), j.snap.complete ? "" : " (PARTIAL)");
   log::printf("  sections us: %s", sections(j.timing).c_str());
   for (const auto& f : w.deleted) log::printf("auto snapshot: rotated out %s", f.filename().string().c_str());
-  calibration_record(j.snap, w.full, w.file.stem().stem().string(), tooltip_database());  // never throws
+  calibration_record(j.snap, w.full, w.file.stem().stem().string(), tooltip_database());
 }
 
 void process_guarded(Job& j) {
@@ -228,10 +212,10 @@ DWORD WINAPI writer(void*) {
     g_jobs.pop_front();
     ReleaseSRWLockExclusive(&g_job_lock);
     process_guarded(*j);
-    if (j->snap.complete) tooltip_publish(j->snap, j->probe);  // guarded inside
+    if (j->snap.complete) tooltip_publish(j->snap, j->probe);
     try {
       release(std::move(j));
-    } catch (...) {  // bad_alloc growing the spares: the job is dropped, the next capture makes a new one
+    } catch (...) {  // bad_alloc growing spares: drop the job
     }
   }
 }
@@ -248,9 +232,7 @@ void enqueue(std::unique_ptr<Job> j) {
   else log::write("snapshot: writer queue full, snapshot dropped");
 }
 
-// --- game thread
-
-// Copies the engine numbers into a Job; serialization and disk I/O happen on the writer thread.
+// Serialization and disk I/O happen on the writer thread.
 void capture(unsigned triggers, bool manual) {
   LARGE_INTEGER t0, t1;
   QueryPerformanceCounter(&t0);
@@ -259,7 +241,7 @@ void capture(unsigned triggers, bool manual) {
   ULONGLONG tip_ms = 0;
   if (manual) {
     AcquireSRWLockShared(&g_tip_lock);
-    tips.assign(g_tip_ids.begin(), g_tip_ids.end());  // fits the reserve: no allocation under the lock
+    tips.assign(g_tip_ids.begin(), g_tip_ids.end());  // no allocation under the lock
     tip_ms = g_tip_ms;
     ReleaseSRWLockShared(&g_tip_lock);
   }
@@ -287,13 +269,11 @@ void capture(unsigned triggers, bool manual) {
   }
 }
 
-// Auto snapshots: probe at most every kProbeMs; a change starts (or extends) a debounce window, and one
-// capture follows when the state has been quiet for g_debounce_ms. A burst that ends where the last
-// capture was (an item picked up and put back) captures nothing.
+// A burst that ends where the last capture was (item picked up and put back) captures nothing.
 constexpr ULONGLONG kProbeMs = 100;
 ULONGLONG g_debounce_ms = 2000;
-Probe g_seen, g_captured;  // last probe; state at the last capture
-unsigned g_pending = 0;    // trigger bits since the last capture
+Probe g_seen, g_captured;
+unsigned g_pending = 0;
 ULONGLONG g_quiet_at = 0, g_next_probe = 0;
 
 unsigned changes(const Probe& a, const Probe& b) {
@@ -301,7 +281,7 @@ unsigned changes(const Probe& a, const Probe& b) {
   unsigned t = 0;
   if (a.difficulty != b.difficulty) t |= store::kDifficulty;
   if (a.equip_hash != b.equip_hash) t |= store::kEquip;
-  if (a.level != b.level) return t | store::kLevel;  // a level-up also grants points
+  if (a.level != b.level) return t | store::kLevel;
   if (a.skill_points != b.skill_points) t |= store::kSkill;
   if (a.attribute_points != b.attribute_points) t |= store::kAttribute;
   if (a.devotion_points != b.devotion_points) t |= store::kDevotion;
@@ -424,7 +404,6 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     MH_Uninitialize();
     return false;
   }
-  // The block is optional: if its engine functions are not verified the tooltip stays the game's own.
   if (!tooltip_init(r, cfg.mod_dir)) log::write("tooltip: block off");
   g_auto = want_auto && g_store != nullptr;
   g_snapshots = true;  // before enabling: the first hooked Update may run immediately

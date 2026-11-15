@@ -1,5 +1,5 @@
-# Coverage audit: every stat field that is set on an item, component, augment, affix or set record, mapped to
-# the engine attribute it loads into and to what the score does with it.
+# Maps every stat field set on an item, component, augment, affix or set record to its engine attribute and to
+# what the score does with it.
 # usage: python3 -I re/tools/coverage.py <game dir> > docs/COVERAGE.md
 # Field -> attribute: re/CharAttributeType.tsv, re/CombatAttributeType.tsv (Load* tags), re/DefenseAttributeFields.tsv.
 # Attribute -> score: the HOW tables below, which mirror core/src/score.cpp, utility.cpp, effects.cpp,
@@ -37,13 +37,12 @@ for cls, chance, value in tsv('DefenseAttributeFields.tsv'):
 BASE = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15}
 def how(f):
     """(status, text). status: scored | default | zero | no."""
-    # Fields the core reads from records by name.
     if re.match(r'augment(Skill|Mastery)(Name|Level)\d|augmentAllLevel', f):
         return 'scored', '+skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey'
     if re.match(r'conversion(InType|OutType|Percentage)2?$', f):
         return 'scored', 'Damage: conversion of the main skills\' damage (snapshot conversions; score.cpp convert)'
     if re.match(r'itemSkill(Name|LevelEq|AutoController)$', f):
-        return 'scored', 'granted skill: procs through gdc::effects (damage, RR, uptime); ungated passives through the record; the rest "+? unscored" with the reason'
+        return 'scored', 'granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason'
     if re.match(r'(modifierSkillName|modifiedSkillName)\d+$', f):
         return 'scored', 'item skill modifier: its record added to the modified skill (Damage, sheet stats)'
     if f in ('petBonusName',):
@@ -114,7 +113,6 @@ def how(f):
         return 'default', 'Other `default` weight per 100, named in Shift (%s)' % cls
     if kind == 'retaliation':
         return 'scored', 'Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1)'
-    # damage
     if role in ('DurationMin', 'DurationMax'): return 'scored', 'Damage: DoT duration of the flat damage it belongs to'
     if t in BASE or t in (1, 58, 60):
         if role == 'Modifier': return 'scored', 'Damage: % of that final type after conversions (direct and duration separately: engine)'

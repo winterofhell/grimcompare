@@ -1,16 +1,8 @@
-// gdc_calibrate: replays equipment changes through the swap model and compares with the engine
-// (gdc::calibrate). Every pair of consecutive auto-snapshot records that differs only in equipment is a
-// swap test, so normal play produces calibration data.
-//
-// Each checked swap also gets its score change (gdc::score, engine sheets before and after) with the terms;
-// --verbose adds the inputs of both sides.
-//
+// Replays equipment changes from the auto-snapshot store through the swap model and checks them against the
+// engine. Normal play produces calibration data.
 // usage: gdc_calibrate [DIR] [--char NAME] [--verbose] [--preset FILE.toml]
-//        gdc_calibrate --pair BEFORE.json AFTER.json [--preset FILE.toml]
-//   DIR        snapshots folder (default $GD_DIR or the Steam install, compat/snapshots) or one character's
-//   --verbose  also list skipped pairs and model warnings of passing ones
-// The game database ($GD_DIR/database) supplies skill grants; without it the model warns.
-// Exit: 0 every checked pair passes, 1 a pair fails, 2 usage or read error.
+// gdc_calibrate --pair BEFORE.json AFTER.json [--preset FILE.toml]
+// Exit: 0 all pass, 1 a pair fails, 2 usage or read error.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -40,7 +32,7 @@ fs::path game_dir() {
 
 struct Totals {
   int checked = 0, failed = 0, skipped = 0;
-  int req_checked = 0, req_failed = 0;  // equipped items' requirement checks vs the engine (schema 7)
+  int req_checked = 0, req_failed = 0;  // schema 7
 };
 
 struct Ctx {

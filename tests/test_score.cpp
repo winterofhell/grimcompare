@@ -210,12 +210,18 @@ TEST_CASE("score: other = 1 + weighted utility stats; conditions; unlisted stats
   const auto r = score::compare(b, a, {}, p, nullptr);
   CHECK(r.ratio.other == doctest::Approx(other));
   CHECK(r.percent == doctest::Approx((std::pow(other, 0.25) - 1) * 100));
-  CHECK(std::find(r.other_changes.begin(), r.other_changes.end(), "default: char 56 IncreasedGold 0 -> 0.2 (w 0.05)") != r.other_changes.end());
+  auto listed = [](const score::Result& x, const score::OtherChange& want) {
+    return std::any_of(x.other_changes.begin(), x.other_changes.end(), [&](const score::OtherChange& o) {
+      return o.key == want.key && o.before == doctest::Approx(want.before) && o.after == doctest::Approx(want.after) &&
+             o.weight == doctest::Approx(want.weight);
+    });
+  };
+  CHECK(listed(r, {"default: char 56 IncreasedGold", 0, 0.2, 0.05}));
   // A condition that does not hold: weight 0, still listed.
   p.other["stun_resist"].when = {"shield"};
   const auto c = score::compare(b, a, {}, p, nullptr);
   CHECK(c.ratio.other == doctest::Approx(other - 0.05));
-  CHECK(std::find(c.other_changes.begin(), c.other_changes.end(), "stun_resist 0 -> 0.5 (weight 0)") != c.other_changes.end());
+  CHECK(listed(c, {"stun_resist", 0, 0.5, 0}));
   p.other["stun_resist"].when = {"!shield"};
   CHECK(score::compare(b, a, {}, p, nullptr).ratio.other == doctest::Approx(other));
 }
@@ -369,6 +375,9 @@ TEST_CASE("score: conversion_warn: added conversions away from the target types"
   CHECK(score::conversion_label(7) == "Acid/Poison");
   CHECK(score::conversion_warnings(before, after, score::Preset{}, {}, nullptr).empty());  // no list: no warning
 
+  // DB "Poison" is Acid in game: "acid" names the same type (7); freeze writes "acid".
+  CHECK(score::parse("[damage]\nconversion_warn = [\"acid->*\", \"poison->vitality\"]\n", error)->conversion_warn ==
+        std::vector<std::pair<int, int>>{{7, 0}, {7, 9}});
   CHECK_FALSE(score::parse("[damage]\nconversion_warn = [\"bleeding->*\"]\n", error));
   CHECK(error.starts_with("line 2: conversion_warn: \"from->to\""));
   CHECK_FALSE(score::parse("[damage]\nconversion_warn = [\"vitality\"]\n", error));

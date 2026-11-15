@@ -1,8 +1,6 @@
-// Phase 2 snapshot reader. Runs on the game thread inside the GameEngine::Update detour.
-// Calls only: exported getters; the exported accumulator ctors/dtors on our own buffers; item
-// getters through the item's own vtable at slots checked against the exported vftables; and the
-// unexported object-id lookup located by gdc::scan (the call Character::GetEquipCharAttributes
-// itself makes). Layout reads, each with its source:
+// Runs on the game thread in the GameEngine::Update detour. Calls only exported getters, exported
+// accumulator ctors / dtors on our own buffers, item getters through vtable slots checked against the exported
+// vftables, and the unexported object-id lookup found by gdc::scan. Layout reads and their sources:
 //   Character+0x5D0  mem::vector<EquipManagerContainer>: Character::GetAttachedItems (0x63B90)
 //   EquipManagerContainer = 12 bytes {u32 id, EquipLocations, flags}: its ctor (0x288670) and
 //                    EquipManager::GetItemId (0x2847D0, stride 12, location at +4)
@@ -37,7 +35,7 @@
 //                    GetChanceMultiplier (0x11BA10) reads +0x88; the dtor (0x11B9F0) rewrites the vptr
 //   CombatAttributeDefense_AbsorptionProtection +0x28: read by GetTotalReduction (0x1182F0), written
 //                    only by Process (0x118370), never by the ctor (0x1182A0): undefined until processed
-// All RVAs: Game.dll 1.3.1.1.
+// RVAs: Game.dll 1.3.1.1.
 #include "snapshot.h"
 
 #include <windows.h>
@@ -59,50 +57,40 @@ namespace {
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
-// Item virtual slots in the Object-subobject vftable, as called by Character::GetEquipCharAttributes
-// (*0x498), GetEquipOffensiveModifierAttributes (*0x4B0), GetEquipRetaliationModifierAttributes
-// (*0x4C0) and GetAllDefenseAttributes (*0x4C8). Checked against the exported vftables in init.
-// Skill (*0x4A0), damage (*0x4A8), retaliation (*0x4B8) and conversion (*0x4D0) slots are the ones
-// the exported ItemEquipment vftable holds those getters in. ItemRelic/ItemEnchantment have stubs at
-// 0x4A8/0x4B8 (their damage getters take the parent's object id and the parent calls them).
+// Item slots in the Object-subobject vftable, as called by Character::GetEquipCharAttributes (*0x498),
+// GetEquipOffensiveModifierAttributes (*0x4B0), GetEquipRetaliationModifierAttributes (*0x4C0),
+// GetAllDefenseAttributes (*0x4C8); skill / damage / retaliation / conversion slots from the exported
+// ItemEquipment vftable. ItemRelic / ItemEnchantment have stubs at 0x4A8 / 0x4B8. Checked in init.
 constexpr std::size_t kSlotChar = 0x498, kSlotSkill = 0x4A0, kSlotDamage = 0x4A8, kSlotOffMod = 0x4B0,
                       kSlotRetaliation = 0x4B8, kSlotRetMod = 0x4C0, kSlotDefense = 0x4C8, kSlotConversion = 0x4D0;
-// Damage getters' float: a scale multiplier. Player::CalculateRetaliationValues (0x3CDE50, the
-// character-sheet path) passes 1.0 (const 0x7A8054); DamageAttributeAbsBaseElemental::AddDamageToAccumulator
-// (0x18F530) multiplies min/max by it.
+// Scale 1.0, as Player::CalculateRetaliationValues 0x3CDE50 passes (const 0x7A8054);
+// DamageAttributeAbsBaseElemental::AddDamageToAccumulator 0x18F530 multiplies min / max by it.
 constexpr float kDamageScale = 1.0f;
 constexpr std::size_t kReplica = 0x538;
-constexpr std::size_t kAccBytes = 0x1000;  // CharAttributeAccumulator writes up to +0x338, CombatDisplay up to +0x8B
+constexpr std::size_t kAccBytes = 0x1000;  // CharAttributeAccumulator writes up to +0x338
 constexpr std::size_t kMaxVector = 4096;
 constexpr int kDamageDirect = 1, kDamageDuration = 2;  // CombatAttributeAbsDamage / DurDamage::GetDamageType
-// CombatDisplayAccumulator(true): +0x84 ModifyProcs = 1, +0x85 IncludeProcs = 0, +0x88 GlobalChance = 0, the
-// values Skill::CollectWeaponDamage (0x4991AB..0x499204) writes inline for the sheet's accumulators. Then
-// EvaluateChance (vt+0x10 = 0x16D20) is always true and GetChanceMultiplier (0x11BA10) returns chance*0.01
-// for 0 < chance < 100, else 1: chance attributes count at their expected value instead of a random roll.
+// Values Skill::CollectWeaponDamage writes inline (0x4991AB..0x499204): +0x84 ModifyProcs 1, +0x85 IncludeProcs 0,
+// +0x88 GlobalChance 0. Then GetChanceMultiplier 0x11BA10 returns chance x 0.01, so chance stats count at
+// their expected value instead of a roll.
 constexpr bool kDisplayModifyProcs = true;
-constexpr std::size_t kSlotGetValues = 0x110;  // CombatAttributeDamage_BasePhysical vftable (0x7358E8)
+constexpr std::size_t kSlotGetValues = 0x110;  // CombatAttributeDamage_BasePhysical vftable 0x7358E8
 constexpr std::size_t kPthTable = 0x7A8;
-// Chance passes. DamageAttributeAbsBaseElemental::AddDamageToAccumulator (0x18F530) multiplies rolled/min/
-// max by acc vt+0x18 (chance) with the attribute's own chance (DamageAttribute vt+8) and always creates
-// the entry; the chance itself is not stored. So each item combat getter also runs on accumulators whose
-// vtable copy returns, for chance stats (original multiplier != 1): 1 (raw), 0 (excluded), the effective
-// chance in percent (probe: GlobalChance +0x88 if > 0, else the stat's chance, as 0x11BA45..0x11BA5B).
-// Non-chance stats keep multiplier 1 in every pass.
+// AddDamageToAccumulator 0x18F530 multiplies by acc vt+0x18 (chance) and never stores the chance, so each item
+// getter also runs with a patched vtable copy returning 1 (raw), 0 (excluded) and the effective chance
+// (as 0x11BA45..0x11BA5B). Non-chance stats keep multiplier 1.
 constexpr std::size_t kDisplayVftSlots = 8, kSlotChanceMultiplier = 0x18, kGlobalChance = 0x88;
-// Skill vftable slots: CollectPassiveCharAttributes / CollectPassiveDefenseAttributes. Skill's own entries
-// are the shared `ret` stub (0x15880); Skill_Passive's (0x711BA0) hold its overrides, checked in init.
+// Skill's own entries are the shared `ret` stub (0x15880); Skill_Passive's (0x711BA0) hold the overrides.
 constexpr std::size_t kSlotSkillPassiveChar = 0x408, kSlotSkillPassiveDefense = 0x438;
 constexpr int kAbsorptionProtection = 38;  // CombatAttributeDefense_AbsorptionProtection::GetType (0x1182E0)
-// Skill+0x140 mem::vector<u32> of modifier skill ids: Skill::GetModifiers (0x3C5970) returns its address,
-// Skill::AddModifier (0x48FD00) appends to it, AddModifierDefenseAttributes (0x494970) walks it.
+// Skill+0x140: Skill::GetModifiers 0x3C5970, AddModifier 0x48FD00, AddModifierDefenseAttributes 0x494970.
 constexpr std::size_t kSkillModifiers = 0x140;
-// Item::GetItemType: Object-subobject vftable slot (ArmorJewelry_Ring::vftable{Object} 0x6D7658 + 0x550 =
-// ArmorJewelry_Ring::GetItemType 0x2DE70; ItemEquipment's (0x76F718) = Item::GetItemType 0x167E0). Checked in init.
+// ArmorJewelry_Ring::vftable{Object} 0x6D7658 + 0x550 = GetItemType 0x2DE70; ItemEquipment's (0x76F718) =
+// Item::GetItemType 0x167E0.
 constexpr std::size_t kSlotItemType = 0x550;
-// Requirement getters: ItemEquipment::AreRequirementsMet (0x343C30) calls this->vt+0x530 / 0x538 / 0x540 (Strength /
-// Dexterity / Intelligence requirement) and Item::AreRequirementsMet (0x326930) vt+0x528 (level); checked in init
-// against the ItemEquipment exports. The same function reads the item's reduction CharAttributeType ids at these
-// offsets (u32 each; per attribute the first is used always, the other two when non-zero).
+// ItemEquipment::AreRequirementsMet 0x343C30 calls vt+0x530 / 0x538 / 0x540 (Str / Dex / Int) and
+// Item::AreRequirementsMet 0x326930 vt+0x528 (level); it reads the reduction CharAttributeType ids at these offsets
+// (first always, the other two when non-zero).
 constexpr std::size_t kSlotReqLevel = 0x528, kSlotReqAttr[3] = {0x530, 0x538, 0x540};
 constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF0, 0xE08}, {0xE00, 0xDF4, 0xE0C}};
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
@@ -138,6 +126,7 @@ struct Api {
   const void* (*skill_manager)(const void*) = nullptr;
   void (*collect_offensive_modifiers)(const void*, void*, u32) = nullptr;
   void (*collect_conversions)(const void*, void*) = nullptr;
+  void (*collect_skill_attributes)(const void*, void*) = nullptr;
   float (*run_speed)(void*, bool) = nullptr;
   float (*defense_cap)(const void*) = nullptr;
 
@@ -152,10 +141,12 @@ struct Api {
   u32 (*devotion_max_level)(const void*) = nullptr;
   u32 (*mastery_id)(const void*) = nullptr;
   int (*skill_type)(const void*) = nullptr;
+  bool (*buff_active)(const void*, const std::string&) = nullptr;  // Character::IsSkillBuffActive
+  const std::string& (*buff_skill_name)(const void*) = nullptr;   // Skill::GetBuffSkillName
 
   void* (*char_acc_ctor)(void*) = nullptr;
   void (*char_acc_dtor)(void*) = nullptr;
-  void* (*combat_acc_ctor)(void*, bool) = nullptr;  // CombatDisplayAccumulator
+  void* (*combat_acc_ctor)(void*, bool) = nullptr;
   void (*combat_acc_dtor)(void*) = nullptr;
   const void* display_vft = nullptr;
   float (*chance_mult)(void*, float) = nullptr;  // CombatDisplayAccumulator::GetChanceMultiplier
@@ -185,13 +176,13 @@ struct Api {
   void* (*get_relic)(const void*) = nullptr;
   void* (*get_enchantment)(const void*) = nullptr;
   bool (*requirements_met)(const void*, const void*) = nullptr;  // ItemEquipment::AreRequirementsMet(Character const*)
-  bool requirements_ok = false;  // kSlotReq* verified: requirements read
-  bool item_type_ok = false;  // kSlotItemType verified: snapshot_candidate available
+  bool requirements_ok = false;
+  bool item_type_ok = false;
 };
 
 Api g;
 bool g_ready = false;
-// Per non-expected pass: the qword before the vftable, then its 8 slots; the vptr points at [1].
+// Patched vtable copy: the qword before the vftable, then its 8 slots; the vptr points at [1].
 const void* g_pass_vft[kPasses][kDisplayVftSlots + 1] = {};
 
 template <class F>
@@ -215,13 +206,12 @@ std::string bounded_cstr(const char* s) {
   return std::string(s, strnlen(s, 1024));
 }
 
-// Writers into an existing string (assign keeps its buffer; the capture reuses recycled snapshots).
+// assign keeps the buffer; the capture reuses recycled snapshots.
 void set_cstr(std::string& out, const char* s) {
   if (!s) return out.clear();
   out.assign(s, strnlen(s, 1024));
 }
 
-// MSVC x64 std::string
 void set_msvc_string(std::string& out, const void* p) {
   const auto size = rd<std::uint64_t>(p, 0x10), cap = rd<std::uint64_t>(p, 0x18);
   if (size > cap || size > 4096) return void(out = "<bad string>");
@@ -233,7 +223,6 @@ struct Span {
   const char* begin;
   std::size_t count;
 };
-// mem::vector<T> with sizeof(T) == elem; empty on a malformed header.
 Span vec(const void* v, std::size_t elem) {
   const char* b = rd<const char*>(v, 0);
   const char* e = rd<const char*>(v, 8);
@@ -252,7 +241,6 @@ bool is_a(const void* ci, const void* target) {
   return false;
 }
 
-// "" if not an Item.
 const char* kind_of(const void* obj) {
   const void* ci = class_info(obj);
   if (is_a(ci, g.ci_equipment)) return "ItemEquipment";
@@ -268,8 +256,7 @@ void* lookup(u32 id) {
   return om ? g.object_from_id(om, id) : nullptr;
 }
 
-// Socketed component / augment object ids, (relic << 32) | augment; 0 for anything but ItemEquipment.
-// GetRelic / GetEnchantment read +0x1558 / +0x1560 (0x3429B0 / 0x343260), ItemEquipment only, as read_item.
+// GetRelic / GetEnchantment read +0x1558 / +0x1560 (0x3429B0 / 0x343260).
 u64 fingerprint_of(const void* obj) {
   if (!obj || !is_a(class_info(obj), g.ci_equipment)) return 0;
   u32 relic = 0, augment = 0;
@@ -281,13 +268,11 @@ u64 fingerprint_of(const void* obj) {
 using AccFn = void (*)(const void*, void*);
 AccFn slot(const void* obj, std::size_t off) { return rd<AccFn>(rd<const void*>(obj), off); }
 
-// Buffer for an accumulator constructed and destroyed with the exported ctor/dtor.
 struct alignas(16) AccBuf {
   unsigned char bytes[kAccBytes];
 };
 
-// Game-thread scratch. Every capture runs on the game thread (GameEngine::Update) and none of these
-// functions re-enters itself, so one buffer each, cleared before use, keeps them allocation-free once warm.
+// One buffer each is safe: every capture runs on the game thread and none re-enters.
 struct Scratch {
   std::vector<int> types;
   std::vector<snap::CombatTotals> combat[kPasses];
@@ -297,7 +282,6 @@ struct Scratch {
 };
 Scratch g_scratch;
 
-// Sorted, unique types of every CombatAttribute* in the accumulator's four vectors.
 const std::vector<int>& combat_types(const void* acc) {
   std::vector<int>& types = g_scratch.types;
   types.clear();
@@ -322,7 +306,7 @@ void combat_totals(void* acc, void* player, std::vector<snap::CombatTotals>& out
     c.type = t;
     c.defense = g.total_defense(acc, t);
     c.defense_modifier = g.total_defense_mod(acc, t);
-    if (t != kAbsorptionProtection) c.reduction = g.total_reduction(acc, t);  // else undefined (see top)
+    if (t != kAbsorptionProtection) c.reduction = g.total_reduction(acc, t);  // undefined until processed (see top)
     c.damage_modifier = g.total_damage_mod(acc, player, t, kDamageDirect);
     c.dot_modifier = g.total_damage_mod(acc, player, t, kDamageDuration);
     if (c.defense || c.defense_modifier || c.reduction || c.damage_modifier || c.dot_modifier) out.push_back(c);
@@ -352,7 +336,6 @@ const snap::CombatTotals* find_type(const std::vector<snap::CombatTotals>& v, in
   return nullptr;
 }
 
-// Item combat totals, with the chance-based part of each type (raw - excluded) and its chance.
 template <class Fill>
 void combat_with_procs(Fill fill, void* player, std::vector<snap::CombatTotals>& out) {
   auto& pass = g_scratch.combat;
@@ -398,7 +381,6 @@ void item_combat(const void* item, std::size_t slot_off, void* player, std::vect
   combat_with_procs([&](void* acc) { slot(item, slot_off)(item, acc); }, player, out);
 }
 
-// Every CombatAttribute* in the accumulator's damage vector (+0x08).
 void damage_list(const void* acc, std::vector<snap::Damage>& out) {
   using IntFn = int (*)(const void*);
   using MinMaxFn = void (*)(const void*, float&, float&);
@@ -424,8 +406,7 @@ void damage_list(const void* acc, std::vector<snap::Damage>& out) {
 }
 
 using DamageFn = void (*)(const void*, void*, float);
-// Entries line up across passes (same getter, every entry created regardless of multiplier); if they
-// don't, the chance fields stay empty.
+// Entries line up across passes because every entry is created regardless of multiplier.
 void item_damage(const void* obj, DamageFn fn, std::vector<snap::Damage>& result) {
   auto& pass = g_scratch.damage;
   for (int p = kExpected; p < kPasses; ++p) {
@@ -490,7 +471,6 @@ void conversions(const void* obj, AccFn fn, std::vector<snap::Conversion>& out) 
   g.conv_acc_dtor(acc);
 }
 
-// Through the object's own vtable (slot checked in init), as Character::GetEquip*Attributes does.
 DamageFn damage_slot(const void* obj, std::size_t off) { return rd<DamageFn>(rd<const void*>(obj), off); }
 
 void char_contributions(const void* obj, AccFn fn, std::vector<snap::CharContribution>& out) {
@@ -505,7 +485,6 @@ void char_contributions(const void* obj, AccFn fn, std::vector<snap::CharContrib
   g.char_acc_dtor(acc);
 }
 
-// with_damage: ItemEquipment / ItemArtifact (components have stubs in the damage slots).
 void item_stats(const void* item, void* player, bool with_damage, snap::ItemStats& s) {
   char_contributions(item, slot(item, kSlotChar), s.char_attributes);
   item_combat(item, kSlotDefense, player, s.defense);
@@ -556,7 +535,7 @@ void requirements(const void* obj, const void* player, snap::Item& it) {
     q.attribute[a] = rd<ReqFn>(rd<const void*>(obj), kSlotReqAttr[a])(obj);
     for (int k = 0; k < 3; ++k) {
       const u32 t = rd<u32>(obj, kReqReduction[a][k]);
-      if (t > static_cast<u32>(names::kCharAttributeMax)) return;  // not a CharAttributeType: layout differs, skip
+      if (t > static_cast<u32>(names::kCharAttributeMax)) return;  // not a CharAttributeType, layout differs
       q.reductions[a][k] = static_cast<int>(t);
     }
   }
@@ -564,14 +543,12 @@ void requirements(const void* obj, const void* player, snap::Item& it) {
   it.requirements = q;
 }
 
-// Fills `it` (a default or recycled Item: optionals empty) from a live item object. Plain Items
-// (potions, materials) get identity only.
 void read_item(const void* obj, snap::Item& it, bool with_stats, void* player) {
   it.id = g.object_id(obj);
   set_cstr(it.record, g.object_name(obj));
   const char* kind = kind_of(obj);
   it.kind.assign(kind);
-  if (!*kind) return;  // not an Item: nothing else is safe to read
+  if (!*kind) return;  // nothing else is safe to read
   replica(obj, it.replica.emplace());
   if (it.kind == "ItemEquipment") {
     set_msvc_string(it.set, g.item_set_name(obj));
@@ -583,7 +560,7 @@ void read_item(const void* obj, snap::Item& it, bool with_stats, void* player) {
     item_stats(obj, player, it.kind == "ItemEquipment" || it.kind == "ItemArtifact", it.stats.emplace());
 }
 
-// --- sections. Each runs under SEH; see guarded().
+// Each section runs under SEH (guarded()).
 
 struct Ctx {
   snap::Snapshot& s;
@@ -594,7 +571,6 @@ struct Ctx {
   Timing& timing;
 };
 
-// UTF-16 (Player::GetPlayerName) to UTF-8, at most 64 code units; "" if unreadable.
 void player_name(const void* player, std::string& out) {
   out.clear();
   const char16_t* n = g.player_name(player);
@@ -620,7 +596,7 @@ void sec_character(Ctx& c) {
   c.s.mana_max = g.mana_limit(p);
   c.s.attack_speed = g.attack_speed(p);
   c.s.cast_speed = g.cast_speed(p);
-  // Character::GetRunSpeed (0x69040): true returns before CapRunSpeed / CapAbsoluteRunSpeed.
+  // Character::GetRunSpeed 0x69040: true returns before CapRunSpeed / CapAbsoluteRunSpeed.
   c.s.run_speed = g.run_speed(p, false);
   c.s.run_speed_uncapped = g.run_speed(p, true);
   c.s.defense_cap = g.defense_cap(p);
@@ -644,10 +620,8 @@ void sec_defense(Ctx& c) {
   g.combat_acc_dtor(acc);
 }
 
-// The same defense set, processed as for an incoming hit with no enemy reduction: ProcessDefense
-// (0x11AB40) executes the defense modifiers, then each entry's Process applies its % modifier and
-// the cap. ReductionInfo (0x18 bytes read, the Restricted variants build one that size) and
-// DamageScaleInfo (first float read; 0 = no scaling) are zero. Writes only to our accumulator's entries.
+// As for an incoming hit with no enemy reduction: ProcessDefense 0x11AB40 runs the modifiers, then each
+// entry's Process applies its % and cap. ReductionInfo (0x18 bytes) and DamageScaleInfo (0 = no scaling) are zero.
 void sec_defense_processed(Ctx& c) {
   struct alignas(16) Zero {
     unsigned char b[64] = {};
@@ -656,7 +630,7 @@ void sec_defense_processed(Ctx& c) {
   void* acc = g.combat_acc_ctor(buf.bytes, kDisplayModifyProcs);
   g.all_defense(c.player, acc);
   g.process_defense(acc, c.player, &reduction, &scale, 0.0f);
-  auto& cap_bonus = g_scratch.cap_bonus;  // (type, highest bonus)
+  auto& cap_bonus = g_scratch.cap_bonus;
   cap_bonus.clear();
   const Span s = vec(static_cast<const char*>(acc) + 0x38, sizeof(void*));
   using IntFn = int (*)(const void*);
@@ -680,8 +654,7 @@ void sec_defense_processed(Ctx& c) {
   g.combat_acc_dtor(acc);
 }
 
-// Player::CalculateDamageModifiers (0x3CD7A0, called by the exe for the sheet) is Clear + this same
-// call with 0 on its cached accumulator; we use our own.
+// Player::CalculateDamageModifiers 0x3CD7A0 is Clear + this call with 0 on a cached accumulator.
 void sec_damage_modifiers(Ctx& c) {
   AccBuf buf;
   void* acc = g.combat_acc_ctor(buf.bytes, kDisplayModifyProcs);
@@ -694,7 +667,10 @@ void sec_conversions(Ctx& c) {
   conversions(g.skill_manager(c.player), g.collect_conversions, c.s.conversions);
 }
 
-// One skill: identity, levels, linked modifiers and what its own passive collectors add now.
+void sec_skill_attributes(Ctx& c) {
+  skill_attributes(g.skill_manager(c.player), g.collect_skill_attributes, c.s.skill_attributes);
+}
+
 snap::Skill read_skill(Ctx& c, const void* sk) {
   snap::Skill s = snap::reuse(c.spare.skills);
   s.id = g.object_id(sk);
@@ -706,11 +682,31 @@ snap::Skill read_skill(Ctx& c, const void* sk) {
   s.devotion_level = g.devotion_level(sk);
   s.devotion_max_level = g.devotion_max_level(sk);
   s.mastery_id = g.mastery_id(sk);
+  // The buff map is keyed by the skill's record or its buffSkillName record (hook_targets.cpp).
+  s.buff_active.reset();
+  {
+    bool up = false;
+    auto ask = [&] {
+      up = g.buff_active(c.player, s.record);
+      const std::string& buff = g.buff_skill_name(sk);
+      if (!up && !buff.empty()) up = g.buff_active(c.player, buff);
+    };
+    seh::Fault f;
+    if (seh::run(ask, f)) {
+      s.buff_active = up;
+    } else {
+      char buf[200];
+      std::snprintf(buf, sizeof buf, "skill %s buff_active: FAULT 0x%08lX at 0x%016llX", s.record.c_str(), f.code,
+                    static_cast<unsigned long long>(f.addr));
+      c.s.errors.emplace_back(buf);
+      c.s.complete = false;
+      log::printf("snapshot: %s", buf);
+    }
+  }
   const Span mods = vec(static_cast<const char*>(sk) + kSkillModifiers, sizeof(u32));
   s.modifier_ids.clear();
   for (std::size_t m = 0; m < mods.count; ++m) s.modifier_ids.push_back(rd<u32>(mods.begin, m * sizeof(u32)));
-  // What it adds now, through its own collectors (the ones Skill_Passive / Skill_BuffSelfToggled
-  // override). Unlearned skills (current level 0) are skipped: they have nothing to add.
+  // Skill_Passive / Skill_BuffSelfToggled override these collectors.
   snap::ItemStats& p = s.passive.emplace();
   if (s.current_level != 0) {
     auto collect = [&] {
@@ -722,7 +718,7 @@ snap::Skill read_skill(Ctx& c, const void* sk) {
       g.combat_acc_dtor(acc);
     };
     seh::Fault f;
-    if (!seh::run(collect, f)) {  // this skill only; the snapshot keeps the rest
+    if (!seh::run(collect, f)) {
       char buf[200];
       std::snprintf(buf, sizeof buf, "skill %s passive: FAULT 0x%08lX at 0x%016llX", s.record.c_str(), f.code,
                     static_cast<unsigned long long>(f.addr));
@@ -745,7 +741,7 @@ void sec_skills(Ctx& c) {
   }
 }
 
-// Skills granted by equipped items (SkillManager+0x258, docs/SNAPSHOT.md `item_skills[]`).
+// SkillManager+0x258.
 void sec_item_skills(Ctx& c) {
   const Span list = vec(g.item_skill_list(g.skill_manager(c.player)), sizeof(void*));
   for (std::size_t i = 0; i < list.count; ++i) {
@@ -781,7 +777,7 @@ void sec_item_skill_modifiers(Ctx& c) {
       m.from_augment = rd<std::uint8_t>(e, 0x29) != 0;
       if (const void* mod = lookup(m.modifier_id)) {
         set_cstr(m.modifier_record, g.object_name(mod));
-        // Exact class only: the exported collectors are Skill_Modifier's own overrides.
+        // The exported collectors are Skill_Modifier's own overrides.
         if (class_info(mod) == g.ci_skill_modifier) modifier_stats(mod, c.player, m.stats.emplace());
       }
       c.s.item_skill_modifiers.push_back(std::move(m));
@@ -809,7 +805,7 @@ void sec_equipped(Ctx& c) {
 void sec_tooltip(Ctx& c) {
   for (u32 id : c.tooltip_ids) {
     const void* obj = lookup(id);
-    if (!obj) continue;  // tooltip of an item that no longer exists
+    if (!obj) continue;
     snap::Item it = snap::reuse(c.spare.items);
     read_item(obj, it, true, c.player);
     c.s.tooltip_items.push_back(std::move(it));
@@ -861,11 +857,11 @@ bool verify_slots(const Resolve& r, std::string_view cls, bool full) {
                      {kSlotConversion, "GetConversionAttributes", false}};
   bool ok = true;
   for (const auto& s : slots) {
-    if (s.damage && !full) continue;  // components: stubs in these slots, never called
+    if (s.damage && !full) continue;  // components: stubs, never call
     const std::string label = std::string(cls) + "::" + s.fn;
     const void* want = r(label);
     const void* have = rd<const void*>(vft, s.off);
-    if (!want && !full) continue;  // optional getter (relic/enchantment) not resolved
+    if (!want && !full) continue;
     if (want != have) {
       log::printf("snapshot: %s vftable slot 0x%zX = 0x%016llX, expected %s", std::string(cls).c_str(), s.off,
                   static_cast<unsigned long long>(addr(have)), label.c_str());
@@ -911,6 +907,7 @@ bool snapshot_init(const Resolve& r) {
   b(g.skill_manager, "Character::GetSkillManager");
   b(g.collect_offensive_modifiers, "SkillManager::CollectAvailableOffensiveModifierAttributes");
   b(g.collect_conversions, "SkillManager::CollectAvailableConversionAttributes");
+  b(g.collect_skill_attributes, "SkillManager::CollectAvailableSkillAttributes");
   b(g.run_speed, "Character::GetRunSpeed");
   b(g.defense_cap, "Player::GetDefenseAttributeCap");
   b(g.skill_list, "SkillManager::GetSkillList");
@@ -924,6 +921,8 @@ bool snapshot_init(const Resolve& r) {
   b(g.devotion_max_level, "Skill::GetDevotionMaxLevel");
   b(g.mastery_id, "Skill::GetMasteryId");
   b(g.skill_type, "Skill::GetSkillType");
+  b(g.buff_active, "Character::IsSkillBuffActive");
+  b(g.buff_skill_name, "Skill::GetBuffSkillName");
   b(g.char_acc_ctor, "CharAttributeAccumulator::CharAttributeAccumulator()");
   b(g.char_acc_dtor, "CharAttributeAccumulator::~CharAttributeAccumulator()");
   b(g.combat_acc_ctor, "CombatDisplayAccumulator::CombatDisplayAccumulator(bool)");
@@ -956,8 +955,8 @@ bool snapshot_init(const Resolve& r) {
   b(g.requirements_met, "ItemEquipment::AreRequirementsMet");
   if (!ok) return false;
 
-  // The id lookup: decode the call in GetEquipCharAttributes, accept it only if its first call
-  // goes through the IAT entry that holds Engine.dll's Singleton<ObjectManager>::Get.
+  // Accept the decoded call only if its first call goes through the IAT entry for Engine.dll's
+  // Singleton<ObjectManager>::Get.
   const auto* anchor = static_cast<const std::byte*>(r("Character::GetEquipCharAttributes"));
   if (!anchor) {
     log::write("snapshot: Character::GetEquipCharAttributes unresolved");
@@ -1045,6 +1044,7 @@ Take snapshot_take(snap::Snapshot& s, snap::Spares& spare, const std::vector<std
   ok = guarded("defense_processed", sec_defense_processed, c) && ok;
   ok = guarded("damage_modifiers", sec_damage_modifiers, c) && ok;
   ok = guarded("conversions", sec_conversions, c) && ok;
+  ok = guarded("skill_attributes", sec_skill_attributes, c) && ok;
   ok = guarded("skills", sec_skills, c) && ok;
   ok = guarded("item_skill_modifiers", sec_item_skill_modifiers, c) && ok;
   ok = guarded("item_skills", sec_item_skills, c) && ok;
@@ -1075,8 +1075,8 @@ Take snapshot_probe(Probe& out) {
     for (std::size_t i = 0; i < items.count; ++i) {
       const u32 id = rd<u32>(items.begin, i * 12);
       mix(id);
-      mix(rd<u32>(items.begin, i * 12 + 4));  // location (EquipManagerContainer, see top)
-      // Component / augment object ids (0 = none): socketing changes neither the item id nor its slot.
+      mix(rd<u32>(items.begin, i * 12 + 4));
+      // Socketing changes neither the item id nor its slot.
       const u64 fp = fingerprint_of(lookup(id));
       mix(static_cast<u32>(fp >> 32));
       mix(static_cast<u32>(fp));
@@ -1092,7 +1092,6 @@ Take snapshot_probe(Probe& out) {
 }
 
 namespace {
-// `id` 0: the object id of `item`.
 Take candidate(const void* item, u32 id, snap::Item& out, int& item_type) {
   if (!g_ready || !g.item_type_ok) return Take::NoPlayer;
   bool found = false;
@@ -1132,7 +1131,7 @@ Take snapshot_bag(std::vector<BagItem>& out) {
     if (!player) return;
     player_found = true;
     const Span ids = vec(g.inventory_items(player), sizeof(u32));
-    for (std::size_t i = 0; i < ids.count && out.size() < out.capacity(); ++i) {  // no allocation here
+    for (std::size_t i = 0; i < ids.count && out.size() < out.capacity(); ++i) {  // no allocation
       const u32 id = rd<u32>(ids.begin, i * sizeof(u32));
       if (const void* obj = lookup(id)) out.push_back({id, fingerprint_of(obj)});
     }

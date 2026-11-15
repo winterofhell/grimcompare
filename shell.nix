@@ -1,6 +1,4 @@
-# Build environment. Linux core + tests use the stdenv C++ compiler (gcc).
-# The Windows adapter uses clang-cl + lld-link against the MSVC CRT / Windows SDK
-# that xwin splats into $XWIN_DIR (docs/BUILD.md).
+# Core + tests: stdenv gcc. Adapter: clang-cl + lld-link against xwin's MSVC CRT / SDK (docs/BUILD.md).
 { pkgs ? import <nixpkgs> { } }:
 let
   llvm = pkgs.llvmPackages_21;

@@ -14,7 +14,6 @@ std::int32_t rel32(const std::byte* p) {
 }  // namespace
 
 std::optional<LookupCall> find_object_lookup_call(std::span<const std::byte> code, std::uint64_t code_va) {
-  // 6 (call [rip]) + 3 (mov rcx,rax) + 2 (mov edx,edi) + 5 (call rel32)
   constexpr std::size_t kLen = 16;
   constexpr unsigned char kMid[] = {0x48, 0x8B, 0xC8, 0x8B, 0xD7, 0xE8};
   std::optional<LookupCall> found;
@@ -38,7 +37,7 @@ std::optional<std::uint64_t> line_push_back_call(std::span<const std::byte> site
 }
 
 bool is_line_push_back(std::span<const std::byte> body) {
-  // Game.dll 1.3.1.1 rva 0x1C550..0x1C5FC (disassembly in docs/RECON.md, Tooltip building).
+  // Game.dll 1.3.1.1 rva 0x1C550..0x1C5FC.
   static constexpr unsigned char kBody[kLinePushBackLen] = {
       0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0x41, 0x08,
       0x48, 0x8b, 0xfa, 0x48, 0x8b, 0xd9, 0x48, 0x3b, 0xd0, 0x73, 0x2b, 0x48, 0x8b, 0x09, 0x48, 0x3b, 0xca, 0x77, 0x23,

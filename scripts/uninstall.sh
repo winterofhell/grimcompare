@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Remove exactly the files deploy.sh installed (per GDCompare.installed), only if unchanged
-# since install, plus our log. Prints the launch options with dinput8 removed.
+# Removes exactly what deploy.sh installed, only if unchanged, plus our log.
 # env: GD_DIR, GD_SUBDIR — as in deploy.sh
 set -euo pipefail
 cd "$(dirname "$(realpath "$0")")/.."

@@ -40,7 +40,7 @@ Hit expected_hit(double pth, const snap::PthTable& t, double crit_bonus) {
   if (span <= 0) return {};
   Hit h;
   h.chance = std::min(pth, span) / span;
-  if (t.threshold[0] <= 0) {  // no table
+  if (t.threshold[0] <= 0) {
     h.multiplier = h.chance;
     return h;
   }
@@ -49,7 +49,7 @@ Hit expected_hit(double pth, const snap::PthTable& t, double crit_bonus) {
     return h;
   }
   h.crit_chance = std::max(0.0, pth - t.threshold[1]) / span;
-  // Bands of x up to pth: [0, threshold 2] at modifier 1, then one per threshold reached.
+  // Bands of x: [0, threshold 2] at modifier 1, then one per threshold reached.
   double from = 0, modifier = t.damage_modifier[0], sum = 0;
   for (int k = 1; k < 6 && t.threshold[k] > 0 && t.threshold[k] < pth; ++k) {
     sum += (t.threshold[k] - from) * modifier;

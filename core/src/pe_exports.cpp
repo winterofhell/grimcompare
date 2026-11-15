@@ -18,7 +18,6 @@ class Reader {
     return v;
   }
 
-  // Bounded C string at file/image offset; nullopt if unterminated within the image.
   std::optional<std::string> cstr(std::uint64_t off) const {
     if (off >= img_.size()) return std::nullopt;
     const auto* p = reinterpret_cast<const char*>(img_.data() + off);
@@ -87,7 +86,7 @@ ExportTable read_exports(std::span<const std::byte> image, Layout layout) {
   if (!ndirs || *ndirs < 1 || *opt_size < 112 + 8) return fail("no data directories");
   const auto exp_rva = r.at<std::uint32_t>(opt + 112), exp_size = r.at<std::uint32_t>(opt + 116);
   if (!exp_rva || !exp_size) return fail("truncated optional header");
-  if (*exp_rva == 0 || *exp_size == 0) return out;  // no exports: valid, empty
+  if (*exp_rva == 0 || *exp_size == 0) return out;
   if (!r.load_sections(opt + *opt_size, *nsect)) return fail("truncated section table");
 
   const auto nfuncs = r.at_rva<std::uint32_t>(*exp_rva + 20);

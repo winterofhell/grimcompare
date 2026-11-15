@@ -119,18 +119,20 @@ TEST_CASE("requirements: tooltip says so when the candidate's are not met; the e
   q.attribute[2] = 262;
   std::vector<std::string> log;
   auto lines = tooltip::compare(s, horn, 8, false, game_db(), p, {}, &log);
-  CHECK(has(lines, "! requirements not met: Spirit 262 (have 198)"));
+  CHECK(has(lines, "! can't equip yet: Spirit 262 (have 198)"));
+  CHECK(has(lines, "vs L Hand: "));
+  CHECK(has(lines, " (if equipped)"));  // scored as if it were worn
 
   q.met = true;  // the engine says met (a reduction the model misses): no line, a model warning
   log.clear();
   lines = tooltip::compare(s, horn, 8, false, game_db(), p, {}, &log);
-  CHECK_FALSE(has(lines, "requirements not met"));
+  CHECK_FALSE(has(lines, "can't equip yet"));
   CHECK(std::any_of(log.begin(), log.end(), [](const std::string& l) { return l.find("engine disagrees") != std::string::npos; }));
 
   q.attribute[2] = 0;
   q.met = false;  // the engine says not met, the model finds nothing: still shown
   lines = tooltip::compare(s, horn, 8, false, game_db(), p, {}, &log);
-  CHECK(has(lines, "! requirements not met"));
+  CHECK(has(lines, "! can't equip yet"));
 }
 
 TEST_CASE("requirements: an item the swap leaves unequippable is shown and scored as removed") {
@@ -156,8 +158,12 @@ TEST_CASE("requirements: an item the swap leaves unequippable is shown and score
   log.clear();
   lines = tooltip::compare(s, legs, 4, false, game_db(), p, {}, &log);
   const double broken = percent(log, "vs Legs base: ");
-  CHECK(has(lines, ": needs Physique 230 (have 226) (scored as removed)"));
+  CHECK(has(lines, ": needs Physique 230 (have 226)"));
   CHECK(broken < kept);
+  // The item's own score (nothing taken off) next to the total.
+  CHECK(has(lines, "  item itself: "));
+  CHECK(has(lines, ", but it unequips 1 item:"));
+  CHECK(percent(log, "vs Legs item itself: ") == doctest::Approx(kept).epsilon(0.001));
 
   // Already unmet before the swap (engine): not the swap's doing.
   at(s, 1)->requirements->met = false;

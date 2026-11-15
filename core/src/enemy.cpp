@@ -10,7 +10,7 @@ struct Row {
   double level;
   Enemy e;
 };
-// re/EnemyByLevel.tsv: level, {oa, da, hit, hit_physical}.
+// re/EnemyByLevel.tsv: level, oa, da, hit, hit_physical.
 constexpr Row kRows[] = {
     {1, {176, 115, 85, 23}},
     {5, {268, 195, 134, 40}},

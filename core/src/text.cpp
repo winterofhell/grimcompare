@@ -45,9 +45,8 @@ void add_archive(Table& t, const std::filesystem::path& p) {
 }  // namespace
 
 // Header {char[4] "ARC\0", u32 version 3, files, parts, part table size, string table size, table offset};
-// part table: {u32 offset, compressed, decompressed}; then the names; then 44-byte entries
-// {u32 type, offset, compressed, decompressed, ?; u64 filetime; u32 parts, first part, name length, name offset}.
-// Type 1 with equal sizes is stored whole; otherwise the parts are LZ4 blocks (stored raw when not smaller).
+// parts {u32 offset, compressed, decompressed}; 44-byte entries {u32 type, offset, compressed, decompressed, ?;
+// u64 filetime; u32 parts, first part, name length, name offset}. Type 1 with equal sizes is stored whole, else LZ4.
 std::vector<std::pair<std::string, std::vector<std::byte>>> read_arc(std::span<const std::byte> d) {
   if (d.size() < 28 || std::memcmp(d.data(), "ARC\0", 4) != 0) fail("not an .arc file");
   if (get<std::uint32_t>(d, 4) != 3) fail("not version 3");

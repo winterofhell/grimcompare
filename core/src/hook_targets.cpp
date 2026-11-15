@@ -6,11 +6,7 @@
 namespace gdc::targets {
 namespace {
 
-// Required: the comparison block cannot work without it → mod disables itself if missing.
-// Optional: diagnostics or fallbacks; missing → logged only.
-// ItemRelic/ItemEnchantment getters are optional until Phase 2 shows whether the
-// ItemEquipment getters already include component/augment contributions.
-// Trailing comments: RVA in v1.3.1.1 (re/*.exports.tsv), for reference only; never used.
+// Required: missing disables the mod. Optional: logged only. Trailing RVAs are 1.3.1.1 reference, never used.
 constexpr Target kPlanned[] = {
     {Module::Engine, Kind::Call, false, "version", "Engine::GetVersion",
      "?GetVersion@Engine@GAME@@SAPEBDXZ"},  // 0x79cd0
@@ -18,7 +14,7 @@ constexpr Target kPlanned[] = {
      "?gGameEngine@GAME@@3PEAVGameEngine@1@EA"},  // 0xa66288
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetMainPlayer",
      "?GetMainPlayer@GameEngine@GAME@@QEBAPEAVPlayer@2@XZ"},  // 0x2ebb70
-    // Snapshot character.name / auto-snapshot folder: returns the u16string's data (Player+0x46C8, 0x3D3100).
+    // Returns the u16string's data (Player+0x46C8).
     {Module::Game, Kind::Call, true, "engine", "Player::GetPlayerName", "?GetPlayerName@Player@GAME@@QEBAPEBGXZ"},  // 0x3d3100
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetGameDifficulty",
      "?GetGameDifficulty@GameEngine@GAME@@QEBA?AW4GameDifficulty@2@XZ"},  // 0x2d8490
@@ -26,21 +22,25 @@ constexpr Target kPlanned[] = {
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",
      "?GetUIDisplayText@ItemArtifact@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x32a570
-    // Tooltip lines are appended with the engine's own (unexported) push_back, found through
-    // ItemEquipment::GetUIDisplayText (gdc::scan::line_push_back_call). GameTextLineToString (0x316EB0) is
-    // never called or referenced in Game.dll 1.3.1.1, so it is not a draw hook.
-    // Item::GenerateSearchText calls GetUIDisplayText (vt+0x458, call at +0xB8) for stash search text: the
-    // tooltip detours skip that caller.
+    // GameTextLineToString (0x316EB0) is never referenced in Game.dll 1.3.1.1, so it is not a draw hook.
+    // GenerateSearchText calls GetUIDisplayText (call at +0xB8) for stash search: the detours skip that caller.
     {Module::Game, Kind::Call, false, "tooltip", "Item::GenerateSearchText", "?GenerateSearchText@Item@GAME@@QEAAXXZ"},  // 0x329370
     {Module::Game, Kind::Call, false, "tooltip", "GameTextLine::GameTextLine(u16string)",
      "??0GameTextLine@GAME@@QEAA@W4GameTextClass@1@AEBV?$basic_string@GU?$char_traits@G@std@@V?$allocator@G@2@@std@@_NPEBVGraphicsTexture@1@M@Z"},  // 0x313030
-    // Item::GetItemType is virtual slot 0x550 of the Object-subobject vftable (adapter tooltip, checked in
-    // snapshot_init against these: each class's slot is a folded `mov eax, imm; ret` stub).
+    // Slot 0x550 of the Object-subobject vftable; each class's slot is a folded `mov eax, imm; ret` stub.
     {Module::Game, Kind::Call, false, "tooltip", "Item::GetItemType", "?GetItemType@Item@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x167e0
     {Module::Game, Kind::Call, false, "tooltip", "ArmorJewelry_Ring::GetItemType",
      "?GetItemType@ArmorJewelry_Ring@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x2de70
     {Module::Game, Kind::Data, false, "tooltip", "ArmorJewelry_Ring::vftable{Object}",
      "??_7ArmorJewelry_Ring@GAME@@6BObject@1@@"},  // 0x6d7658
+    // As the item rollover (Grim Dawn.exe 0x1EE9F0) and GameTextString (0x316CE0) read them. GetWidth is
+    // `mov eax, [rcx+0x64]; ret`, folded with GridRegion::GetHeightInCells, so call only.
+    {Module::Engine, Kind::Data, false, "tooltip", "gEngine", "?gEngine@GAME@@3PEAVEngine@1@EA"},  // 0x42c418
+    {Module::Engine, Kind::Call, false, "tooltip", "Engine::GetGraphicsEngine",
+     "?GetGraphicsEngine@Engine@GAME@@QEBAPEAVGraphicsEngine@2@XZ"},  // 0x77820
+    {Module::Engine, Kind::Call, false, "tooltip", "GraphicsEngine::GetUIScaleFactor",
+     "?GetUIScaleFactor@GraphicsEngine@GAME@@QEBAMXZ"},  // 0x92060
+    {Module::Engine, Kind::Call, false, "tooltip", "GraphicsEngine::GetWidth", "?GetWidth@GraphicsEngine@GAME@@QEBAHXZ"},  // 0x91f60
     {Module::Game, Kind::Call, true, "item", "ItemEquipment::GetCharAttributes",
      "?GetCharAttributes@ItemEquipment@GAME@@UEBAXAEAVCharAttributeAccumulator@2@@Z"},  // 0x340830
     {Module::Game, Kind::Call, true, "item", "ItemEquipment::GetDefenseAttributes",
@@ -127,14 +127,12 @@ constexpr Target kPlanned[] = {
      "??0CharAttributeAccumulator@GAME@@QEAA@XZ"},  // 0xcf5c0
     {Module::Game, Kind::Call, true, "accumulator", "CharAttributeAccumulator::~CharAttributeAccumulator()",
      "??1CharAttributeAccumulator@GAME@@QEAA@XZ"},  // 0xcf660
-    // Deterministic CombatAttributeAccumulator: EvaluateChance always true, chance attributes scaled by
-    // chance/100. With `true` it has the flags Skill::CollectWeaponDamage builds inline for the sheet.
+    // With `true`: the flags Skill::CollectWeaponDamage builds inline for the sheet.
     {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::CombatDisplayAccumulator(bool)",
      "??0CombatDisplayAccumulator@GAME@@QEAA@_N@Z"},  // 0x11b980
     {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::~CombatDisplayAccumulator()",
      "??1CombatDisplayAccumulator@GAME@@UEAA@XZ"},  // 0x11b9f0
-    // Copied (8 slots, up to CombatAttributeAccumulator::vftable at 0x6d3d38) with slot 0x18 replaced, to
-    // read chance-based item stats at 100% / 0% / chance (adapter snapshot.cpp, chance passes).
+    // Copied (8 slots, up to CombatAttributeAccumulator::vftable 0x6d3d38) with slot 0x18 replaced.
     {Module::Game, Kind::Data, true, "accumulator", "CombatDisplayAccumulator::vftable",
      "??_7CombatDisplayAccumulator@GAME@@6B@"},  // 0x6d3cf8
     {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::GetChanceMultiplier",
@@ -243,7 +241,6 @@ constexpr Target kPlanned[] = {
      "?GetWeaponIdRight@EquipManager@GAME@@QEBAIXZ"},  // 0x284670
     {Module::Game, Kind::Call, false, "equipment", "EquipManager::LocationToString",
      "?LocationToString@EquipManager@GAME@@AEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@W4EquipLocations@2@@Z"},  // 0x286480
-    // Phase 2: snapshots (docs/SNAPSHOT.md).
     {Module::Game, Kind::Detour, true, "tick", "GameEngine::Update",
      "?Update@GameEngine@GAME@@QEAAXH@Z"},  // 0x2d54b0
     {Module::Engine, Kind::Call, true, "object", "Singleton<ObjectManager>::Get",
@@ -284,13 +281,14 @@ constexpr Target kPlanned[] = {
      "?CollectAvailableOffensiveModifierAttributes@SkillManager@GAME@@UEBAXAEAVCombatAttributeAccumulator@2@I@Z"},  // 0x536260
     {Module::Game, Kind::Call, true, "character", "SkillManager::CollectAvailableConversionAttributes",
      "?CollectAvailableConversionAttributes@SkillManager@GAME@@QEBAXAEAVConversionAttributeAccumulator@2@@Z"},  // 0x536400
+    {Module::Game, Kind::Call, true, "character", "SkillManager::CollectAvailableSkillAttributes",
+     "?CollectAvailableSkillAttributes@SkillManager@GAME@@QEBAXAEAVSkillAttributeAccumulator@2@@Z"},  // 0x535be0
     {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAccumulator::ProcessDefense",
      "?ProcessDefense@CombatAttributeAccumulator@GAME@@QEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x11ab40
     {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAbsDefense::Process",
      "?Process@CombatAttributeAbsDefense@GAME@@UEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x115370
-    // Per-skill passive contributions (adapter sec_skills): slots 0x408 / 0x438 of every skill vftable,
-    // checked against Skill_Passive's. Skill_BuffSelfToggled's overrides sit at the same slots
-    // (0x707B80 / 0x707BB0 in its vftable at 0x707778).
+    // Slots 0x408 / 0x438, checked against Skill_Passive's; Skill_BuffSelfToggled's overrides sit at the same
+    // slots (0x707B80 / 0x707BB0, vftable 0x707778).
     {Module::Game, Kind::Data, true, "skills", "Skill_Passive::vftable", "??_7Skill_Passive@GAME@@6B@"},  // 0x711ba0
     {Module::Game, Kind::Call, true, "skills", "Skill_Passive::CollectPassiveCharAttributes",
      "?CollectPassiveCharAttributes@Skill_Passive@GAME@@UEBAXAEAVCharAttributeAccumulator@2@@Z"},  // 0x5011d0
@@ -330,6 +328,12 @@ constexpr Target kPlanned[] = {
      "?GetMasteryId@Skill@GAME@@QEBA?BIXZ"},  // 0x31e1e0
     {Module::Game, Kind::Call, true, "skills", "Skill::GetSkillType",
      "?GetSkillType@Skill@GAME@@QEBA?AW4Skill_Type@12@XZ"},  // 0x426730
+    // Buff map (SkillManager+0x100) is keyed by record name: SkillServices_Character::CreateUpdateSkillBuff 0x5586F0
+    // passes SkillBuffTransfer+0 after SkillManager::FindSkillId. GetBuffSkillName = Skill+0x40.
+    {Module::Game, Kind::Call, true, "skills", "Character::IsSkillBuffActive",
+     "?IsSkillBuffActive@Character@GAME@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z"},  // 0x67dd0
+    {Module::Game, Kind::Call, true, "skills", "Skill::GetBuffSkillName",
+     "?GetBuffSkillName@Skill@GAME@@QEBAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ"},  // 0x17ec0
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

@@ -43,7 +43,6 @@ bool same_item(const snap::Item* a, const snap::Item* b) {
          component(a->augment) == component(b->augment);
 }
 
-// Attribute points (types 1..3), skill and devotion points by record: what else could move the sheet.
 std::string other_change(const snap::Snapshot& a, const snap::Snapshot& b) {
   if (a.character_name != b.character_name) return "different character";
   if (a.level != b.level) return "level changed";
@@ -84,7 +83,6 @@ void compare(std::vector<Diff>& out, const std::string& stat, double predicted, 
   if (!(std::abs(predicted - actual) <= tol)) out.push_back({stat, predicted, actual, tol});
 }
 
-// Every compared value outside its tolerance: `cur` (predicted) against `after` (engine).
 std::vector<Diff> differences(const snap::Snapshot& cur, const snap::Snapshot& after) {
   std::vector<Diff> out;
   const model::Sheet got = model::sheet(cur), want = model::sheet(after);
@@ -113,7 +111,7 @@ std::vector<Diff> differences(const snap::Snapshot& cur, const snap::Snapshot& a
     compare(out, name + " (raw)", g.raw, w.raw, 0.1);
     compare(out, name + " (shown)", g.shown, w.shown, 0.1);
   }
-  // Offense: character damage modifiers per type (type 59 crit damage is a fraction) and conversions.
+  // Type 59 crit damage is a fraction.
   auto by_type = [](const snap::Snapshot& s) {
     std::map<int, const snap::CombatTotals*> m;
     for (const auto& r : s.damage_modifiers) m[r.type] = &r;
@@ -187,7 +185,6 @@ Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz
     cur = std::move(p.after);
   }
 
-  // A skill whose contribution changed without a level change: a buff or toggle switched in between.
   std::map<std::string, const snap::Skill*> sb;
   for (const auto& k : before.skills) sb[k.record] = &k;
   for (const auto& k : after.skills) {
@@ -197,8 +194,7 @@ Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz
   }
 
   c.diffs = differences(cur, after);
-  // A timed buff cast or run out between the snapshots moves the sheet too, and the snapshot does not show
-  // it (bloodofdreeg1). The pair passes when switching one learned buff explains every difference.
+  // The snapshot does not show a buff cast in between (bloodofdreeg1).
   // shortcut: one buff at a time — revisit when two buffs switching in one pair shows up as a FAIL.
   if (!c.diffs.empty() && db) {
     const auto explains = [&](const snap::Skill& k, bool on) {
