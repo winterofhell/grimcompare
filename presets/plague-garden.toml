@@ -148,14 +148,16 @@ requires = [
   "records/skills/playerclass03/_classtraining_class03.dbr",
 ]
 [stage.score]
-threshold_resist_weight = 1  # the 25 buffer below already makes every point up to 105 count
+threshold_resist_weight = 1  # the 25 buffer below (or Ultimate's -25 ahead) makes every point up to 105 count
 [stage.survival]
 # docs/build-ref/priorities.md §2 "+25-35% overcap on all 9 base resists" (endgame bosses, not in the monster
-# table): its lower bound, always on. A base resist needs 105 uncapped to stop costing Survivability.
+# table): its lower bound, always on, on Ultimate / Ascendant. A base resist needs 105 uncapped to stop costing
+# Survivability. Still on Normal / Elite: auto + difficulty_lookahead (the next difficulty's 25), not both.
 resist_reduction = 25
+resist_reduction_from = "ultimate"
 [stage.thresholds]  # docs/build-ref/priorities.md §2, "target minimum" column
-# overcap: [stage.survival] resist_reduction 25 with resist 80 (no resist_overcap, which would count the same
-# 25 points twice)
+# overcap: [stage.survival] resist_reduction 25 (or the lookahead's 25) with resist 80 (no resist_overcap, which
+# would count the same 25 points twice)
 physical_resist = 20
 absorption = 100           # "98-100%, get it to 100%"
 armor = 2200

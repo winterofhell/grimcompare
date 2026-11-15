@@ -90,6 +90,9 @@ TEST_CASE("presets: plague-garden stages follow level and masteries (winterpoiso
   s.level = 100;
   CHECK(stage_name(p, s) == "94+");
   CHECK(score::settings(p, s).skills == p.stages[3].settings.skills);
+  // The fixed 25 is for Ultimate / Ascendant; on Normal / Elite auto + lookahead take its place.
+  CHECK(score::settings(p, s).resist_reduction == std::optional<double>(25));
+  CHECK(score::settings(p, s).resist_reduction_from == 2);
 }
 
 TEST_CASE("presets: stage and match errors") {

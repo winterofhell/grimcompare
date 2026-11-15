@@ -162,12 +162,26 @@ TEST_CASE("score: auto resist reduction mixes in the bosses' RR by boss_share") 
   auto fixed = p;
   fixed.resist_reduction = 25;  // the preset number replaces both
   CHECK(score::compare(b, a, {}, fixed, nullptr).ratio.survival == doctest::Approx(0.45 / 0.2));
+  // From Ultimate on only: below it the auto mix and the lookahead, never both.
+  fixed.resist_reduction_from = 2;
+  CHECK(score::compare(b, a, {}, fixed, nullptr).ratio.survival == doctest::Approx(0.45 / 0.2));
+  snap::Snapshot eb = b, ea = a;
+  eb.difficulty = ea.difficulty = 1;  // Elite 100: lookahead 1, Fire -25 ahead
+  CHECK(score::compare(eb, ea, {}, fixed, nullptr).ratio.survival ==
+        doctest::Approx(score::compare(eb, ea, {}, p, nullptr).ratio.survival));
+  fixed.resist_reduction_from = 0;
+  CHECK(score::compare(eb, ea, {}, fixed, nullptr).ratio.survival == doctest::Approx(0.7 / 0.4));  // 25 + 25
   std::string error;
+  CHECK_FALSE(score::parse("[survival]\nresist_reduction_from = \"hard\"\n", error));
   CHECK_FALSE(score::parse("[survival]\ndifficulty_lookahead = 1\n", error));
   const auto parsed = score::parse("[survival]\ndifficulty_lookahead = false\nboss_share = 0.4\n", error);
   REQUIRE_MESSAGE(parsed, error);
   CHECK_FALSE(parsed->difficulty_lookahead);
   CHECK(parsed->boss_share == 0.4);
+  CHECK(parsed->resist_reduction_from == 0);
+  const auto from = score::parse("[survival]\nresist_reduction = 25\nresist_reduction_from = \"ultimate\"\n", error);
+  REQUIRE_MESSAGE(from, error);
+  CHECK(from->resist_reduction_from == 2);
 }
 
 TEST_CASE("score: armor absorbs absorption% of up to its value per physical hit, in its hit region, after the resist") {

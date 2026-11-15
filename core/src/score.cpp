@@ -1,6 +1,7 @@
 #include "gdc/score.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <cstdio>
@@ -186,6 +187,12 @@ bool settings_tables(Parser& ps, const toml::table& root, std::string_view where
       }
       if (v.is_string()) return ps.fail(v, "resist_reduction must be a number or \"auto\"");
       return ps.number(v, k, -100, 200, p.resist_reduction.emplace());
+    }
+    if (k == "resist_reduction_from") {
+      const auto s = v.value<std::string>();
+      const int d = !s ? -1 : *s == "normal" ? 0 : *s == "elite" ? 1 : *s == "ultimate" ? 2 : -1;
+      if (d < 0) return ps.fail(v, "resist_reduction_from must be \"normal\", \"elite\" or \"ultimate\"");
+      return p.resist_reduction_from = d, true;
     }
     if (k == "boss_share") return ps.number(v, k, 0, 1, p.boss_share);
     if (k == "difficulty_lookahead") {
@@ -907,7 +914,8 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   };
   const enemy::Enemy table = enemy_of(s);
   std::vector<Reduced> states;
-  if (p.resist_reduction) {
+  const int difficulty = enemy::difficulty(s);
+  if (p.resist_reduction && difficulty / 2 >= p.resist_reduction_from) {
     states.push_back({1, *p.resist_reduction});
   } else {
     const double b = p.boss_share;
@@ -921,7 +929,6 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
       states.push_back({states[i].share * ahead, states[i].rr, true});
       states[i].share *= 1 - ahead;
     }
-  const int difficulty = enemy::difficulty(s);
   // What a state takes off a resist: the 9 base resists only.
   auto reduced = [&](int type, const Reduced& st) {
     if (!base_resist(type)) return 0.0;
@@ -1729,6 +1736,7 @@ std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Dat
   line("melee_share", number(from.melee_share));
   line("damage_reduction_uptime", number(from.damage_reduction_uptime));
   line("resist_reduction", from.resist_reduction ? number(*from.resist_reduction) : "\"auto\"");
+  line("resist_reduction_from", toml_string(std::array{"normal", "elite", "ultimate"}[from.resist_reduction_from]));
   line("boss_share", number(from.boss_share));
   line("difficulty_lookahead", from.difficulty_lookahead ? "true" : "false");
   line("incoming_hits_per_sec", number(from.incoming_hits_per_sec));

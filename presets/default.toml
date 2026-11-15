@@ -79,6 +79,9 @@ damage_reduction_uptime = 0.5
 # subtracted from each base resist before its cap, always (0 = none; 25 = "keep 25 overcap"). Any [[stage]] can
 # set its own. Physical and crowd-control resists are not lowered.
 resist_reduction = "auto"
+# A number applies from this game difficulty on ("normal", "elite" or "ultimate"; Veteran / Ascendant count as
+# their base); below it the score uses "auto".
+resist_reduction_from = "normal"
 # Share of incoming damage from bosses (Quest, Boss, Nemesis and SuperBoss records): "auto" scores their RR
 # (25 points on 8% of them from level 85, against 17 on 3% of other monsters) for this share. Default = their
 # share of the enemy records, 448 of 2977.

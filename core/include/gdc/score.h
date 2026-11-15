@@ -55,6 +55,7 @@ struct Settings {
   // Enemy resistance reduction on the 9 base resists. Empty = the monster table's (gdc/enemy.h): its rr for
   // its rr_share of the incoming damage, bosses' boss_rr for boss_share x boss_rr_share. A number is always on.
   std::optional<double> resist_reduction;
+  int resist_reduction_from = 0;    // game difficulty (0..2) from which the number applies; below it: auto
   double boss_share = 0.15;         // share of incoming damage from Quest / Boss / Nemesis / SuperBoss enemies
   // On Normal and Elite: score the base resists also under the next difficulty's extra penalty, for a share
   // that ramps from 0 to 1 over the last levels before that difficulty (score.cpp lookahead()).
