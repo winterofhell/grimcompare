@@ -279,7 +279,7 @@ ULONGLONG g_quiet_at = 0, g_next_probe = 0;
 unsigned changes(const Probe& a, const Probe& b) {
   if (a.player != b.player) return store::kLoad;
   unsigned t = 0;
-  if (a.difficulty != b.difficulty) t |= store::kDifficulty;
+  if (a.difficulty != b.difficulty || a.difficulty_ramp != b.difficulty_ramp) t |= store::kDifficulty;
   if (a.equip_hash != b.equip_hash) t |= store::kEquip;
   if (a.level != b.level) return t | store::kLevel;
   if (a.skill_points != b.skill_points) t |= store::kSkill;

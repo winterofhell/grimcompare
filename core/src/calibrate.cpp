@@ -46,7 +46,7 @@ bool same_item(const snap::Item* a, const snap::Item* b) {
 std::string other_change(const snap::Snapshot& a, const snap::Snapshot& b) {
   if (a.character_name != b.character_name) return "different character";
   if (a.level != b.level) return "level changed";
-  if (a.difficulty != b.difficulty) return "difficulty changed";
+  if (a.difficulty != b.difficulty || a.difficulty_ramp != b.difficulty_ramp) return "difficulty changed";
   for (int t = 1; t <= 3; ++t) {
     auto spent = [t](const snap::Snapshot& s) {
       for (const auto& c : s.char_attributes)

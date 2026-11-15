@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <utility>
 
 #include "gdc/attribute_names.h"
 #include "gdc/components.h"
@@ -132,6 +133,7 @@ struct Row {
   const char* via = "";
   bool damage = false;
   const char* unscored = "";
+  std::string name = {};
 };
 
 // No space inside a value, so the game never wraps one.
@@ -142,9 +144,9 @@ void sheet_rows(std::vector<Row>& out, const model::Sheet& b, const model::Sheet
     if (s.changed())
       out.push_back({{s.delta() > 0 ? Tone::Better : Tone::Worse,
                       s.name + " " + pair(s.before, s.after, s.decimals) + s.unit + " (" + signed_num(s.delta(), s.decimals) + ")"},
-                     s.stat, 0, s.via, s.damage});
+                     s.stat, 0, s.via, s.damage, "", s.name});
     else if (keep.contains(s.stat))
-      out.push_back({{Tone::Plain, s.name + " " + num(s.after, s.decimals) + s.unit}, s.stat, 0, s.via, s.damage});
+      out.push_back({{Tone::Plain, s.name + " " + num(s.after, s.decimals) + s.unit}, s.stat, 0, s.via, s.damage, "", s.name});
   }
   for (int t : resist_types(b, a)) {
     // The cap does not change with a missing row.
@@ -164,7 +166,7 @@ void sheet_rows(std::vector<Row>& out, const model::Sheet& b, const model::Sheet
       text += " (" + behind + ")";
     if (max.changed()) text += " max " + pair(x.max, y.max, 0);
     const double d = shown.changed() ? shown.delta() : raw.delta();
-    out.push_back({{d > 0 ? Tone::Better : d < 0 ? Tone::Worse : Tone::Plain, text}, stat});
+    out.push_back({{d > 0 ? Tone::Better : d < 0 ? Tone::Worse : Tone::Plain, text}, stat, 0, "", false, "", resist_name(t, labels)});
   }
 }
 
@@ -392,7 +394,7 @@ model::Prediction take_off(const snap::Snapshot& s, int location, const arz::Dat
 }
 
 bool met_before(const snap::Item& e, const snap::Snapshot& s) {
-  if (e.requirements && e.requirements->met) return *e.requirements->met;
+  if (const auto engine = requirements::engine_met(e, s)) return *engine;
   return requirements::unmet(e, s).empty();
 }
 
@@ -485,7 +487,7 @@ Row other_row(const score::OtherChange& o) {
   if (o.key == "cooldown_reduction") return {{dir, text}, "", 0, "buff uptime", true};
   if (o.key == "skill_cost_reduction") return {{dir, text}, "", 0, "", false, "no energy model"};
   const double gain = (a - b) * o.weight;
-  return {{gain > 0 ? Tone::Better : gain < 0 ? Tone::Worse : Tone::Plain, text}, o.key};
+  return {{gain > 0 ? Tone::Better : gain < 0 ? Tone::Worse : Tone::Plain, text}, o.key, 0, "", false, "", name};
 }
 
 }  // namespace
@@ -506,6 +508,8 @@ std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after,
     const bool armor = std::any_of(rows.begin(), rows.end(), [](const Row& r) { return r.stat == "armor"; });
     const bool damage = std::any_of(scored->contributions.begin(), scored->contributions.end(),
                                     [](const score::Contribution& c) { return !c.skill.empty(); });
+    // A line's points carry the sign of its own change; a score part that moves the other way gets its own line.
+    std::vector<Row> against;
     for (auto& r : rows) {
       const std::string part = r.stat == "armor" ? "resist:2" : r.stat == "resist:2" && armor ? "" : r.stat;
       if (r.stat.empty()) {
@@ -521,9 +525,13 @@ std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after,
       const auto o = std::find_if(scored->other_changes.begin(), scored->other_changes.end(),
                                   [&](const score::OtherChange& x) { return x.key == r.stat; });
       if (o != scored->other_changes.end() && o->weight == 0) r.line.text += " [w0]";
+      else if (shows(r.points) && ((r.line.tone == Tone::Better && r.points < 0) || (r.line.tone == Tone::Worse && r.points > 0)))
+        against.push_back({{r.points > 0 ? Tone::Better : Tone::Worse, r.name + ": other effects [" + signed_num(r.points, 1) + "]"},
+                           "", std::exchange(r.points, 0)});
       else if (shows(r.points))
         r.line.text += " [" + signed_num(r.points, 1) + (o != scored->other_changes.end() ? " w" + sig(o->weight) : "") + "]";
     }
+    rows.insert(rows.end(), against.begin(), against.end());
     std::stable_sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return std::abs(a.points) > std::abs(b.points); });
   }
   std::vector<Line> out;
@@ -604,6 +612,7 @@ struct Slot {
   std::optional<score::Result> itself;
   std::optional<score::Result> moved;
   std::string moved_names, misfit;
+  std::optional<score::Result> hovered;  // with both items' components, when that differs from base
   std::vector<Line> sets;
   std::vector<Line> broken;
   std::vector<Line> detail;
@@ -660,11 +669,11 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
   std::vector<std::string> warnings, unscored, converts, notes;
   std::map<std::string, std::uint32_t> unused;
 
-  // The engine's own check decides when the adapter read it.
+  // The engine's own check decides when the adapter read it against this snapshot's character state.
   std::optional<Line> unmet_line;
   if (candidate.requirements) {
     const auto why = requirements::unmet(candidate, raw);
-    const std::optional<bool>& engine = candidate.requirements->met;
+    const std::optional<bool> engine = requirements::engine_met(candidate, raw);
     if (engine && *engine != why.empty())
       warnings.push_back(std::string("requirements: the model says ") + (why.empty() ? "met" : "not met") +
                          ", the engine disagrees");
@@ -807,7 +816,11 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
     if (detail || !preset.conversion_warn.empty()) {
       if (detail) {
         const score::BuffView vb = score::buff_view(s, skills, preset, db), va = score::buff_view(pa.after, skills, preset, db);
-        sl.detail = changes(vb.sheet, va.sheet, pa, labels, &sl.base);
+        // The sheet lines compare the items as they are, so their points come from that comparison, not from
+        // base (components stripped from both).
+        if ((old && (old->relic || old->augment)) || candidate.relic || candidate.augment)
+          sl.hovered = score::compare(s, pa.after, skills, preset, db);
+        sl.detail = changes(vb.sheet, va.sheet, pa, labels, sl.hovered ? &*sl.hovered : &sl.base);
         sl.buffs = buff_lines(vb, va, labels, screen);
       }
       for (const auto& c : score::conversion_warnings(s, pa.after, preset, chosen.match_damage, db))
@@ -819,6 +832,7 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
       log->push_back(sl.title + " base: " + num(sl.base.percent, 2) + "% (" + terms(sl.base) + ")");
       log->push_back("  before: " + sl.base.before);
       log->push_back("  after:  " + sl.base.after);
+      if (sl.hovered) log->push_back(sl.title + " as hovered: " + num(sl.hovered->percent, 2) + "% (" + terms(*sl.hovered) + ")");
       if (sl.itself) log->push_back(sl.title + " item itself: " + num(sl.itself->percent, 2) + "% (" + terms(*sl.itself) + ")");
       if (sl.moved) {
         log->push_back(sl.title + " moved: " + num(sl.moved->percent, 2) + "% (" + terms(*sl.moved) + ")");
@@ -880,7 +894,9 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
       out.push_back({Tone::Detail, "  with your " + sl.moved_names + ": " + terms(*sl.moved)});
       for (auto& t : top(*sl.moved, labels, "    ", screen)) out.push_back({Tone::Detail, std::move(t)});
     }
-    out.push_back({Tone::Detail, "  sheet as hovered [points of total]:"});
+    const bool differs = sl.hovered && short_change(*sl.hovered) != short_change(sl.base);
+    out.push_back({Tone::Detail, differs ? "  sheet as hovered, components included: " + short_change(*sl.hovered) + " [points of it]:"
+                                         : "  sheet as hovered [points of total]:"});
     for (const auto& d : sl.detail) out.push_back({d.tone, "    " + d.text});
     for (auto& r : rr_lines(sl.base, labels)) out.push_back({r.tone, "    " + r.text});
     for (const auto& d : sl.buffs) out.push_back({d.tone, "  " + d.text});

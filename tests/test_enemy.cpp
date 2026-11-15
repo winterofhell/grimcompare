@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -15,23 +16,99 @@ TEST_CASE("enemy: the table is re/EnemyByLevel.tsv") {
   REQUIRE(f.good());
   std::string line;
   std::getline(f, line);  // header
+  const std::string names[] = {"Normal", "NormalVeteran", "Elite", "EliteVeteran", "Ultimate", "Ascendant"};
   int rows = 0;
   while (std::getline(f, line)) {
     std::istringstream in(line);
-    double level, monsters, oa, da, hit, phys;
-    in >> level >> monsters >> oa >> da >> hit >> phys;
+    std::string difficulty;
+    double level, monsters, oa, da, hit, phys, with_hit, rr, share, crit, bosses, boss_rr, boss_share;
+    in >> difficulty >> level >> monsters >> oa >> da >> hit >> phys >> with_hit >> rr >> share >> crit >> bosses >>
+        boss_rr >> boss_share;
     REQUIRE(!in.fail());
-    const enemy::Enemy e = enemy::at(level);
+    const auto d = std::find(std::begin(names), std::end(names), difficulty) - std::begin(names);
+    REQUIRE(d < enemy::kDifficulties);
+    const enemy::Enemy e = enemy::at(level, static_cast<int>(d));
     CHECK(e.oa == oa);
     CHECK(e.da == da);
     CHECK(e.hit == hit);
     CHECK(e.hit_physical == phys);
+    CHECK(e.rr == rr);
+    CHECK(e.rr_share == share);
+    CHECK(e.crit_damage == crit);
+    CHECK(e.boss_rr == boss_rr);
+    CHECK(e.boss_rr_share == boss_share);
     ++rows;
   }
-  CHECK(rows == 21);
-  CHECK(enemy::at(0).oa == enemy::at(1).oa);
-  CHECK(enemy::at(500).da == enemy::at(100).da);
-  CHECK(enemy::at(12.5).oa == doctest::Approx((enemy::at(10).oa + enemy::at(15).oa) / 2));
+  CHECK(rows == 21 * enemy::kDifficulties);
+  CHECK(enemy::at(0, 0).oa == enemy::at(1, 0).oa);
+  CHECK(enemy::at(500, 2).da == enemy::at(100, 2).da);
+  CHECK(enemy::at(12.5, 1).oa == doctest::Approx((enemy::at(10, 1).oa + enemy::at(15, 1).oa) / 2));
+  CHECK(enemy::at(50, 9).hit == enemy::at(50, 5).hit);  // out of range: the last row
+  // Bosses lower a resist more often and by more than the median monster (re/tools/enemy_table.py).
+  CHECK(enemy::at(100, 0).boss_rr > enemy::at(100, 0).rr);
+  CHECK(enemy::at(100, 0).boss_rr_share > enemy::at(100, 0).rr_share);
+  // Only Ascendant adds crit damage (ultimateChallangeAdjustment offensiveCritDamageModifier 40).
+  for (int d = 0; d < enemy::kDifficulties; ++d) CHECK(enemy::at(50, d).crit_damage == (d == 5 ? 40 : 0));
+}
+
+TEST_CASE("enemy: hits, OA and DA grow with the difficulty; the snapshot picks the row") {
+  for (double level : {1.0, 27.0, 60.0, 100.0})
+    // Normal < Elite < Ultimate, and each with the ramp above it (Elite Veteran: +25% +40% damage, more than
+    // Ultimate's +40%).
+    for (auto [a, b] : {std::pair{0, 2}, {2, 4}, {0, 1}, {2, 3}, {4, 5}}) {
+      const enemy::Enemy lo = enemy::at(level, a), hi = enemy::at(level, b);
+      CHECK(hi.hit > lo.hit);
+      CHECK(hi.hit_physical > lo.hit_physical);
+      CHECK(hi.oa > lo.oa);
+      CHECK(hi.da > lo.da);
+    }
+  snap::Snapshot s;
+  CHECK(enemy::difficulty(s) == 0);  // not read (-1): Normal
+  s.difficulty_ramp = 1;             // GetChallengeAdjustment: challengeAdjustment below Ultimate (Veteran)
+  CHECK(enemy::difficulty(s) == 1);
+  s.difficulty = 1;
+  CHECK(enemy::difficulty(s) == 3);
+  s.difficulty = 2;                  // ultimateChallangeAdjustment on Ultimate (Ascendant)
+  CHECK(enemy::difficulty(s) == 5);
+  s.difficulty_ramp = 0;
+  CHECK(enemy::difficulty(s) == 4);
+  s.difficulty = 7;
+  CHECK(enemy::difficulty(s) == 4);
+  // re/EnemyResistByDifficulty.tsv
+  std::ifstream f(std::filesystem::path(GDC_SOURCE_DIR) / "re/EnemyResistByDifficulty.tsv");
+  REQUIRE(f.good());
+  std::string line;
+  std::getline(f, line);
+  const int types[] = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15};
+  for (int d = 0; d < enemy::kDifficulties; ++d) {
+    REQUIRE(std::getline(f, line));
+    std::istringstream in(line);
+    std::string name;
+    in >> name;
+    for (int t : types) {
+      double v = -1;
+      in >> v;
+      CHECK(enemy::resist(t, d) == v);
+    }
+  }
+  CHECK(enemy::resist(42, 2) == 0);
+  // re/PlayerResistByDifficulty.tsv, one row per game difficulty; Veteran / Ascendant take the same.
+  std::ifstream g(std::filesystem::path(GDC_SOURCE_DIR) / "re/PlayerResistByDifficulty.tsv");
+  REQUIRE(g.good());
+  std::getline(g, line);
+  for (int base = 0; base < 3; ++base) {
+    REQUIRE(std::getline(g, line));
+    std::istringstream in(line);
+    std::string name;
+    in >> name;
+    for (int t : {4, 5, 6, 7, 8, 9, 10, 11, 15}) {
+      double v = -1;
+      in >> v;
+      CHECK(enemy::penalty(t, base * 2) == v);
+      CHECK(enemy::penalty(t, base * 2 + 1) == v);
+    }
+  }
+  CHECK(enemy::penalty(2, 4) == 0);  // physical: none
 }
 
 namespace {

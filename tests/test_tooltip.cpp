@@ -58,6 +58,19 @@ TEST_CASE("tooltip: changes() lists every changed value, overcap, skills and set
   CHECK(tooltip::changes(b, gained, {})[0] == Line{Tone::Better, "ManaLeach 0->25%"});
 }
 
+TEST_CASE("tooltip: changes() never puts points on a line that moved the other way") {
+  auto b = base();
+  b.life = 4093;
+  auto a = b;
+  a.life = 4002;
+  score::Result r;
+  r.contributions = {{"Life", "", 1.1, "life"}};
+  const std::vector<Line> want = {{Tone::Better, "Life: other effects [+1.1]"}, {Tone::Worse, "Life 4093->4002 (-91)"}};
+  CHECK(tooltip::changes(b, a, {}, {}, &r) == want);
+  r.contributions[0].points = -2.2;
+  CHECK(tooltip::changes(b, a, {}, {}, &r) == std::vector<Line>{{Tone::Worse, "Life 4093->4002 (-91) [-2.2]"}});
+}
+
 TEST_CASE("tooltip: changes() with the score: one line per value with its points, the largest first") {
   auto b = base();
   b.resists.push_back({42, 27, 27, 27, 80});  // Reduced Stun Duration

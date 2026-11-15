@@ -66,12 +66,22 @@ pet_bonus = { weight = 0.2, when = "pets" }   # default. Living Bloom / Blossom 
                                               # bonus, the player's own bonuses scale them (score as procs)
 default = 0.05                                # default
 
+[score]
+# "Resist caps first" (docs/build-ref/priorities.md §3) without a fixed overcap buffer: a point under the 80
+# target costs 4x the default on top of the damage it lets through, about 0.7% Survivability per point of a
+# resist with a 10% threat share. Chosen so that 7 Fire + 15 Pierce under the cap outweigh +28 Physique and
+# +8% Life (the belt case, tests/test_presets.cpp) while a +2 skills medal that costs 10 Poison still wins.
+threshold_resist_weight = 4
+
 [survival]
-# Incoming resistance reduction (enemy curses / debuffs) every resist is scored under, at every stage. The guide
-# puts "resist caps (80%) + 25-30% overcap" first until the base is closed (docs/build-ref/priorities.md §3,
-# §2 "+25-35% overcap on all 9 base resists"); its lower bound is used here. Physical and crowd-control resists
-# are not lowered. With the 80 target below, a base resist needs 105 uncapped to stop costing Survivability.
-resist_reduction = 25
+# Incoming resistance reduction (enemy curses / debuffs) the base resists are scored under. "auto" = what the
+# monsters of the character's level and difficulty apply (docs/MECHANICS.md §9): about 2-3% of them lower a
+# given resist by 10-17 points (bosses, weighted by boss_share: 8% by 12-25), so overcap is worth little while
+# levelling and a resist below 80 stays costly. difficulty_lookahead (default on) adds the next difficulty's
+# extra -25 from level 65 on Normal and 84 on Elite, so overcap up to it counts before the switch (the guide
+# moves to Elite at 75, to Ultimate at 94). The 94+ stage sets the guide's endgame buffer. Physical and
+# crowd-control resists are not lowered.
+resist_reduction = "auto"
 
 # Defense targets (docs/PRESETS.md "Thresholds"): Survivability x a smooth curve per stat, steep below the
 # target, small above. Resists 80 at every stage (gameengine.dbr playerDefenseCap, PRESETS decision); a stage
@@ -137,9 +147,15 @@ requires = [
   "records/skills/playerclass06/_classtraining_class06.dbr",
   "records/skills/playerclass03/_classtraining_class03.dbr",
 ]
+[stage.score]
+threshold_resist_weight = 1  # the 25 buffer below already makes every point up to 105 count
+[stage.survival]
+# docs/build-ref/priorities.md §2 "+25-35% overcap on all 9 base resists" (endgame bosses, not in the monster
+# table): its lower bound, always on. A base resist needs 105 uncapped to stop costing Survivability.
+resist_reduction = 25
 [stage.thresholds]  # docs/build-ref/priorities.md §2, "target minimum" column
-# "+25-35% overcap" on every base resist: [survival] resist_reduction 25 with resist 80 (no resist_overcap,
-# which would count the same 25 points twice)
+# overcap: [stage.survival] resist_reduction 25 with resist 80 (no resist_overcap, which would count the same
+# 25 points twice)
 physical_resist = 20
 absorption = 100           # "98-100%, get it to 100%"
 armor = 2200

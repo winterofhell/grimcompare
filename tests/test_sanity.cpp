@@ -167,12 +167,13 @@ TEST_CASE("sanity: obvious swaps for plague-garden have the obvious sign (instal
 TEST_CASE("sanity: losing a resist below the target is negative and shows as the top part (installed game; skips if absent)") {
   const Bench b;
   if (!b.db) return;
-  // Every base resist of the fixture is far below 80 + 25, so each lost point costs.
+  // Every base resist of the fixture ends under the cap, so each lost point costs. Its damage and target parts
+  // are one contribution.
   for (const int type : {4, 5, 6, 7, 8, 9, 10, 11, 15}) {
     const auto r = b.ring_with([&](snap::ItemStats& s) { s.defense = {defense(type, -20)}; });
     CAPTURE(type);
     CHECK(r.percent < 0);
-    REQUIRE(r.contributions.size() >= 2);
+    REQUIRE(!r.contributions.empty());
     CHECK(r.contributions[0].points < 0);
     CHECK(sum(r) == doctest::Approx(std::log(1 + r.percent / 100) * 100).epsilon(1e-6));
   }
@@ -353,6 +354,7 @@ TEST_CASE("sanity: a resist that only matters while a buff is down scores betwee
     if (k.record.ends_with("/bloodofdreeg2.dbr")) k.level = k.current_level = 5;
   score::Settings p;
   p.recast_buffs = false;
+  p.resist_reduction = 0;  // the cap alone
   p.uptime[kDreeg] = 0.5;
   const auto skills = score::main_skills(s, p, db);
   const auto dreeg = score::buff_view(s, skills, p, db).buffs.at(0);

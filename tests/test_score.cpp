@@ -12,6 +12,7 @@
 #include "game_db.h"
 #include "gdc/combat_formulas.h"
 #include "gdc/components.h"
+#include "gdc/enemy.h"
 #include "gdc/score.h"
 
 using namespace gdc;
@@ -48,6 +49,7 @@ void defense(snap::Snapshot& s, int type, float value) {
 score::Preset threat(std::map<int, double> t) {
   score::Preset p;
   p.threat = std::move(t);
+  p.resist_reduction = 0;  // none unless the test sets one
   return p;
 }
 
@@ -112,6 +114,60 @@ TEST_CASE("score: survivability from resists, the cap and resist reduction") {
   const auto with = score::compare(pb, pa, {}, ph, nullptr), without = score::compare(pb, pa, {}, none, nullptr);
   CHECK(with.ratio.survival == doctest::Approx(without.ratio.survival));
   CHECK(with.before.find("stun_resist 40/50") != std::string::npos);
+}
+
+TEST_CASE("score: difficulty lookahead counts overcap up to the next difficulty's extra penalty") {
+  auto p = threat({{6, 1}});  // fire
+  auto ratio = [&](int level, int difficulty, int type, const score::Preset& q) {
+    snap::Snapshot b = base(level), a = base(level);
+    b.difficulty = a.difficulty = difficulty;
+    defense(b, type, 80);
+    defense(a, type, 105);
+    return score::compare(b, a, {}, q, nullptr).ratio.survival;
+  };
+  // Normal, Elite from 75: -25 Fire there. Level 75: 80 -> 55 taken 0.45, 105 -> 80 taken 0.2.
+  CHECK(ratio(75, 0, 6, p) == doctest::Approx(0.45 / 0.2));
+  CHECK(ratio(90, 0, 6, p) == doctest::Approx(0.45 / 0.2));
+  CHECK(ratio(70, 0, 6, p) == doctest::Approx((0.5 * 0.2 + 0.5 * 0.45) / 0.2));  // half way into the ramp
+  CHECK(ratio(65, 0, 6, p) == doctest::Approx(1));
+  // Elite adds nothing to Vitality; Ultimate adds 25 to it (playerAttributePak), from 94.
+  auto life = threat({{9, 1}});
+  CHECK(ratio(80, 0, 9, life) == doctest::Approx(1));
+  CHECK(ratio(94, 1, 9, life) == doctest::Approx(0.45 / 0.2));
+  CHECK(ratio(94, 1, 6, p) == doctest::Approx(0.45 / 0.2));
+  CHECK(ratio(100, 2, 6, p) == doctest::Approx(1));  // Ultimate: nothing ahead
+  auto off = p;
+  off.difficulty_lookahead = false;
+  CHECK(ratio(80, 0, 6, off) == doctest::Approx(1));
+}
+
+TEST_CASE("score: auto resist reduction mixes in the bosses' RR by boss_share") {
+  auto p = threat({{6, 1}});
+  p.resist_reduction.reset();
+  snap::Snapshot b = base(100), a = base(100);
+  b.difficulty = a.difficulty = 2;  // Ultimate: no lookahead
+  defense(b, 6, 80);
+  defense(a, 6, 110);
+  const enemy::Enemy e = enemy::at(100, 4);
+  auto taken = [&](double resist, double boss) {
+    auto f = [&](double rr) { return 1 - std::min(resist - rr, 80.0) / 100; };
+    return ((1 - boss) * (1 - e.rr_share) + boss * (1 - e.boss_rr_share)) * f(0) + (1 - boss) * e.rr_share * f(e.rr) +
+           boss * e.boss_rr_share * f(e.boss_rr);
+  };
+  CHECK(score::compare(b, a, {}, p, nullptr).ratio.survival == doctest::Approx(taken(80, 0.15) / taken(110, 0.15)));
+  auto none = p;
+  none.boss_share = 0;
+  const double with = score::compare(b, a, {}, p, nullptr).ratio.survival;
+  CHECK(score::compare(b, a, {}, none, nullptr).ratio.survival < with);  // bosses make overcap worth more
+  auto fixed = p;
+  fixed.resist_reduction = 25;  // the preset number replaces both
+  CHECK(score::compare(b, a, {}, fixed, nullptr).ratio.survival == doctest::Approx(0.45 / 0.2));
+  std::string error;
+  CHECK_FALSE(score::parse("[survival]\ndifficulty_lookahead = 1\n", error));
+  const auto parsed = score::parse("[survival]\ndifficulty_lookahead = false\nboss_share = 0.4\n", error);
+  REQUIRE_MESSAGE(parsed, error);
+  CHECK_FALSE(parsed->difficulty_lookahead);
+  CHECK(parsed->boss_share == 0.4);
 }
 
 TEST_CASE("score: armor absorbs absorption% of up to its value per physical hit, in its hit region, after the resist") {

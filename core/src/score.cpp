@@ -137,6 +137,7 @@ bool settings_tables(Parser& ps, const toml::table& root, std::string_view where
     if (k == "threshold_below") return ps.number(v, k, 0, 100, p.threshold_below);
     if (k == "threshold_above") return ps.number(v, k, 0, 100, p.threshold_above);
     if (k == "threshold_width") return ps.number(v, k, 0.001, 1, p.threshold_width);
+    if (k == "threshold_resist_weight") return ps.number(v, k, 0, 9, p.threshold_resist_weight);
     if (k == "recast_buffs") {
       const auto b = v.value<bool>();
       if (!b || !v.is_boolean()) return ps.fail(v, "recast_buffs must be true or false");
@@ -178,7 +179,19 @@ bool settings_tables(Parser& ps, const toml::table& root, std::string_view where
     if (k == "enemy_hit_per_level") return ps.number(v, k, 0, 100000, p.enemy_hit_per_level);
     if (k == "melee_share") return ps.number(v, k, 0, 1, p.melee_share);
     if (k == "damage_reduction_uptime") return ps.number(v, k, 0, 1, p.damage_reduction_uptime);
-    if (k == "resist_reduction") return ps.number(v, k, -100, 200, p.resist_reduction);
+    if (k == "resist_reduction") {
+      if (const auto s = v.value<std::string>(); s && *s == "auto") {
+        p.resist_reduction.reset();
+        return true;
+      }
+      if (v.is_string()) return ps.fail(v, "resist_reduction must be a number or \"auto\"");
+      return ps.number(v, k, -100, 200, p.resist_reduction.emplace());
+    }
+    if (k == "boss_share") return ps.number(v, k, 0, 1, p.boss_share);
+    if (k == "difficulty_lookahead") {
+      if (const auto b = v.value<bool>(); b && v.is_boolean()) return p.difficulty_lookahead = *b, true;
+      return ps.fail(v, "difficulty_lookahead must be true or false");
+    }
     if (k == "incoming_hits_per_sec") return ps.number(v, k, 0, 100, p.incoming_hits_per_sec);
     if (k == "low_health_per_sec") return ps.number(v, k, 0, 100, p.low_health_per_sec);
     if (k == "cc_share") return ps.number(v, k, 0, 1, p.cc_share);
@@ -442,15 +455,16 @@ double at_level(const arz::Record& r, std::string_view key, std::uint32_t level)
   return n[std::min<std::size_t>(level, n.size()) - 1];
 }
 
+enemy::Enemy enemy_of(const snap::Snapshot& s) { return enemy::at(s.level, enemy::difficulty(s)); }
 double enemy_da(const snap::Snapshot& s, const Settings& p) {
-  return p.enemy_da_per_level > 0 ? p.enemy_da_per_level * s.level : enemy::at(s.level).da;
+  return p.enemy_da_per_level > 0 ? p.enemy_da_per_level * s.level : enemy_of(s).da;
 }
 double enemy_oa(const snap::Snapshot& s, const Settings& p) {
-  return p.enemy_oa_per_level > 0 ? p.enemy_oa_per_level * s.level : enemy::at(s.level).oa;
+  return p.enemy_oa_per_level > 0 ? p.enemy_oa_per_level * s.level : enemy_of(s).oa;
 }
 double enemy_hit(const snap::Snapshot& s, const Settings& p, bool physical) {
   if (p.enemy_hit_per_level > 0) return p.enemy_hit_per_level * s.level;
-  const enemy::Enemy e = enemy::at(s.level);
+  const enemy::Enemy e = enemy_of(s);
   return std::max(1.0, physical ? e.hit_physical : e.hit);
 }
 
@@ -851,6 +865,18 @@ constexpr int kBase[] = {4, 5, 6, 7, 8, 9, 10, 11, 15};
 // (docs/build-ref/priorities.md §2).
 bool base_resist(int type) { return std::find(std::begin(kBase), std::end(kBase), type) != std::end(kBase); }
 
+// Share of the next difficulty's extra resist penalty to score under (MECHANICS §9 "Difficulty lookahead").
+// Design choice: the database has no level range per difficulty (records/proxies/limit_area*.dbr clamp the
+// spawns of 10 pools only). Elite from level 75, Ultimate from 94 (docs/build-ref/plague-garden.md level plan),
+// ramping in linearly over the 10 levels before.
+double lookahead(const snap::Snapshot& s, const Settings& p) {
+  constexpr double kNext[] = {75, 94};  // Normal -> Elite, Elite -> Ultimate
+  constexpr double kRamp = 10;
+  const int base = enemy::difficulty(s) / 2;
+  if (!p.difficulty_lookahead || base > 1) return 0;
+  return std::clamp((s.level - (kNext[base] - kRamp)) / kRamp, 0.0, 1.0);
+}
+
 // Engine order (MECHANICS §9, CombatManager::TakeAttack 0x11D950): dodge / deflect -> OA vs DA -> block ->
 // resists -> armor on what the physical resist left. CombatAttributeDamage_BasePhysical::ReduceDamage 0x1175F0
 // applies the resist and only collects armor; Execute 0x117260 applies the hit region's armor
@@ -860,7 +886,9 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   Survival out;
   out.life = sh.life;
   const double pth = formulas::probability_to_hit(enemy_oa(s, p), sh.da);
-  const formulas::Hit h = formulas::expected_hit(pth, s.pth, 0);  // shortcut: monster crit damage bonus not read — revisit if crit tiers look off
+  // Monster crit damage: only the difficulty's (gameascendant ultimateChallangeAdjustment +40%); their own
+  // offensiveCritDamageModifier is not in the table.
+  const formulas::Hit h = formulas::expected_hit(pth, s.pth, enemy_of(s).crit_damage / 100);
   out.hit = h.multiplier;
   out.avoid = utility::avoid(s, p.melee_share);
   out.block = utility::block(s, db, enemy_hit(s, p, false), p.incoming_hits_per_sec);
@@ -870,13 +898,45 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   const auto regions = model::region_armor(s);
   double shares = 0;
   for (const auto& [type, share] : p.threat) shares += share;
+  // Enemy resistance reduction: a preset number is always on; the monster table's is on for its share of the
+  // incoming damage, the bosses' for boss_share of it (MECHANICS §9 "Enemy resistance reduction"). Each state
+  // is also scored under the next difficulty's extra penalty for the lookahead share.
+  struct Reduced {
+    double share, rr;
+    bool ahead = false;
+  };
+  const enemy::Enemy table = enemy_of(s);
+  std::vector<Reduced> states;
+  if (p.resist_reduction) {
+    states.push_back({1, *p.resist_reduction});
+  } else {
+    const double b = p.boss_share;
+    states.push_back({(1 - b) * (1 - table.rr_share) + b * (1 - table.boss_rr_share), 0});
+    states.push_back({(1 - b) * table.rr_share, table.rr});
+    states.push_back({b * table.boss_rr_share, table.boss_rr});
+  }
+  const double ahead = lookahead(s, p);
+  if (ahead > 0)
+    for (std::size_t i = 0, n = states.size(); i < n; ++i) {
+      states.push_back({states[i].share * ahead, states[i].rr, true});
+      states[i].share *= 1 - ahead;
+    }
+  const int difficulty = enemy::difficulty(s);
+  // What a state takes off a resist: the 9 base resists only.
+  auto reduced = [&](int type, const Reduced& st) {
+    if (!base_resist(type)) return 0.0;
+    return st.rr + (st.ahead ? enemy::penalty(type, difficulty + 2) - enemy::penalty(type, difficulty) : 0);
+  };
   double taken = 0;
   for (const auto& [type, share] : p.threat) {
     const auto x = std::find_if(sh.resists.begin(), sh.resists.end(), [&](const auto& r) { return r.type == type; });
-    const double rr = base_resist(type) ? p.resist_reduction : 0;
-    const double r = x != sh.resists.end() ? std::min(x->uncapped - rr, x->max)
-                                           : std::min(-rr, static_cast<double>(s.defense_cap));
-    double f = std::max(0.0, 1 - r / 100);
+    double f = 0;
+    for (const Reduced& st : states) {
+      const double rr = reduced(type, st);
+      const double r = x != sh.resists.end() ? std::min(x->uncapped - rr, x->max)
+                                             : std::min(-rr, static_cast<double>(s.defense_cap));
+      f += st.share * std::max(0.0, 1 - r / 100);
+    }
     if (type == kPhysical) {
       const double d = hp * f;
       double left = 0;
@@ -887,6 +947,10 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
     taken += out.taken[type];
   }
   out.cc = p.cc_share * x.cc;
+  std::string rr_terms;
+  for (const Reduced& st : states)
+    if (!st.ahead && (st.rr != 0 || states.size() == 1)) rr_terms += " " + fmt(st.rr, 1) + " x" + fmt(st.share, 3);
+  if (ahead > 0) rr_terms += " ahead x" + fmt(ahead, 2);
   double per_attack = out.hit * (1 - out.avoid) * (1 - out.block) * (1 - out.reduction) * (1 - out.cc) * taken;
   // Heals cover at most 90% of the life lost per second (design choice).
   const double lost = p.incoming_hits_per_sec * enemy_hit(s, p, false) * per_attack * absorbed;
@@ -897,7 +961,8 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   out.inputs = "life " + fmt(sh.life) + " da " + fmt(sh.da) + " enemy pth " + fmt(pth) + " x" + fmt(out.hit, 3) +
                " avoid " + fmt(out.avoid, 3) + " block " + fmt(out.block, 3) + " reduced " + fmt(out.reduction, 3) +
                (x.inputs.empty() ? "" : " cc " + fmt(out.cc, 3) + " procs " + fmt(out.procs, 3) + " (" + x.inputs + ")") +
-               " armor " + fmt(sh.armor) + " abs " + fmt(abs * 100) + "% hit " + fmt(hp) + " taken " + fmt(taken, 3) +
+               " armor " + fmt(sh.armor) + " abs " + fmt(abs * 100) + "% hit " + fmt(hp) + " enemy rr" + rr_terms +
+               " taken " + fmt(taken, 3) +
                " ehp " + fmt(out.ehp);
   if (p.thresholds.empty()) return out;
 
@@ -906,9 +971,8 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
     const auto x = std::find_if(sh.resists.begin(), sh.resists.end(), [&](const auto& r) { return r.type == type; });
     return x != sh.resists.end() ? &*x : nullptr;
   };
-  auto shown = [&](int type) {
+  auto shown = [&](int type, double rr = 0) {
     const model::Resist* x = resist(type);
-    const double rr = base_resist(type) ? p.resist_reduction : 0;
     return x ? std::min(x->uncapped - rr, x->max) : -rr;
   };
   // Unverified: that defense x (1 + modifier%) is the sheet's value. Type 16 "TotalSpeed" is read as Slow
@@ -925,9 +989,14 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
     if (name == "resist" || name == "resist_overcap") {
       for (int t : kBase) {
         const model::Resist* x = resist(t);
-        const double v = name == "resist" ? shown(t) : x ? x->uncapped - x->max : -s.defense_cap;
-        value += v / std::size(kBase);
-        f *= std::pow(threshold_factor(v, target, p), 1.0 / std::size(kBase));
+        double ft = 1;
+        for (const Reduced& st : states) {
+          const double v = name == "resist" ? shown(t, reduced(t, st)) : x ? x->uncapped - x->max : -s.defense_cap;
+          value += st.share * v / std::size(kBase);
+          ft *= std::pow(threshold_factor(v, target, p), st.share * p.threshold_resist_weight / std::size(kBase));
+        }
+        f *= ft;
+        if (name == "resist") out.thresholds["resist:" + std::to_string(t)] = ft;  // one part per resist
       }
     } else {
       value = name == "physical_resist"     ? shown(kPhysical)
@@ -941,7 +1010,7 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
                                             : sh.da;
       f = threshold_factor(value, target, p);
     }
-    out.thresholds[name] = f;
+    if (name != "resist") out.thresholds[name] = f;
     f_all *= f;
     terms += " " + name + " " + fmt(value) + "/" + fmt(target) + " x" + fmt(f, 3);
   }
@@ -1050,7 +1119,9 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
     out.mains.push_back({sk, sk ? skill_raw(s, *sk, db, notes) : Raw{}});
   }
   out.effects = effects::collect(s, db, rates(s, skills, out.mains, p, db), p.uptime, enemy_types(p));
-  out.resist = effects::resist_multipliers(p.enemy_resist, out.effects.reductions);
+  std::map<int, double> target = p.enemy_resist;
+  for (auto& [type, r] : target) r += enemy::resist(type, enemy::difficulty(s));
+  out.resist = effects::resist_multipliers(target, out.effects.reductions);
   out.gear = gear(s, db, base);
   out.utility = utility_of(s, p, &db);
   // Gear ADCtH only reaches skills with weapon damage, x min(weaponDamagePct / 100, 1):
@@ -1634,6 +1705,7 @@ std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Dat
   line("threshold_below", number(from.threshold_below));
   line("threshold_above", number(from.threshold_above));
   line("threshold_width", number(from.threshold_width));
+  line("threshold_resist_weight", number(from.threshold_resist_weight));
   line("recast_buffs", from.recast_buffs ? "true" : "false");
   line("buff_mode", from.live_buffs ? "\"live\"" : "\"average\"");
   o += "\n[damage]\n";
@@ -1656,7 +1728,9 @@ std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Dat
   line("enemy_hit_per_level", number(from.enemy_hit_per_level));
   line("melee_share", number(from.melee_share));
   line("damage_reduction_uptime", number(from.damage_reduction_uptime));
-  line("resist_reduction", number(from.resist_reduction));
+  line("resist_reduction", from.resist_reduction ? number(*from.resist_reduction) : "\"auto\"");
+  line("boss_share", number(from.boss_share));
+  line("difficulty_lookahead", from.difficulty_lookahead ? "true" : "false");
   line("incoming_hits_per_sec", number(from.incoming_hits_per_sec));
   line("low_health_per_sec", number(from.low_health_per_sec));
   line("cc_share", number(from.cc_share));
@@ -1868,9 +1942,20 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
       types.push_back({resist_label(type), "", v - a, "resist:" + std::to_string(type)});
     }
     if (ta > 0 && tb > 0) contribute(out.contributions, tb / ta, p.survival_weight, std::move(types));
-    for (const auto& [name, f] : sb.thresholds)
-      if (const auto it = sa.thresholds.find(name); it != sa.thresholds.end())
+    // A resist's target part joins its damage part: one line per resist.
+    for (const auto& [name, f] : sb.thresholds) {
+      const auto it = sa.thresholds.find(name);
+      if (it == sa.thresholds.end()) continue;
+      if (!name.starts_with("resist:")) {
         factor(("target " + name).c_str(), f, it->second);
+        continue;
+      }
+      const auto part = std::find_if(out.contributions.begin(), out.contributions.end(),
+                                     [&](const Contribution& c) { return c.stat == name; });
+      const double points = f > 0 && it->second > 0 ? std::log(it->second / f) * p.survival_weight * 100 : 0;
+      if (part != out.contributions.end()) part->points += points;
+      else if (points != 0) out.contributions.push_back({resist_label(std::stoi(name.substr(7))), "", points, name});
+    }
   }
   const Other ob = mixed_other(B), oa = mixed_other(A);
   out.ratio.other = ob.value > 0 ? oa.value / ob.value : 1;

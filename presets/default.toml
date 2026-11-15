@@ -24,6 +24,10 @@ negligible_percent = 0.1  # |change| below this shows as "~0%"
 threshold_below = 1.0
 threshold_above = 0.05
 threshold_width = 0.05
+# The 9 base resists share one [thresholds] resist term; this is its exponent. 1 = together they count like one
+# other threshold (a point under the target on one resist costs 1/9 of the slope above), 9 = each resist counts
+# like one.
+threshold_resist_weight = 1.0
 # Timed buffs you cast (Blood of Dreeg): true = recast whenever the recharge allows, up
 # min(1, duration / (recharge x (1 - cooldown reduction))) of the time (rank values from the database, your
 # total cooldown reduction). false = the [uptime] entry of the skill's record where there is one.
@@ -47,7 +51,8 @@ filler_weight = 0.5
 # vitality, chaos, aether, elemental, or * for any. Empty: no warnings. Example: conversion_warn = ["vitality->*", "*->chaos"]
 conversion_warn = []
 # Enemy Defensive Ability for your hit / crit chance = this x your level. 0 = the median monster of your
-# level from the game database (re/EnemyByLevel.tsv: 413 at level 15, 1188 at 50, 2283 at 100).
+# level and difficulty from the game database (re/EnemyByLevel.tsv; Normal: 386 at level 15, 1040 at 50,
+# 1963 at 100; Ultimate 2190 at 100).
 enemy_da_per_level = 0
 # Attacks per second of one pet (pet damage and RR). 0 = unknown: pets are listed "+? unscored". Not in
 # the database (the attack animation's length is not a record field).
@@ -57,11 +62,11 @@ kills_per_sec = 0.5
 
 [survival]
 # Enemy Offensive Ability for their chance to hit and crit you = this x your level. 0 = the same table
-# (500 at level 15, 1312 at 50, 2472 at 100).
+# (Normal: 444 at level 15, 1152 at 50, 2163 at 100; Ultimate 2364 at 100).
 enemy_oa_per_level = 0
 # One incoming hit = this x your level: armor absorbs up to its value per hit, a shield blocks up to its
-# amount. 0 = the same table (a skill hit of the median monster: 178 at level 15, of it 69 physical; 540 /
-# 240 at 50; 1184 / 486 at 100).
+# amount. 0 = the same table (a skill hit of the median monster on Normal: 191 at level 15, of it 65 physical;
+# 975 / 371 at 50; 3384 / 1142 at 100; Ultimate 8048 / 2871 at 100).
 enemy_hit_per_level = 0
 # Share of incoming attacks that are melee (your "chance to avoid melee attacks" works on them); the rest
 # are projectiles ("chance to avoid projectiles").
@@ -69,9 +74,19 @@ melee_share = 0.5
 # Share of the time enemies carry your items' "x% reduced target's damage" debuff (only the strongest one
 # counts). Their damage is lowered before any of your defenses.
 damage_reduction_uptime = 0.5
-# Subtracted from each of the 9 base resists (Pierce .. Bleeding) before its cap: incoming enemy resistance
-# reduction, which is what overcap protects against (0 = none). Physical and crowd-control resists are not lowered.
-resist_reduction = 0
+# Incoming enemy resistance reduction on the 9 base resists (Pierce .. Bleeding), which is what overcap protects
+# against. "auto" = what the monsters of your level and difficulty apply (docs/MECHANICS.md §9). A number is
+# subtracted from each base resist before its cap, always (0 = none; 25 = "keep 25 overcap"). Any [[stage]] can
+# set its own. Physical and crowd-control resists are not lowered.
+resist_reduction = "auto"
+# Share of incoming damage from bosses (Quest, Boss, Nemesis and SuperBoss records): "auto" scores their RR
+# (25 points on 8% of them from level 85, against 17 on 3% of other monsters) for this share. Default = their
+# share of the enemy records, 448 of 2977.
+boss_share = 0.15
+# On Normal and Elite, also score the base resists under the next difficulty's extra resist penalty (Elite: -25
+# Pierce / Cold / Fire / Poison / Lightning; Ultimate: -25 on all nine), for a share that ramps from 0 to 1 over
+# levels 65-75 on Normal and 84-94 on Elite, so overcap up to that penalty counts before you switch.
+difficulty_lookahead = true
 # Hits you take per second: drives "when hit" procs (docs/PRESETS.md threat profile).
 incoming_hits_per_sec = 2
 # How often your life falls under a low-health trigger's threshold (per second): drives "at x% health" procs.
@@ -96,7 +111,8 @@ bleeding = 0.05
 # The target's resistances: your RR (gear, skills, devotions, procs, pets) lowers them, damage x (1 - resist/100)
 # (docs/MECHANICS.md §1). Values from the DB (bosses as the target is the design choice): mean base defensive<Type>
 # of the 48 Boss-classified enemy records
-# (database.arz 1.3.1.1 + GDX1-3), rounded; difficulty scaling not included.
+# (database.arz 1.3.1.1 + GDX1-3), rounded. The difficulty's own bonus (Elite +2..6, Ultimate +2..12 per type,
+# gameengine.dbr monsterAttributePak) is added on top.
 [enemy]
 physical = 19
 pierce = 22

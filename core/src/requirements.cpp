@@ -43,6 +43,15 @@ std::vector<Unmet> unmet(const snap::Item& item, const snap::Snapshot& s) {
   return out;
 }
 
+std::optional<bool> engine_met(const snap::Item& item, const snap::Snapshot& s) {
+  if (!item.requirements || !item.requirements->met || !item.requirements->met_at) return std::nullopt;
+  const snap::Requirements::MetAt& at = *item.requirements->met_at;
+  if (at.level != s.level || at.difficulty != s.difficulty) return std::nullopt;
+  for (int a = 0; a < 3; ++a)
+    if (std::abs(at.attribute[a] - total(s, a + 1)) >= 0.5f) return std::nullopt;
+  return item.requirements->met;
+}
+
 std::string text(const Unmet& u) {
   static const char* const kName[] = {"Level", "Physique", "Cunning", "Spirit"};
   return std::string(kName[u.what]) + " " + std::to_string(u.need) + " (have " +

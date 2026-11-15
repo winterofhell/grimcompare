@@ -1,0 +1,4 @@
+difficulty	pierce	cold	fire	poison	lightning	life	chaos	aether	bleeding
+Normal	0	0	0	0	0	0	0	0	0
+Elite	25	25	25	25	25	0	0	0	0
+Ultimate	50	50	50	50	50	25	25	25	25

@@ -32,6 +32,7 @@ struct Probe {
   const void* player = nullptr;
   std::uint32_t level = 0, skill_points = 0, attribute_points = 0, devotion_points = 0;
   int difficulty = -1;
+  std::uint32_t difficulty_ramp = 0;
   std::uint64_t equip_hash = 0;  // FNV-1a over (id, location, relic id, augment id)
   bool operator==(const Probe&) const = default;
 };

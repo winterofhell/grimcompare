@@ -179,6 +179,10 @@ J item(const Item& i) {
     for (const auto& a : r.reductions) red.push_back({a[0], a[1], a[2]});
     q["reductions"] = std::move(red);
     if (r.met) q["met"] = *r.met;
+    if (r.met_at)
+      q["met_at"] = {{"level", r.met_at->level},
+                     {"difficulty", r.met_at->difficulty},
+                     {"attributes", {r.met_at->attribute[0], r.met_at->attribute[1], r.met_at->attribute[2]}}};
     j["requirements"] = std::move(q);
   }
   return j;
@@ -369,6 +373,14 @@ Item read_item(const J& j) {
       }
     }
     if (const auto m = q->find("met"); m != q->end()) r.met = m->get<bool>();
+    if (const auto m = q->find("met_at"); m != q->end()) {
+      Requirements::MetAt& at = r.met_at.emplace();
+      get(*m, "level", at.level);
+      get(*m, "difficulty", at.difficulty);
+      const J& a = m->at("attributes");
+      if (!a.is_array() || a.size() != 3) throw std::runtime_error("requirements.met_at.attributes: not 3 values");
+      for (std::size_t k = 0; k < 3; ++k) at.attribute[k] = a.at(k).get<float>();
+    }
   }
   return i;
 }
@@ -455,6 +467,7 @@ std::string to_json(const Snapshot& s, int indent) {
   put(c, "level", s.level);
   c["difficulty"] = s.difficulty;
   put(c, "difficulty_name", std::string(names::difficulty(s.difficulty)));
+  put(c, "difficulty_ramp", s.difficulty_ramp);
   put(c, "skill_points", s.skill_points);
   put(c, "attribute_points", s.attribute_points);
   put(c, "devotion_points", s.devotion_points);
@@ -503,6 +516,7 @@ Snapshot from_json(std::string_view text) {
       get(*c, "name", s.character_name);
       get(*c, "level", s.level);
       get(*c, "difficulty", s.difficulty);
+      get(*c, "difficulty_ramp", s.difficulty_ramp);
       get(*c, "skill_points", s.skill_points);
       get(*c, "attribute_points", s.attribute_points);
       get(*c, "devotion_points", s.devotion_points);

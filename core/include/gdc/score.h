@@ -34,6 +34,9 @@ struct Settings {
   double damage_weight = 1.0, survival_weight = 1.0, other_weight = 0.25;  // a, b, c
   double negligible_percent = 0.1;
   double threshold_below = 1.0, threshold_above = 0.05, threshold_width = 0.05;
+  // The 9 base resists share one threshold term (geometric mean of their factors) raised to this: 1 = together
+  // they count like one other threshold, 9 = each resist counts like one.
+  double threshold_resist_weight = 1.0;
   // recast_buffs: uptime = min(1, duration / (recharge x (1 - CDR))); else [uptime] from the record.
   // live_buffs: take each buff as the snapshot caught it.
   bool recast_buffs = true, live_buffs = false;
@@ -49,7 +52,13 @@ struct Settings {
   double enemy_hit_per_level = 0;   // 0 = monster table
   double melee_share = 0.5;         // melee hits face dodge, the rest deflect
   double damage_reduction_uptime = 0.5;
-  double resist_reduction = 0;
+  // Enemy resistance reduction on the 9 base resists. Empty = the monster table's (gdc/enemy.h): its rr for
+  // its rr_share of the incoming damage, bosses' boss_rr for boss_share x boss_rr_share. A number is always on.
+  std::optional<double> resist_reduction;
+  double boss_share = 0.15;         // share of incoming damage from Quest / Boss / Nemesis / SuperBoss enemies
+  // On Normal and Elite: score the base resists also under the next difficulty's extra penalty, for a share
+  // that ramps from 0 to 1 over the last levels before that difficulty (score.cpp lookahead()).
+  bool difficulty_lookahead = true;
   double incoming_hits_per_sec = 2;
   double low_health_per_sec = 0.05;
   double cc_share = 0.1;
@@ -58,8 +67,8 @@ struct Settings {
       {9, 0.10}, {10, 0.10}, {11, 0.10}, {15, 0.05}};
   std::map<std::string, Weight> other = default_other();
   std::string stage;
-  // Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz 1.3.1.1),
-  // without difficulty scaling.
+  // Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz 1.3.1.1);
+  // enemy::resist adds the difficulty's share.
   std::map<int, double> enemy_resist = {{2, 19}, {4, 22}, {5, 32}, {6, 15}, {7, 15},
                                         {8, 16}, {9, 30}, {10, 15}, {11, 17}, {15, 0}};
   std::map<std::string, double> uptime;

@@ -52,6 +52,17 @@ double percent(const std::vector<std::string>& log, const std::string& prefix) {
   return 1e9;
 }
 
+// The engine's flag as the adapter stores it: with the character state the call ran against.
+void engine_says(snap::Requirements& q, const snap::Snapshot& s, bool met) {
+  q.met = met;
+  auto& at = q.met_at.emplace();
+  at.level = s.level;
+  at.difficulty = s.difficulty;
+  for (int a = 0; a < 3; ++a)
+    for (const auto& c : s.char_attributes)
+      if (c.type == a + 1) at.attribute[a] = c.total;
+}
+
 }  // namespace
 
 TEST_CASE("requirements: effective value as ItemEquipment::AreRequirementsMet rounds it") {
@@ -123,14 +134,14 @@ TEST_CASE("requirements: tooltip says so when the candidate's are not met; the e
   CHECK(has(lines, "vs L Hand: "));
   CHECK(has(lines, " (if equipped)"));  // scored as if it were worn
 
-  q.met = true;  // the engine says met (a reduction the model misses): no line, a model warning
+  engine_says(q, s, true);  // the engine says met (a reduction the model misses): no line, a model warning
   log.clear();
   lines = tooltip::compare(s, horn, 8, false, game_db(), p, {}, &log);
   CHECK_FALSE(has(lines, "can't equip yet"));
   CHECK(std::any_of(log.begin(), log.end(), [](const std::string& l) { return l.find("engine disagrees") != std::string::npos; }));
 
   q.attribute[2] = 0;
-  q.met = false;  // the engine says not met, the model finds nothing: still shown
+  engine_says(q, s, false);  // the engine says not met, the model finds nothing: still shown
   lines = tooltip::compare(s, horn, 8, false, game_db(), p, {}, &log);
   CHECK(has(lines, "! can't equip yet"));
 }
@@ -166,9 +177,61 @@ TEST_CASE("requirements: an item the swap leaves unequippable is shown and score
   CHECK(percent(log, "vs Legs item itself: ") == doctest::Approx(kept).epsilon(0.001));
 
   // Already unmet before the swap (engine): not the swap's doing.
-  at(s, 1)->requirements->met = false;
+  engine_says(*at(s, 1)->requirements, s, false);
   lines = tooltip::compare(s, legs, 4, false, game_db(), p, {}, nullptr);
   CHECK_FALSE(has(lines, "unequips"));
+}
+
+// Regression (adapter 0.9.8, winterpoison): Heretic's Sigil (c015_medal, level 27) hovered at level 26, then
+// scored again after the level-up with the flag read at 26: "can't equip yet" and "the model says met, the
+// engine disagrees" on an item that was equippable (and later worn).
+TEST_CASE("requirements: an engine flag read before a level, attribute or difficulty change is not used") {
+  const auto before = load("lvl27-wp-after-legs.json");  // level 27, the medal still in the bag
+  const auto after = load("lvl27-wp-after-medal.json");
+  snap::Item medal = *std::find_if(after.equipped.begin(), after.equipped.end(), [](const snap::Item& e) { return e.location == 3; });
+  REQUIRE(medal.record.ends_with("/c015_medal.dbr"));
+  REQUIRE(medal.requirements);
+  REQUIRE(medal.requirements->level == 27);
+  medal.id = 900003;
+  medal.location = -1;
+  snap::Snapshot younger = before;
+  younger.level = 26;
+  const auto p = preset();
+  auto shown = [&](const snap::Snapshot& s) {
+    std::vector<std::string> log;
+    const auto lines = tooltip::compare(s, medal, 15, true, game_db(), p, {}, &log);
+    const bool disagrees = std::any_of(log.begin(), log.end(), [](const std::string& l) { return l.find("engine disagrees") != std::string::npos; });
+    return std::pair{has(lines, "can't equip yet"), disagrees};
+  };
+
+  engine_says(*medal.requirements, younger, false);  // read at level 26
+  CHECK(requirements::engine_met(medal, younger) == std::optional<bool>(false));
+  CHECK(shown(younger) == std::pair{true, false});
+  // Level 27: the old flag is dropped, the formula on the new sheet decides.
+  CHECK_FALSE(requirements::engine_met(medal, before));
+  CHECK(shown(before) == std::pair{false, false});
+
+  // Same for a spent attribute point and a difficulty change.
+  engine_says(*medal.requirements, before, false);
+  CHECK(requirements::engine_met(medal, before) == std::optional<bool>(false));
+  snap::Snapshot stronger = before;
+  for (auto& c : stronger.char_attributes)
+    if (c.type == 1) c.total += 8;
+  CHECK_FALSE(requirements::engine_met(medal, stronger));
+  snap::Snapshot elite = before;
+  elite.difficulty = 1;
+  CHECK_FALSE(requirements::engine_met(medal, elite));
+  // A flag without the state it was read in (snapshots before schema 11) is never used.
+  medal.requirements->met_at.reset();
+  CHECK_FALSE(requirements::engine_met(medal, before));
+  CHECK(shown(before) == std::pair{false, false});
+
+  // The state survives the JSON round trip.
+  snap::Snapshot s = before;
+  engine_says(*medal.requirements, before, true);
+  s.tooltip_items = {medal};
+  const auto back = snap::from_json(snap::to_json(s));
+  CHECK(requirements::engine_met(back.tooltip_items.at(0), back) == std::optional<bool>(true));
 }
 
 TEST_CASE("requirements: calibrate compares the formula with the engine's flag on every equipped item") {

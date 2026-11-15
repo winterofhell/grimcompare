@@ -105,7 +105,7 @@ def summarize(rec, before, after):
         return lines
     cb = before.get("character", {})
     diffs = [f"{k} {cb.get(k, 0)}->{ch.get(k, 0)}" for k in
-             ("level", "difficulty", "skill_points", "attribute_points", "devotion_points") if cb.get(k, 0) != ch.get(k, 0)]
+             ("level", "difficulty", "difficulty_ramp", "skill_points", "attribute_points", "devotion_points") if cb.get(k, 0) != ch.get(k, 0)]
     if diffs:
         lines.append("  char   " + ", ".join(diffs))
     eb, ea = before.get("equipped", {}), after.get("equipped", {})

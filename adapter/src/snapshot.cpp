@@ -104,6 +104,7 @@ struct Api {
   void* (*main_player)(const void*) = nullptr;
   const char16_t* (*player_name)(const void*) = nullptr;
   int (*difficulty)(const void*) = nullptr;
+  u32 (*difficulty_ramp)(const void*) = nullptr;  // optional: null reads as 0
   void* (*om_get)() = nullptr;
   const char* (*object_name)(const void*) = nullptr;
   u32 (*object_id)(const void*) = nullptr;
@@ -546,7 +547,15 @@ void requirements(const void* obj, const void* player, snap::Item& it) {
       q.reductions[a][k] = static_cast<int>(t);
     }
   }
-  if (player) q.met = g.requirements_met(obj, player);
+  if (player) {
+    q.met = g.requirements_met(obj, player);
+    // The state that call saw, so a later snapshot can tell a stale flag (requirements::engine_met).
+    snap::Requirements::MetAt& at = q.met_at.emplace();
+    at.level = g.char_level(player);
+    const void* engine = *g.engine_var;
+    at.difficulty = engine ? g.difficulty(engine) : -1;
+    for (int a = 0; a < 3; ++a) at.attribute[a] = g.total_char_attr(player, a + 1);
+  }
   it.requirements = q;
 }
 
@@ -595,6 +604,7 @@ void sec_character(Ctx& c) {
   player_name(p, c.s.character_name);
   c.s.level = g.char_level(p);
   c.s.difficulty = g.difficulty(c.engine);
+  c.s.difficulty_ramp = g.difficulty_ramp ? g.difficulty_ramp(c.engine) : 0;
   c.s.skill_points = g.skill_points(p);
   c.s.attribute_points = g.modifier_points(p);
   c.s.devotion_points = g.devotion_points(p);
@@ -910,6 +920,7 @@ bool snapshot_init(const Resolve& r) {
   b(g.main_player, "GameEngine::GetMainPlayer");
   b(g.player_name, "Player::GetPlayerName");
   b(g.difficulty, "GameEngine::GetGameDifficulty");
+  bind(r, g.difficulty_ramp, "GameEngine::GetDifficultyRamp");
   b(g.om_get, "Singleton<ObjectManager>::Get");
   b(g.object_name, "Object::GetObjectName");
   b(g.object_id, "Object::GetObjectId");
@@ -1100,6 +1111,7 @@ Take snapshot_probe(Probe& out) {
     out.attribute_points = g.modifier_points(p);
     out.devotion_points = g.devotion_points(p);
     out.difficulty = g.difficulty(engine);
+    out.difficulty_ramp = g.difficulty_ramp ? g.difficulty_ramp(engine) : 0;
     const Span items = vec(g.attached_items(p), 12);
     std::uint64_t h = 1469598103934665603ull;
     auto mix = [&h](u32 v) {

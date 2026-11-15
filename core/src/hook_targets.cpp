@@ -18,6 +18,9 @@ constexpr Target kPlanned[] = {
     {Module::Game, Kind::Call, true, "engine", "Player::GetPlayerName", "?GetPlayerName@Player@GAME@@QEBAPEBGXZ"},  // 0x3d3100
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetGameDifficulty",
      "?GetGameDifficulty@GameEngine@GAME@@QEBA?AW4GameDifficulty@2@XZ"},  // 0x2d8490
+    // mov eax, [rcx+0x36D1C]; Monster::Monster 0x372B40 copies it to Monster+0x46C8 (the challenge adjustment level).
+    {Module::Game, Kind::Call, false, "engine", "GameEngine::GetDifficultyRamp",
+     "?GetDifficultyRamp@GameEngine@GAME@@QEBAIXZ"},  // 0x2d85a0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemEquipment::GetUIDisplayText",
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",

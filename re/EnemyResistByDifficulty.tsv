@@ -1,0 +1,7 @@
+difficulty	physical	pierce	cold	fire	poison	lightning	life	chaos	aether	bleeding
+Normal	0	0	0	0	0	0	0	0	0	0
+NormalVeteran	0	0	0	0	0	0	0	0	0	0
+Elite	0	2	2	4	6	6	6	2	2	5
+EliteVeteran	0	2	2	4	6	6	6	2	2	5
+Ultimate	2	5	5	8	10	10	12	5	5	9
+Ascendant	2	5	5	8	10	10	12	5	5	9

@@ -18,7 +18,7 @@ namespace gdc::snap {
 // 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
 // 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
 // 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown).
-inline constexpr int kSchema = 10;
+inline constexpr int kSchema = 11;
 inline constexpr int kMinSchema = 2;
 
 struct CharAttribute {
@@ -107,6 +107,14 @@ struct Requirements {
   int reductions[3][3] = {};                      // Physique +0xDF8/+0xDEC/+0xE04, Cunning +0xDFC/+0xDF0/+0xE08,
                                                   // Spirit +0xE00/+0xDF4/+0xE0C
   std::optional<bool> met;                        // ItemEquipment::AreRequirementsMet(player) when read
+  // Schema 11. What that call ran against: Character level, GameEngine difficulty and the Physique / Cunning /
+  // Spirit totals. `met` stands only for a snapshot in the same state (requirements::engine_met).
+  struct MetAt {
+    std::uint32_t level = 0;
+    int difficulty = -1;
+    float attribute[3] = {};
+  };
+  std::optional<MetAt> met_at;
 };
 
 struct Item {
@@ -180,6 +188,9 @@ struct Snapshot {
   std::string character_name;  // UTF-8
   std::uint32_t level = 0;
   int difficulty = -1;  // GameEngine::GetGameDifficulty (raw enum)
+  // Schema 11. GameEngine::GetDifficultyRamp 0x2D85A0: above 0 every monster also gets the challenge
+  // adjustment (Monster::ContributeGameBalanceCharAttributes 0x37B710); on Ultimate that is Ascendant.
+  std::uint32_t difficulty_ramp = 0;
   std::uint32_t skill_points = 0, attribute_points = 0, devotion_points = 0, devotion_points_total = 0;
   // SkillManager::GetNumDevotionPointsSpent 0x534D40 sums GetCurrentLevel over skills with Skill+0x4A0 != 0, so
   // celestial powers count their level. Points actually spent = sum of `level` over devotion skills.
