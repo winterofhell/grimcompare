@@ -1,6 +1,6 @@
 # ERRATA — `plague-garden.md` and `priorities.md` vs the game DB
 
-Checked 2026-11-14 against the installed v1.3.1.1 DB: `database.arz` → `gdx1` → `gdx2` → `gdx3` merged in override order (82,744 records), English tags from the four `Text_EN.arc`. Reader: `re/tools/arz.py`, `re/tools/arc.py`. Record paths below are relative to the DB root.
+Checked 2026-11-14 against the installed v1.3.1.1 DB; §4 Groble Vile Effigy and the §9 conversion rows re-checked 2026-11-16 on v1.3.1.2 (no change): `database.arz` → `gdx1` → `gdx2` → `gdx3` merged in override order (83,214 records on 1.3.1.2), English tags from the four `Text_EN.arc`. Reader: `re/tools/arz.py`, `re/tools/arc.py`. Record paths below are relative to the DB root.
 
 Legend: **✔** DB confirms · **✘** DB contradicts · **~** partly right / needs a caveat · **?** engine rule, not in the DB (needs a cited source or an in-game test).
 

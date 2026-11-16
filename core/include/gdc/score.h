@@ -78,7 +78,7 @@ struct Settings {
       {9, 0.10}, {10, 0.10}, {11, 0.10}, {15, 0.05}};
   std::map<std::string, Weight> other = default_other();
   std::string stage;
-  // Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz 1.3.1.1);
+  // Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz + GDX1..3, unchanged 1.3.1.1 -> 1.3.1.2);
   // enemy::resist adds the difficulty's share.
   std::map<int, double> enemy_resist = {{2, 19}, {4, 22}, {5, 32}, {6, 15}, {7, 15},
                                         {8, 16}, {9, 30}, {10, 15}, {11, 17}, {15, 0}};

@@ -82,4 +82,7 @@ TEST_CASE("known build lookup") {
         "compat");
   CHECK(gdc::find_known_build("Game.dll", "6dbc7458e2c4a29c8f98d2a320d4b4f9a226c35b0f18628bde0d245e89c792c9") == nullptr);
   CHECK(gdc::find_known_build("Game.dll", "") == nullptr);
+  const auto* b = gdc::find_known_build("game.dll", "4e259d4f44d11b25086a975881f2a02c16b76c079a4cb3a3496b69b3bc7aa6f3");
+  REQUIRE(b);
+  CHECK(b->version == "v1.3.1.2 (x64)");
 }

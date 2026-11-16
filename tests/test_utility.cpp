@@ -113,10 +113,10 @@ TEST_CASE("utility: pets context and pet bonus (installed game; skips if absent)
 }
 
 TEST_CASE("enemy: race share counts a monster once if any of its races is listed, case-insensitively") {
-  // re/EnemyRaces.tsv: 2529 monsters; race003 33 + race003,race009 36 + race002,race005 18 + race005 309 +
+  // re/EnemyRaces.tsv: 2559 monsters; race003 33 + race003,race009 36 + race002,race005 18 + race005 309 +
   // race005,race012 1 = 397.
-  CHECK(enemy::race_share({"Race003", "race005"}) == doctest::Approx(397.0 / 2529));
-  CHECK(enemy::race_share({"Race009"}) == doctest::Approx((18 + 36 + 46 + 29 + 274 + 30) / 2529.0));
+  CHECK(enemy::race_share({"Race003", "race005"}) == doctest::Approx(397.0 / 2559));
+  CHECK(enemy::race_share({"Race009"}) == doctest::Approx((18 + 36 + 46 + 29 + 274 + 30) / 2559.0));
   CHECK(enemy::race_share({"Aetherial", ""}) == 0);  // no monster carries it
   CHECK(enemy::race_share({}) == 0);
 }
@@ -125,10 +125,10 @@ TEST_CASE("utility: racial bonus x the monster table's share of its races (insta
   const arz::Database* db = game_db();
   if (!db) return;
   snap::Snapshot s;
-  // d005_ring: racialBonusRace Race003, Race005; racialBonusPercentDamage 10 -> 0.1 x 397 / 2529.
+  // d005_ring: racialBonusRace Race003, Race005; racialBonusPercentDamage 10 -> 0.1 x 397 / 2559.
   s.equipped = {item(1, 7, "records/items/gearaccessories/rings/d005_ring.dbr")};
   const auto k = utility::values(s, db).keys;
-  CHECK(k.at("racial_damage") == doctest::Approx(0.1 * 397 / 2529));
+  CHECK(k.at("racial_damage") == doctest::Approx(0.1 * 397 / 2559));
   CHECK(k.at("racial_defense") == doctest::Approx(0.0));
 }
 

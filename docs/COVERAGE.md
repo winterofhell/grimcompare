@@ -11,7 +11,7 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `defensiveProtectionChance` | I1 | **NOT VERIFIED: where the engine reads it is not traced (AddToAccumulator 0x204BF0 builds the armor entry from protection, bonus protection and the absorption; 1 record)** |
 | `characterAttackSpeedMaxModifier` | I2 X2 | Other `default` weight per 100, named in Shift (CharAttributeMod_AttackSpeedCap) |
 | `characterConstitutionModifier` | I14 C1 A1 X2 | Other `default` weight per 100, named in Shift (CharAttributeMod_Constitution) |
-| `characterEnergyAbsorptionPercent` | I41 C3 A3 R2 X5 | Other `default` weight per 100, named in Shift (CharAttributeVal_EnergyAbsorptionPercent) |
+| `characterEnergyAbsorptionPercent` | I42 C3 A3 R3 X5 | Other `default` weight per 100, named in Shift (CharAttributeVal_EnergyAbsorptionPercent) |
 | `characterHealIncreasePercent` | I36 A4 X9 | Other `default` weight per 100, named in Shift (CharAttributeMod_HealIncrease) |
 | `characterLightRadius` | I30 C1 X14 | Other `default` weight per 100, named in Shift (CharAttributeVal_LightRadius) |
 | `characterRunSpeedMaxModifier` | I28 R1 X2 | Other `default` weight per 100, named in Shift (CharAttributeMod_RunSpeedCap) |
@@ -28,7 +28,7 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `defensivePercentCurrentLife` | I4 | Other `default` weight per 100, named in Shift (DefenseAttributeAbs_PercentCurrentLife) |
 | `defensivePercentReflectionResistance` | I6 C1 A4 R1 X1 | Other `default` weight per 100, named in Shift (DefenseAttributeAbs_PercentReflectionResistance) |
 | `defensivePierceMaxResist` | I46 X1 | max resist: the cap in the sheet follows it only through engine totals; a change on swap is a model warning |
-| `defensivePoisonMaxResist` | I42 X1 | max resist: the cap in the sheet follows it only through engine totals; a change on swap is a model warning |
+| `defensivePoisonMaxResist` | I43 X1 | max resist: the cap in the sheet follows it only through engine totals; a change on swap is a model warning |
 | `defensiveSlowLifeLeach` | I10 C1 A1 R1 | Other `default` weight per 100, named in Shift (DefenseAttributeAbs_LifeLeach) |
 | `defensiveSlowManaLeach` | I2 C1 | Other `default` weight per 100, named in Shift (DefenseAttributeAbs_ManaLeach) |
 | `offensiveConfusionMax` | X2 | Other `default` weight per 100, named in Shift (DamageAttributeAbs_Confusion) |
@@ -57,80 +57,80 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowManaLeachMin` | I8 C1 X5 | Other `default` weight per 100, named in Shift (DamageAttributeDur_ManaLeach) |
 | `offensiveSlowRunSpeedMin` | I3 C1 R2 | Other `default` weight per 100, named in Shift (DamageAttributeDur_RunSpeed) |
 | `offensiveSlowTotalSpeedMin` | I5 | Other `default` weight per 100, named in Shift (DamageAttributeDur_TotalSpeed) |
-| `offensiveStunMin` | I2 A2 R1 X1 | Other `default` weight per 100, named in Shift (DamageAttributeReflex_Stun) |
+| `offensiveStunMin` | I2 A2 R2 X1 | Other `default` weight per 100, named in Shift (DamageAttributeReflex_Stun) |
 | `offensiveStunModifier` | C1 A3 R1 X28 | Other `default` weight per 100, named in Shift (DamageAttributeAbsMod_Stun) |
 | `skillComboChargeSpendReduction` | I1 | Other `default` weight per 100, named in Shift (skill attribute) |
 | `skillProjectileSpeedModifier` | I5 | Other `default` weight per 100, named in Shift (skill attribute) |
 | `racialBonusAbsoluteDamage` | I2 | 0 by design: flat damage vs a race (2 records; no race simulation) |
 | `amulet` | C21 A115 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `augmentAllLevel` | I51 R4 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentMasteryLevel1` | I1085 R42 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentMasteryLevel2` | I337 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentMasteryLevel1` | I1091 R52 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentMasteryLevel2` | I338 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
 | `augmentMasteryLevel3` | I68 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentMasteryName1` | I1084 R42 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentMasteryName2` | I337 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentMasteryName1` | I1090 R52 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentMasteryName2` | I338 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
 | `augmentMasteryName3` | I68 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillLevel1` | I5810 X4008 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillLevel2` | I5041 X577 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillLevel3` | I2567 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillLevel4` | I1033 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillLevel1` | I5858 X4008 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillLevel2` | I5088 X577 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillLevel3` | I2585 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillLevel4` | I1041 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
 | `augmentSkillLevel5` | I181 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillName1` | I5804 X3934 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillName2` | I5043 X507 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillName3` | I2568 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
-| `augmentSkillName4` | I1034 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillName1` | I5852 X3934 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillName2` | I5090 X507 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillName3` | I2586 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
+| `augmentSkillName4` | I1042 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
 | `augmentSkillName5` | I181 | +skills: the skill records at the old / new level (stat_model.cpp); 0-point skills score 0 by design (GetCurrentLevel stays 0), listed grey |
 | `axe` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `axe2h` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `blockAbsorption` | I362 | Survivability: shield block stage |
 | `blockRecoveryTime` | I362 | Survivability: shield block stage |
-| `bonusTableName` | C83 R99 | completion bonus: moves with the component; its stats are in the item's engine totals |
+| `bonusTableName` | C83 R110 | completion bonus: moves with the component; its stats are in the item's engine totals |
 | `characterArmorStrengthReqReduction` | I9 R3 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
-| `characterAttackSpeedModifier` | I1122 C6 R34 X445 | Damage: attack speed of attack-class skills (Player::CalculateSkillDps order) without a cooldown; their cooldown cap |
-| `characterDefensiveAbility` | I1128 C13 A33 R16 X387 | Survivability: DA -> enemy hit / crit chance |
-| `characterDefensiveAbilityModifier` | I174 C2 A13 R6 X312 | Survivability: DA % |
+| `characterAttackSpeedModifier` | I1141 C6 R35 X445 | Damage: attack speed of attack-class skills (Player::CalculateSkillDps order) without a cooldown; their cooldown cap |
+| `characterDefensiveAbility` | I1140 C13 A33 R17 X387 | Survivability: DA -> enemy hit / crit chance |
+| `characterDefensiveAbilityModifier` | I174 C2 A13 R7 X312 | Survivability: DA % |
 | `characterDefensiveBlockRecoveryReduction` | C2 A4 X2 | Survivability: block recovery |
 | `characterDeflectProjectile` | I120 C1 X2 | Survivability: deflect |
-| `characterDexterity` | I130 C2 R5 X236 | Damage (OA, physical / pierce / bleeding factor); Life 1 / point; requirements |
+| `characterDexterity` | I131 C2 R6 X236 | Damage (OA, physical / pierce / bleeding factor); Life 1 / point; requirements |
 | `characterDexterityModifier` | I34 R4 X133 | Damage (OA, physical / pierce / bleeding factor); Life 1 / point; requirements |
 | `characterDodgePercent` | I52 R2 X21 | Survivability: dodge |
 | `characterGlobalReqReduction` | X7 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
 | `characterHuntingDexterityReqReduction` | I14 X6 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
 | `characterIncreasedExperience` | I21 X5 | Other `experience` (0 at max level) |
-| `characterIntelligence` | I225 C5 R14 X329 | Damage (magical factor); Life 1.5 / point, Energy; requirements |
-| `characterIntelligenceModifier` | I89 C2 A1 R5 X414 | Damage (magical factor); Life 1.5 / point, Energy; requirements |
+| `characterIntelligence` | I226 C5 R16 X329 | Damage (magical factor); Life 1.5 / point, Energy; requirements |
+| `characterIntelligenceModifier` | I90 C2 A1 R5 X414 | Damage (magical factor); Life 1.5 / point, Energy; requirements |
 | `characterLevelReqReduction` | I2 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
-| `characterLife` | I1567 C12 A65 R30 X345 | Survivability: Life |
-| `characterLifeModifier` | I422 C8 A37 R9 X268 | Survivability: Life |
+| `characterLife` | I1573 C12 A65 R33 X345 | Survivability: Life |
+| `characterLifeModifier` | I422 C8 A37 R11 X268 | Survivability: Life |
 | `characterLifeRegen` | I150 C5 A7 R5 X97 | Other `life_regen` |
 | `characterLifeRegenModifier` | I119 C2 A7 R3 X39 | Other `life_regen` |
 | `characterMana` | I24 C1 X68 | Other `energy_regen` only through regen; Energy itself 0 by design (no energy model) |
 | `characterManaModifier` | I1 C1 X23 | Other `energy_regen` only through regen; Energy itself 0 by design (no energy model) |
-| `characterManaRegen` | I894 C4 A15 R6 X115 | Other `energy_regen` |
-| `characterManaRegenModifier` | I365 C2 A1 R1 X78 | Other `energy_regen` |
+| `characterManaRegen` | I899 C4 A15 R7 X115 | Other `energy_regen` |
+| `characterManaRegenModifier` | I365 C2 A1 R2 X78 | Other `energy_regen` |
 | `characterMeleeDexterityReqReduction` | I6 X6 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
 | `characterMeleeIntelligenceReqReduction` | I3 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
 | `characterMeleeStrengthReqReduction` | I4 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
-| `characterOffensiveAbility` | I1770 C18 A45 R16 X954 | Damage: OA -> hit / crit chance |
-| `characterOffensiveAbilityModifier` | I222 C2 A11 R11 X139 | Damage: OA % |
+| `characterOffensiveAbility` | I1781 C18 A45 R16 X954 | Damage: OA -> hit / crit chance |
+| `characterOffensiveAbilityModifier` | I223 C2 A11 R13 X139 | Damage: OA % |
 | `characterRunSpeedModifier` | I191 C4 A1 R3 X79 | Other `run_speed` |
-| `characterSpellCastSpeedModifier` | I872 C6 A1 R17 X552 | Damage: cast speed of cast-class skills (CalculateSkillDps order) without a cooldown; their cooldown cap |
-| `characterStrength` | I134 C5 A3 R8 X213 | Survivability (Life 2.5 / point, DA 0.5 / point, life regen); requirements |
+| `characterSpellCastSpeedModifier` | I875 C6 A1 R17 X552 | Damage: cast speed of cast-class skills (CalculateSkillDps order) without a cooldown; their cooldown cap |
+| `characterStrength` | I134 C5 A3 R9 X213 | Survivability (Life 2.5 / point, DA 0.5 / point, life regen); requirements |
 | `characterStrengthModifier` | I34 C1 R4 X213 | Survivability (Life 2.5 / point, DA 0.5 / point, life regen); requirements |
-| `characterTotalSpeedModifier` | I90 C2 R5 X3 | Damage: total speed added to attack / cast speed (unverified) |
+| `characterTotalSpeedModifier` | I91 C2 R5 X3 | Damage: total speed added to attack / cast speed (unverified) |
 | `characterWeaponStrengthReqReduction` | I5 | requirements: lowers the requirement the engine checks (requirements.cpp); items it leaves unequippable are scored as removed |
 | `chest` | C28 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `conversionInType` | I1989 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
+| `conversionInType` | I2016 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
 | `conversionInType2` | I125 X5 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
-| `conversionOutType` | I1990 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
+| `conversionOutType` | I2017 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
 | `conversionOutType2` | I125 X5 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
-| `conversionPercentage` | I1987 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
+| `conversionPercentage` | I2014 C33 X504 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
 | `conversionPercentage2` | I124 X5 | Damage: conversion of the main skills' damage (snapshot conversions; score.cpp convert) |
 | `dagger` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `defensiveAbsorptionModifier` | I2 C4 A3 X6 | Survivability: armor absorption |
-| `defensiveAether` | I696 C4 A19 R5 X179 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensiveAether` | I697 C4 A19 R5 X179 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveAllResistance` | R1 | Survivability: all resists (spread by the engine) |
-| `defensiveBleeding` | I596 C6 A16 R2 X341 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensiveBleeding` | I597 C6 A16 R2 X341 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveBleedingDuration` | I7 R1 X1 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveBleedingDurationModifier` | I2 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveBlock` | I362 | Survivability: shield block stage |
@@ -138,26 +138,26 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `defensiveBlockChance` | I362 | Survivability: shield block stage |
 | `defensiveBlockModifier` | I49 C2 A1 R3 X70 | Survivability: block chance |
 | `defensiveBonusProtection` | I3 C11 A3 X33 | Survivability: armor; DefenseAttribute_BaseProtectionAbsorption::AddToAccumulator 0x204BF0 adds it to defensiveProtection in the one type-38 entry |
-| `defensiveChaos` | I955 C4 A24 R5 X490 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensiveChaos` | I958 C4 A24 R5 X490 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveCold` | I32 C2 A5 R2 X65 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveColdDuration` | I4 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveDisruption` | I21 C1 X20 | Other `disruption_resist` |
-| `defensiveElementalResistance` | I1071 C6 A14 R6 X336 | Survivability: elemental resists (spread by the engine) |
+| `defensiveElementalResistance` | I1077 C6 A14 R7 X336 | Survivability: elemental resists (spread by the engine) |
 | `defensiveElementalResistanceChance` | I1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `defensiveFire` | I51 C1 A7 X65 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveFireDuration` | I12 C1 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveFreeze` | I228 C1 A2 R3 X116 | Other `freeze_resist`, threshold |
 | `defensiveFreezeChance` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `defensiveLife` | I763 C10 A20 R10 X322 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensiveLife` | I767 C10 A20 R10 X322 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveLightning` | I20 C1 A5 X72 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensiveLightningDuration` | I4 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
-| `defensivePetrify` | I89 C1 A4 R2 X30 | Other `petrify_resist` |
-| `defensivePhysical` | I487 R1 X61 | Survivability: resist (capped, under `resist_reduction`), threshold `resist`; physical: before armor |
+| `defensivePetrify` | I95 C1 A4 R2 X30 | Other `petrify_resist` |
+| `defensivePhysical` | I489 R1 X61 | Survivability: resist (capped, under `resist_reduction`), threshold `resist`; physical: before armor |
 | `defensivePhysicalChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `defensivePierce` | I750 C4 A19 R4 X319 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
-| `defensivePoison` | I670 C3 A11 R3 X304 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensivePierce` | I753 C4 A19 R4 X319 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
+| `defensivePoison` | I673 C3 A11 R4 X304 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
 | `defensivePoisonDuration` | I7 X1 | Survivability: resist (capped, under `resist_reduction`), threshold `resist` |
-| `defensiveProtection` | I3147 C1 R1 X2 | Survivability: armor per hit region (the item's engine armor entry, type 38) |
+| `defensiveProtection` | I3156 C1 R2 X2 | Survivability: armor per hit region (the item's engine armor entry, type 38) |
 | `defensiveProtectionModifier` | I202 C3 A23 R3 X111 | Survivability: armor % |
 | `defensiveReflect` | X2 | threshold `reflect_reduction` only (else 0 by design: no reflect model) |
 | `defensiveStun` | I345 C2 A7 R2 X215 | Other `stun_resist`, threshold |
@@ -166,67 +166,67 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `feet` | C13 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `hands` | C16 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `head` | C21 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `itemSetName` | I796 | set bonus at the old / new piece count (sets.cpp) |
-| `itemSkillAutoController` | I1438 C5 R37 X482 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
-| `itemSkillLevelEq` | I1828 C55 A54 R103 X494 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
-| `itemSkillName` | I1827 C55 A54 R103 X496 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSetName` | I806 | set bonus at the old / new piece count (sets.cpp) |
+| `itemSkillAutoController` | I1438 C5 R42 X482 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSkillLevelEq` | I1829 C55 A54 R114 X494 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
+| `itemSkillName` | I1828 C55 A54 R114 X496 | granted skill: procs through gdc::effects (damage, RR, crowd control, self buffs, absorb / heal at their uptime); ungated passives through the record; the rest "+? unscored" with the reason |
 | `legs` | C15 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `mace` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `mace2h` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `medal` | C16 A65 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `modifiedSkillName1` | I2257 A11 R2 X1034 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifiedSkillName2` | I1863 R2 X20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifiedSkillName3` | I700 X2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifiedSkillName4` | I111 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifiedSkillName1` | I2292 A11 R3 X1034 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifiedSkillName2` | I1898 R3 X20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifiedSkillName3` | I728 X2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifiedSkillName4` | I115 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
 | `modifiedSkillName5` | I20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
 | `modifiedSkillName6` | I2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifierSkillName1` | I2257 A11 R2 X1034 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifierSkillName2` | I1863 R2 X20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifierSkillName3` | I700 X2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
-| `modifierSkillName4` | I111 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifierSkillName1` | I2292 A11 R3 X1034 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifierSkillName2` | I1898 R3 X20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifierSkillName3` | I728 X2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
+| `modifierSkillName4` | I115 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
 | `modifierSkillName5` | I20 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
 | `modifierSkillName6` | I2 | item skill modifier: its record added to the modified skill (Damage, sheet stats) |
 | `offensiveAetherMax` | I20 C2 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveAetherMin` | I102 C3 A7 R1 X79 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveAetherModifier` | I720 C5 A34 R6 X644 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveAetherMin` | I103 C3 A7 R1 X79 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveAetherModifier` | I725 C5 A34 R8 X644 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveAetherModifierChance` | I12 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveBaseAetherMax` | I163 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseAetherMin` | I182 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseChaosMax` | I188 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseChaosMin` | I223 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseColdMax` | I268 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseColdMin` | I314 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseFireMax` | I326 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseFireMin` | I369 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseAetherMax` | I165 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseAetherMin` | I184 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseChaosMax` | I195 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseChaosMin` | I230 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseColdMax` | I275 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseColdMin` | I321 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseFireMax` | I327 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseFireMin` | I370 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBaseLifeMax` | I196 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBaseLifeMin` | I218 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseLightningMax` | I241 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveBaseLightningMin` | I267 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseLightningMax` | I242 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveBaseLightningMin` | I268 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBasePoisonMax` | I157 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBasePoisonMin` | I171 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBonusPhysicalChance` | X28 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveBonusPhysicalMax` | I79 X81 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveBonusPhysicalMin` | I116 X123 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveChaosChance` | I3 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveChaosMax` | I112 C5 R3 X61 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveChaosMin` | I127 C5 A7 R3 X73 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveChaosModifier` | I662 C6 A28 R9 X578 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveChaosChance` | I4 | chance / grouping of the stat it belongs to (engine totals are expected values) |
+| `offensiveChaosMax` | I125 C5 R4 X61 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveChaosMin` | I146 C5 A7 R4 X73 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveChaosModifier` | I672 C6 A28 R10 X578 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveColdGlobal` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveColdMax` | I27 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveColdMin` | I130 C4 A4 R8 X87 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveColdModifier` | I898 C6 A34 R26 X633 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveColdMin` | I137 C4 A4 R9 X87 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveColdModifier` | I905 C6 A34 R28 X633 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveColdModifierChance` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveConfusionChance` | A1 X2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveCritDamageModifier` | I462 C7 X197 | Damage: crit damage, added to every crit tier |
-| `offensiveElementalMax` | I7 C1 R16 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveElementalMin` | I89 C4 A5 R16 X82 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveElementalModifier` | I484 C5 A17 R8 X476 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveCritDamageModifier` | I463 C7 X197 | Damage: crit damage, added to every crit tier |
+| `offensiveElementalMax` | I7 C1 R17 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveElementalMin` | I91 C4 A5 R17 X82 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveElementalModifier` | I490 C5 A17 R10 X476 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveElementalModifierChance` | X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveFireChance` | X6 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveFireGlobal` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveFireMax` | I86 C5 R2 X76 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveFireMin` | I190 C5 A7 R3 X94 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveFireModifier` | I926 C7 A31 R24 X665 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveFireModifier` | I932 C7 A31 R27 X665 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveFireModifierChance` | I13 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveFreezeChance` | I3 A3 X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveFumbleDurationMin` | I5 | Damage: DoT duration of the flat damage it belongs to |
@@ -236,43 +236,43 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveLifeLeechMax` | I1 | Other `life_leech` |
 | `offensiveLifeLeechMin` | I204 C6 R6 X49 | Other `life_leech` |
 | `offensiveLifeMax` | I23 C1 R1 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveLifeMin` | I122 C2 A7 R6 X86 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveLifeModifier` | I1028 C5 A42 R12 X723 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveLifeMin` | I128 C2 A7 R6 X86 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveLifeModifier` | I1039 C5 A42 R13 X723 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveLightningGlobal` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveLightningMax` | I115 C4 R3 X108 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveLightningMin` | I117 C4 A3 R3 X108 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveLightningModifier` | I688 C7 A33 R7 X669 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveLightningModifierChance` | R2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensivePhysicalChance` | R3 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensivePhysicalMax` | I1341 R10 X9 | Damage: flat physical damage of weapon attacks; skills' and procs' own flat damage |
-| `offensivePhysicalMin` | I1545 C3 A3 R10 X9 | Damage: flat physical damage of weapon attacks; skills' and procs' own flat damage |
-| `offensivePhysicalModifier` | I870 C6 A35 R15 X504 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensivePhysicalMax` | I1353 R11 X9 | Damage: flat physical damage of weapon attacks; skills' and procs' own flat damage |
+| `offensivePhysicalMin` | I1557 C3 A3 R11 X9 | Damage: flat physical damage of weapon attacks; skills' and procs' own flat damage |
+| `offensivePhysicalModifier` | I873 C6 A35 R17 X504 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensivePhysicalModifierChance` | I6 R1 X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensivePhysicalReductionPercentDurationMin` | I1 | Damage: DoT duration of the flat damage it belongs to |
 | `offensivePhysicalResistanceReductionPercentDurationMin` | I1 | Damage: DoT duration of the flat damage it belongs to |
 | `offensivePhysicalResistanceReductionPercentMin` | I1 | Damage: resistance reduction through gdc::effects (uptime, highest-only) |
 | `offensivePierceChance` | R1 X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensivePierceMax` | I43 R1 X59 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensivePierceMin` | I166 C5 A6 R4 X123 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensivePierceModifier` | I587 C6 A24 R9 X428 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensivePierceMax` | I43 R2 X59 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensivePierceMin` | I166 C5 A6 R5 X123 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensivePierceModifier` | I591 C6 A24 R12 X428 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensivePierceModifierChance` | X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensivePoisonMax` | I12 C1 X27 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensivePoisonMin` | I111 C3 A6 R3 X45 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensivePoisonModifier` | I594 C6 A26 R9 X418 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensivePoisonModifier` | I601 C6 A26 R9 X418 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowAttackSpeedDurationMin` | I2 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowBleedingChance` | I7 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveSlowBleedingDurationMin` | I195 C3 A4 R4 X62 | Damage: DoT duration of the flat damage it belongs to |
+| `offensiveSlowBleedingChance` | I7 R2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
+| `offensiveSlowBleedingDurationMin` | I195 C3 A4 R5 X62 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowBleedingDurationModifier` | I149 C2 R1 X49 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowBleedingMax` | I1 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowBleedingMin` | I195 C3 A4 R4 X62 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowBleedingModifier` | I763 C6 A28 R9 X388 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowBleedingMin` | I195 C3 A4 R5 X62 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveSlowBleedingModifier` | I775 C6 A28 R10 X388 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowBleedingModifierChance` | I6 X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdDurationMin` | I33 A3 X28 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowColdDurationModifier` | I110 C1 X35 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowColdGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdMin` | I33 A3 X28 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowColdModifier` | I814 C5 A32 R7 X741 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowColdModifier` | I818 C5 A32 R7 X741 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowColdModifierChance` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowDamageMultDurationMax` | I1 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowDamageMultDurationMin` | I1 | Damage: DoT duration of the flat damage it belongs to |
@@ -282,17 +282,17 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowDefensiveReductionDurationMin` | X14 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowFireChance` | I13 X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowFireDurationMin` | I59 C1 A4 R1 X34 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowFireDurationModifier` | I127 R2 X120 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowFireDurationModifier` | I128 R2 X120 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowFireGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowFireMax` | I3 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowFireMin` | I60 C1 A4 R1 X34 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowFireModifier` | I907 C6 A26 R8 X837 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowFireModifier` | I914 C6 A26 R9 X837 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowFireModifierChance` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLifeChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLifeDurationMin` | I21 C1 A1 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowLifeDurationModifier` | I67 R1 X22 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowLifeDurationModifier` | I68 R1 X22 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowLifeMin` | I21 C1 A1 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowLifeModifier` | I782 C5 A30 R10 X408 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowLifeModifier` | I789 C5 A30 R11 X408 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowLifeModifierChance` | I1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningChance` | I7 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningDurationMin` | I23 A1 R1 X14 | Damage: DoT duration of the flat damage it belongs to |
@@ -300,31 +300,31 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowLightningGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningMax` | I6 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowLightningMin` | I23 A1 R1 X14 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowLightningModifier` | I709 C6 A30 R5 X780 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowLightningModifier` | I710 C6 A30 R5 X780 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowLightningModifierChance` | R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowManaLeachChance` | I2 X5 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowManaLeachDurationMin` | I8 C1 X5 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowPhysicalChance` | I7 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveSlowPhysicalDurationMin` | I59 A6 | Damage: DoT duration of the flat damage it belongs to |
+| `offensiveSlowPhysicalDurationMin` | I60 A6 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowPhysicalDurationModifier` | I47 R1 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowPhysicalMax` | I2 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowPhysicalMin` | I59 A6 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowPhysicalModifier` | I637 C4 A26 R4 X231 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowPhysicalMin` | I60 A6 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
+| `offensiveSlowPhysicalModifier` | I640 C4 A26 R4 X231 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowPoisonChance` | I8 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowPoisonDurationMin` | I71 C4 A7 R1 X58 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowPoisonDurationModifier` | I69 C1 R1 X68 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
 | `offensiveSlowPoisonMin` | I71 C4 A7 R1 X58 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
-| `offensiveSlowPoisonModifier` | I546 C6 A31 R9 X455 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveSlowPoisonModifier` | I549 C6 A31 R9 X455 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowRunSpeedChance` | C1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowRunSpeedDurationMin` | I3 C1 R2 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowTotalSpeedChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowTotalSpeedDurationMin` | I5 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveStunChance` | I2 A2 R1 X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveTotalDamageModifier` | I136 C2 A4 R26 X149 | Damage: % of that final type after conversions (direct and duration separately: engine) |
+| `offensiveStunChance` | I2 A2 R2 X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
+| `offensiveTotalDamageModifier` | I136 C2 A4 R28 X149 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveTotalDamageModifierChance` | A2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveTotalDamageReductionPercentChance` | I1 A1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
-| `offensiveTotalDamageReductionPercentDurationMin` | I18 A1 R1 X28 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveTotalDamageReductionPercentMin` | I18 A1 R1 X28 | Survivability: enemy damage reduction x `damage_reduction_uptime` (strongest only) |
+| `offensiveTotalDamageReductionPercentDurationMin` | I18 A1 R2 X28 | Damage: DoT duration of the flat damage it belongs to |
+| `offensiveTotalDamageReductionPercentMin` | I18 A1 R2 X28 | Survivability: enemy damage reduction x `damage_reduction_uptime` (strongest only) |
 | `offensiveTotalResistanceReductionAbsoluteChance` | I1 X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveTotalResistanceReductionAbsoluteDurationMax` | I1 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveTotalResistanceReductionAbsoluteDurationMin` | I17 C1 X28 | Damage: DoT duration of the flat damage it belongs to |
@@ -334,10 +334,10 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveTotalResistanceReductionPercentDurationMin` | I9 A4 X14 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveTotalResistanceReductionPercentMin` | I9 A4 X14 | Damage: resistance reduction through gdc::effects (uptime, highest-only) |
 | `offhand` | C44 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `petBonusName` | I485 A42 R10 X465 | Damage: Class Pet damage (% damage, attack / cast speed, OA of the pet bonus record; experimental); the rest Other `pet_bonus`, only with pets |
-| `racialBonusPercentDamage` | I132 C5 A11 R6 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
-| `racialBonusPercentDefense` | I65 C2 A3 R2 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
-| `racialBonusRace` | I197 C9 A29 R8 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
+| `petBonusName` | I485 A42 R12 X465 | Damage: Class Pet damage (% damage, attack / cast speed, OA of the pet bonus record; experimental); the rest Other `pet_bonus`, only with pets |
+| `racialBonusPercentDamage` | I133 C5 A11 R7 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
+| `racialBonusPercentDefense` | I65 C2 A3 R3 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
+| `racialBonusRace` | I198 C9 A29 R10 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
 | `ranged1h` | C37 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `ranged2h` | C37 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `retaliationAetherMin` | I5 | Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1) |
@@ -389,7 +389,7 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `scepter` | C33 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `shield` | C40 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `shoulders` | C17 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
-| `skillCooldownReduction` | I1080 X447 | Other `cooldown_reduction` (items only) |
+| `skillCooldownReduction` | I1092 X447 | Other `cooldown_reduction` (items only) |
 | `skillCooldownReductionChance` | X6 | Other `cooldown_reduction` (items only) |
 | `skillManaCostReduction` | I18 C3 R4 X14 | Other `skill_cost_reduction` (items only) |
 | `spear2h` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |

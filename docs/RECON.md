@@ -149,3 +149,20 @@ Build: clang-cl + lld-link + xwin SDK/CRT, **`/MD`** (see risk 1), MinHook 1.3.4
 
 ## 9. Tools used (NixOS)
 `winedump` (system), `llvm-undname`/`llvm-readobj` via `nix-shell -p llvm`, Python recon readers `re/tools/arc.py`, `re/tools/arz.py` (pure-Python LZ4 block decoder; layout checked against the archive byte counts). Crate's `ArchiveTool.exe` under wine asserts on extract (`archivewriter.cpp:848`), so don't use it. Ghidra is not installed (`nix-shell -p ghidra` when needed).
+
+## 10. Patch 1.3.1.2 (2026-11-16)
+
+| Item | Value | Source |
+|---|---|---|
+| Steam build | buildid `26655545` (was `25813250`) | appmanifest |
+| Game version | **v1.3.1.2 (x64)** | `Engine::GetVersion` string in Engine.dll (both builds) |
+| Game.dll | `4e259d4f…6aa6f3`, identical in x64/ and compat/ | sha256 |
+| Engine.dll | x64 `b0881e4e…cf20b63c`, compat `ad7fdc95…87120ffe` | sha256 |
+
+Exports (`re/*.exports.tsv` regenerated): Game.dll 25,116, Engine.dll 6,286, exe 26. Added in Game.dll: `Destructible::PlayerOnly`, `Skill::GetSpecialAnimationName`, `PetPen::GetPetList`, `Character::SkillWarmUp` with two bools, `CombatAttribute_DamageCritBonus` / `CombatAttribute_TotalDamageMod::GetMinMaxValues`, and new overloads `SkillManager::GetCharAttributes(acc, bool)` / `GetOffensiveModifierAttributes(acc, uint, bool)`. Removed: the old `SkillWarmUp` and `SkillManager` overloads, `Player::CalculatePetCharAttributeBonus`, `Player::CalculatePetDamageBonus`. Engine.dll adds `Effect::CorrectParticles`, `Emitter::CorrectParticles`, `Engine::RecheckExpansion3Status`.
+
+The new bool on `SkillManager::GetCharAttributes` (0x52F260) skips the learned-skill list (+0x228) when true. Both player-sheet callers pass false (`Character::GetSkillCharAttributes` +0x697E4, `CollectAvailableOffensiveModifierAttributes` 0x535C3A with `r9d` = 0), so the sheet is built as before. The item-skill walk at +0x258 is unchanged (`vt+0x1C8` != 0, then `vt+0x408`).
+
+All 168 targets resolve by name. Every offset, vtable slot and call site the adapter depends on is checked by `re/tools/verify_build.py` (43 checks against the disassembly, all pass on 1.3.1.2). Moved RVAs: `GetUIDisplayText` 0x33D700, the `Singleton<ObjectManager>::Get` IAT slot 0x608098, `GenerateSearchText` 0x328D90 (its `call [rax+0x458]` still at +0xB8), `GameTextLine` ctor 0x312A50. Unchanged: line push_back 0x1C550, move 0x1C4C0, object lookup 0x19D40. `tests/test_code_scan.cpp` pins both builds.
+
+DB: the monster pool grew (2559 Common / Champion / Hero, was 2529; 485 Quest / Boss / SuperBoss, was 448), `re/EnemyByLevel.tsv` / `EnemyRaces.tsv` and `core/src/enemy.cpp` regenerated (`re/tools/enemy_cpp.py`). Unchanged: `combatformulas.dbr`, PTH table, `playerlevels.dbr`, regen equations, boss resist means, `EnemyResistByDifficulty.tsv`, `PlayerResistByDifficulty.tsv`. No new stat field on items (`docs/COVERAGE.md`).

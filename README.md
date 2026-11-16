@@ -1,6 +1,6 @@
 # GD Compare
 
-Item comparison mod for Grim Dawn 1.3.1.1 (x64). Hover an item and the tooltip shows one number: how much better or worse your character gets with it. The mod reads your real stats from the running game and the game database. Hold Shift to see the breakdown.
+Item comparison mod for Grim Dawn 1.3.1.2 (x64). Hover an item and the tooltip shows one number: how much better or worse your character gets with it. The mod reads your real stats from the running game and the game database. Hold Shift to see the breakdown.
 
 ```text
 score = Damage^a × Survivability^b × Other^c        shown as (after / before - 1) × 100 %
@@ -82,7 +82,7 @@ Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.
 
 ## Limitations
 
-- Only checked against Grim Dawn 1.3.1.1 x64. On other versions it logs a warning and turns off any hook it can't find.
+- Checked against Grim Dawn 1.3.1.2 and 1.3.1.1 x64. On other versions it logs a warning and turns off any hook it can't find.
 - The score is a model, not a fight simulation: one target, no positioning. The enemy is the median monster for your level and difficulty, the mean boss for resists.
 - Pets are experimental. With pets summoned, their attack rate comes from the game's own speed and animation data; otherwise from their records.
 - Not scored: energy cost reduction, pet bonuses from buffs and set bonuses, flat racial damage. Full list in [docs/COVERAGE.md](docs/COVERAGE.md).

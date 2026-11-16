@@ -1,23 +1,23 @@
 races	monsters
 	8
-race001	254
+race001	265
 race001,race009	18
 race001,race012	56
 race001,race014	3
-race002	269
+race002	271
 race002,race005	18
 race003	33
 race003,race009	36
-race004	254
+race004	260
 race004,race008	24
 race005	309
 race005,race012	1
 race006,race009	46
-race007	74
+race007	82
 race007,race008	2
 race007,race009	29
 race007,race010	72
-race007,race012	55
+race007,race012	57
 race007,race013	20
 race007,race015	8
 race007,race016	36
@@ -29,7 +29,7 @@ race010	16
 race010,race014	13
 race011	66
 race012	307
-race012,race014	5
+race012,race014	6
 race013	10
 race013,race014	3
 race014	29

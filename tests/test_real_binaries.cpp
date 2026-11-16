@@ -1,5 +1,5 @@
 // Cross-checks against the installed game, if present (GD_DIR or the default Steam path):
-// 1) our PE reader agrees with winedump on every export (re/*.exports.tsv, v1.3.1.1);
+// 1) our PE reader agrees with winedump on every export (re/*.exports.tsv, dumped from the installed build: v1.3.1.2);
 // 2) every required target resolves in both launch variants (x64/ and compat/).
 // Skips with a message when the game is not installed, so CI without the game still passes.
 #include <doctest/doctest.h>
@@ -52,7 +52,7 @@ TEST_CASE("real binaries: reader matches winedump dump and all required targets 
   const auto game = pe::read_exports(slurp(dir / "compat/Game.dll"), pe::Layout::File);
   REQUIRE(game.error.empty());
 
-  // The TSV was dumped (winedump) from compat/Game.dll v1.3.1.1. After a game patch the dump is stale;
+  // The TSV was dumped (winedump) from compat/Game.dll v1.3.1.2. After a game patch the dump is stale;
   // a changed export count is the cheap signal for that.
   std::ifstream tsv(fs::path(GDC_SOURCE_DIR) / "re/Game.exports.tsv");
   std::map<std::string, std::uint32_t> dumped;
