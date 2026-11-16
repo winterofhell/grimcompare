@@ -18,10 +18,7 @@
 #include "gdc/stat_model.h"
 #include "gdc/utility.h"
 
-// No exceptions: the adapter must not unwind through the game.
-#define TOML_EXCEPTIONS 0
-#define TOML_ENABLE_FORMATTERS 0
-#include <tomlplusplus/toml.hpp>
+#include <tomlplusplus/gdc_toml.hpp>
 
 namespace gdc::score {
 namespace {
@@ -336,6 +333,12 @@ std::string damage_label(DamageKey k) {
   for (const auto& d : kDamageNames)
     if (d.type == k.first && d.dot == k.second) return std::string(d.label);
   return "type " + std::to_string(k.first) + (k.second ? " dot" : "");
+}
+
+std::string damage_name(DamageKey k) {
+  for (const auto& d : kDamageNames)
+    if (d.type == k.first && d.dot == k.second) return std::string(d.key);
+  return "";
 }
 
 std::optional<Preset> parse(std::string_view text, std::string& error) {
@@ -1583,22 +1586,49 @@ std::string resist_inputs(const Side& x) {
   return out;
 }
 
+bool main_class(std::string_view cls) { return attack_class(cls) || classes::is_a(cls, "SkillActivatedWeaponPool"); }
+
 }  // namespace
+
+SkillKind skill_kind(const arz::Database& db, const std::string& record, std::uint32_t level) {
+  SkillKind out;
+  const arz::Record* r = db.record(record);
+  if (!r || !main_class(r->cls)) return out;
+  const arz::Record* d = r;
+  if (!has_damage(*d, level)) d = db.record(r->string("buffSkillName"));
+  if (!d || !has_damage(*d, level)) return out;
+  out.main = true;
+  out.weapon = at_level(*d, "weaponDamagePct", level) > 0;
+  Amounts flat;
+  add_flat(*d, level, 1, flat);
+  for (const auto& [k, v] : flat) {
+    if (v <= 0) continue;
+    const std::vector<int> types = k.first == kElemental ? std::vector<int>{5, 6, 8}
+                                   : k.first == kBasePhysical ? std::vector<int>{kPhysical}
+                                                              : std::vector<int>{k.first};
+    for (const int t : types)
+      if (const DamageKey key{t, k.second}; !damage_name(key).empty() &&
+                                             std::find(out.types.begin(), out.types.end(), key) == out.types.end())
+        out.types.push_back(key);
+  }
+  return out;
+}
 
 std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const arz::Database* db) {
   std::vector<Skill> out;
   if (!db) return out;
-  if (!p.skills.empty()) {
-    for (const auto& r : p.skills)
-      if (const auto* sk = skill_by_record(s, r); sk && sk->current_level > 0)
-        out.push_back({r, p.weigh_by_points ? std::max<double>(sk->level, 1) : 1.0});
-  } else {
+  for (const auto& r : p.skills)
+    if (const auto* sk = skill_by_record(s, r); sk && sk->current_level > 0)
+      out.push_back({r, p.weigh_by_points ? std::max<double>(sk->level, 1) : 1.0});
+  // None of the listed skills learned yet (a levelling character): pick as auto does.
+  const bool picked = out.empty();
+  if (picked) {
     std::vector<std::pair<std::uint32_t, std::string>> found;
     for (const auto& sk : s.skills) {
       if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
       if (!sk.record.starts_with("records/skills/playerclass")) continue;
       const arz::Record* r = db->record(sk.record);
-      if (!r || !(attack_class(r->cls) || classes::is_a(r->cls, "SkillActivatedWeaponPool"))) continue;
+      if (!r || !main_class(r->cls)) continue;
       const arz::Record* d = r;
       if (!has_damage(*d, sk.current_level)) d = db->record(r->string("buffSkillName"));
       if (!d || !has_damage(*d, sk.current_level)) continue;
@@ -1611,7 +1641,7 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
   const double total = std::accumulate(out.begin(), out.end(), 0.0, [](double a, const Skill& k) { return a + k.weight; });
   for (auto& k : out) k.weight /= total;
   const snap::Skill* filler = skill_by_record(s, kDefaultAttack);
-  if (p.skills.empty() && !out.empty() && p.filler_weight > 0 && filler && filler->current_level > 0) {
+  if (picked && !out.empty() && p.filler_weight > 0 && filler && filler->current_level > 0) {
     std::vector<std::string> notes;
     const bool all_cooldown = std::all_of(out.begin(), out.end(), [&](const Skill& k) {
       return skill_raw(s, *skill_by_record(s, k.record), *db, notes).cooldown > 0;

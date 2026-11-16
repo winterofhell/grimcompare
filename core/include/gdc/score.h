@@ -21,6 +21,16 @@ namespace gdc::score {
 using DamageKey = std::pair<int, bool>;
 std::optional<DamageKey> damage_key(std::string_view name);
 std::string damage_label(DamageKey k);
+std::string damage_name(DamageKey k);  // its [match] damage name, "" if it has none
+
+// A record as main_skills' auto mode sees it: main = an attack-class or weapon-pool skill with damage at `level`;
+// weapon = weaponDamagePct > 0 (it deals the weapon's damage); types = the damage its own record (or its
+// buffSkillName record) deals, before conversions (Elemental as Cold, Fire and Lightning, Physical base as Physical).
+struct SkillKind {
+  bool main = false, weapon = false;
+  std::vector<DamageKey> types;
+};
+SkillKind skill_kind(const arz::Database& db, const std::string& record, std::uint32_t level);
 
 struct Weight {
   double weight = 0;

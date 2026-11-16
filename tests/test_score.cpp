@@ -407,6 +407,16 @@ TEST_CASE("components and score on the installed game (skips if absent)") {
   CHECK(skills[1].record == "records/skills/playerclass03/doombolt1.dbr");
   CHECK(skills[2].record == "records/skills/default/defaultweaponattack.dbr");
   CHECK(skills[2].weight == doctest::Approx(0.5));
+  // Listed skills: only the learned ones; none learned picks as auto does.
+  score::Preset listed;
+  listed.skills = {"records/skills/playerclass03/doombolt1.dbr", "records/skills/playerclass05/aetherray1.dbr"};
+  const auto some = score::main_skills(s, listed, db);
+  REQUIRE(some.size() == 1);
+  CHECK(some[0].record == "records/skills/playerclass03/doombolt1.dbr");
+  listed.skills = {"records/skills/playerclass05/aetherray1.dbr"};
+  const auto fallback = score::main_skills(s, listed, db);
+  REQUIRE(fallback.size() == skills.size());
+  for (std::size_t i = 0; i < skills.size(); ++i) CHECK(fallback[i].record == skills[i].record);
 
   // More chaos damage on a ring raises Damage; nothing else moves.
   auto a = s;
@@ -579,4 +589,47 @@ TEST_CASE("score: convert as the engine") {
     near(score::convert({{{8, false}, 100}}, {{8, {{2, 50.0}}}, {58, {{10, 50.0}}}}, {}, notes),
          {{{2, false}, 50}, {{10, false}, 25}, {{8, false}, 25}});
   }
+}
+
+TEST_CASE("parse: malformed presets are errors, never a crash (the adapter parses user files)") {
+  std::string error;
+  for (const char* bad : {"[[[x]]]", "[[[", "[ [x] ]", "[\"", "[a.[b]]", "[[]]", "[]", "a.=1", "a = [[[", "x = {", "x = {a=", "= 1",
+                          "[preset]\nname = \"\\u\"", "[preset]\nname = '''", "\xEF\xBB", "\xFF\xFE[", "[preset]\nname = 1e999999"}) {
+    INFO(bad);
+    CHECK_FALSE(score::parse(bad, error));
+  }
+  // Deterministic byte mutations of every shipped preset: whatever comes back, parse returns.
+  std::uint32_t seed = 12345;
+  const auto next = [&] { return seed = seed * 1664525u + 1013904223u; };
+  for (const auto& e : fs::directory_iterator(fs::path(GDC_SOURCE_DIR) / "presets")) {
+    const std::string text = read(e.path());
+    for (int i = 0; i < 300; ++i) {
+      std::string t = text;
+      for (int k = 0; k < 3; ++k) t[next() % t.size()] = "[]{}\"'=.,\n#\\x0"[next() % 15];
+      (void)score::parse(t, error);
+    }
+  }
+}
+
+TEST_CASE("parse: every Unicode code point where the parser classifies characters") {
+  std::string error;
+  const auto utf8 = [](char32_t c) {
+    std::string o;
+    if (c < 0x80) o += static_cast<char>(c);
+    else if (c < 0x800) o += static_cast<char>(0xC0 | (c >> 6)), o += static_cast<char>(0x80 | (c & 0x3F));
+    else if (c < 0x10000)
+      o += static_cast<char>(0xE0 | (c >> 12)), o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)), o += static_cast<char>(0x80 | (c & 0x3F));
+    else
+      o += static_cast<char>(0xF0 | (c >> 18)), o += static_cast<char>(0x80 | ((c >> 12) & 0x3F)),
+          o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)), o += static_cast<char>(0x80 | (c & 0x3F));
+    return o;
+  };
+  for (char32_t c = 0x80; c <= 0x10FFFF; ++c) {
+    if (c >= 0xD800 && c <= 0xDFFF) continue;
+    const std::string u = utf8(c);
+    (void)score::parse("[preset]\nname =" + u + "\"x\"", error);  // whitespace position
+    (void)score::parse("[preset]\n" + u + " = 1", error);         // bare key
+    (void)score::parse("[" + u + "]", error);                     // table header
+  }
+  CHECK(score::parse("[preset]\nname = \"Ölaf's ☃ build\"", error));
 }

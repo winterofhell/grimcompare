@@ -6,7 +6,9 @@
       "displayName": "Linux: core + tests",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/core",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "adapter",
@@ -14,30 +16,120 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/adapter",
       "toolchainFile": "${sourceDir}/cmake/clang-cl-xwin.cmake",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "setup-linux",
+      "displayName": "Linux: gdcompare-setup (static release)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/setup-linux",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GDC_SETUP_STATIC": "ON"
+      }
+    },
+    {
+      "name": "setup-win",
+      "displayName": "Windows x64: gdcompare-setup via clang-cl + xwin (static CRT)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/setup-win",
+      "toolchainFile": "${sourceDir}/cmake/clang-cl-xwin.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "core", "configurePreset": "core" },
-    { "name": "adapter", "configurePreset": "adapter" }
+    {
+      "name": "core",
+      "configurePreset": "core"
+    },
+    {
+      "name": "adapter",
+      "configurePreset": "adapter"
+    },
+    {
+      "name": "setup-linux",
+      "configurePreset": "setup-linux",
+      "targets": [
+        "gdcompare-setup"
+      ]
+    },
+    {
+      "name": "setup-win",
+      "configurePreset": "setup-win",
+      "targets": [
+        "gdcompare-setup"
+      ]
+    }
   ],
   "testPresets": [
-    { "name": "core", "configurePreset": "core", "output": { "outputOnFailure": true } }
+    {
+      "name": "core",
+      "configurePreset": "core",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
   ],
   "workflowPresets": [
     {
       "name": "core",
       "steps": [
-        { "type": "configure", "name": "core" },
-        { "type": "build", "name": "core" },
-        { "type": "test", "name": "core" }
+        {
+          "type": "configure",
+          "name": "core"
+        },
+        {
+          "type": "build",
+          "name": "core"
+        },
+        {
+          "type": "test",
+          "name": "core"
+        }
       ]
     },
     {
       "name": "adapter",
       "steps": [
-        { "type": "configure", "name": "adapter" },
-        { "type": "build", "name": "adapter" }
+        {
+          "type": "configure",
+          "name": "adapter"
+        },
+        {
+          "type": "build",
+          "name": "adapter"
+        }
+      ]
+    },
+    {
+      "name": "setup-linux",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "setup-linux"
+        },
+        {
+          "type": "build",
+          "name": "setup-linux"
+        }
+      ]
+    },
+    {
+      "name": "setup-win",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "setup-win"
+        },
+        {
+          "type": "build",
+          "name": "setup-win"
+        }
       ]
     }
   ]

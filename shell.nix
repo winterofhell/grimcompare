@@ -15,6 +15,9 @@ pkgs.mkShell {
   # Unwrapped: the nixpkgs cc-wrapper injects Linux flags that break --target=*-windows-msvc.
   # Referenced by absolute path so it does not shadow the stdenv compiler on PATH.
   CLANG_CL = "${llvm.clang-unwrapped}/bin/clang-cl";
+  # libc.a for gdcompare-setup's static Linux release only (preset setup-linux); on the default library path it
+  # would leak into every dynamic link.
+  GLIBC_STATIC_LIB = "${pkgs.glibc.static}/lib";
   shellHook = ''
     export XWIN_DIR="''${XWIN_DIR:-$HOME/.local/share/xwin}"
   '';

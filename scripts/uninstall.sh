@@ -39,4 +39,12 @@ if [[ $kept == 0 ]]; then rm -f "$MANIFEST"; fi
 
 echo
 echo "Steam → Grim Dawn → Properties → Launch Options:"
-python3 -I "$ROOT/scripts/launch_options.py" remove "$STEAM"
+SETUP="$ROOT/build/core/installer/gdcompare-setup"
+if [[ ! -x "$SETUP" ]]; then
+  if [[ -z "${IN_NIX_SHELL:-}" ]]; then
+    nix-shell "$ROOT/shell.nix" --run "cmake --preset core >/dev/null && cmake --build build/core --target gdcompare-setup"
+  else
+    cmake --preset core >/dev/null && cmake --build build/core --target gdcompare-setup
+  fi
+fi
+"$SETUP" launch-options remove --steam "$STEAM"

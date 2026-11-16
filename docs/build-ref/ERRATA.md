@@ -133,3 +133,42 @@ Members: Gaze `gearhead/d316_head`, Thicket `gearshoulders/d318_shoulder`, Vines
 | Scorpion Sting / Tainted Eruption / Twin Fangs | `records/skills/devotion/tier1_02e_skill.dbr` / `tier3_02h_skill.dbr` / `tier1_01e_skill.dbr` |
 | Noxious Fumes (Dung Divider / Grips proc) | `records/skills/itemskillsgdx3/noxiousfumeslegendary_01.dbr` (awakened), `itemskillsgdx2/noxiousfumes_01.dbr` (epic) — contents not checked |
 | Target set | `records/items/lootsets/itemset_d313.dbr` (Worldkeeper's Garden) |
+
+## 9. Build matrix corrections (`catalog/builds.toml`)
+Checked 2026-11-15 against the same DB, for every conversion, set and class that `build-matrix.md` names. Conversion read from each item's and set bonus's `conversionInType` / `conversionOutType` / `conversionPercentage` (and the skill-modifier and pet-bonus variants); `Life` = Vitality, `Poison` = Acid. Item paths are relative to `records/items/`. `catalog/builds.toml` uses the corrected values; the matrix stays as written.
+
+| § | Matrix says | DB says | Record |
+|---|---|---|---|
+| 9, 35 | class 0606 | No such class; the Shaman + Soldier class is Warder, `tagSkillClassName0106` | `Text_EN` |
+| 3 | Belgothian's Slaughter: Physical → Pierce | Only Execution, Cold → Pierce 100% (mask) | `lootsets/itemset_d120`, `gearhead/d126_head` |
+| 3 | Servitor's Slicer: gear Pierce | Only Leap, Physical → Pierce 100% | `gearweapons/axe1h/b101*_axe` |
+| 8, 33 | Morgoneth: → Cold | Pierce → Vitality 30% (head, chest, shoulders) | `gearhead/d226_head`, `geartorso/d222_torso`, `gearshoulders/d222_shoulder` |
+| 10, 11 | Beronath, Reforged converts | No conversion | `gearweapons/swords1h/d005_sword` (+ `upgraded/`) |
+| 12 | Mindwarp: Physical → Aether 100% | 15% | `gearweapons/swords1h/d004_sword` (+ `upgraded/`) |
+| 14 | Shadowheart: → Chaos (unspecified) | Elemental and Vitality → Chaos 45% | `gearweapons/caster/d307_dagger` |
+| 15 | "Dawnbreaker" set | Dawnbreaker's Light (lvl 75) is Physical → Lightning 10–15%; the 94 upgrade is Dawnseeker's Light (adds Counter Strike Physical → Lightning 100%) | `lootsets/itemset_d004`, `itemset_d004b` |
+| 17 | Ugdenbog Boltthrower: Cold / Physical | Lightning → Pierce 100% | `gearweapons/guns2h/b103e_gun2h` |
+| 18 | Bloodmane converts | No conversion on any piece or bonus | `lootsets/itemset_c302` |
+| 18 | Hagarradian Enforcer | Physical → Cold 15%, Acid → Cold 45% (94 version) | `gearweapons/guns1h/d113_gun1h` |
+| 20, 52 | Luminari Regalia: → Lightning/Fire | Pierce → Elemental 25–30% | `lootsets/itemset_c106` |
+| 22 | Light's Defender converts | No conversion; Light's Guardian (94) converts Stun Jacks Physical → Lightning; so does Stormrend | `lootsets/itemset_d022`, `itemset_d022b`, `gearweapons/axe1h/d205_axe` |
+| 22 | "Storm Serpent" | The set is The Stormserpent: Pierce and Cold → Lightning | `lootsets/itemset_c202` |
+| 24 | Clairvoyant: Elemental/Vitality → Aether | Chaos → Aether 25% | `lootsets/itemset_d010`, `geartorso/d012_torso` |
+| 24 | Chosen Robe | Chosen Robes: Lightning → Aether 30% | `geartorso/b201f_torso` |
+| 24 | Chains of Ygraad | Vitality → Aether 50% ✔ | `gearaccessories/waist/b007*_waist` |
+| 29 | Spelldrinker: → Cold | Aether and Pierce → Elemental 45% | `gearweapons/caster/d112_scepter` |
+| 30, 51 | Woolly Voidguard, Blood Orb of Ch'thon convert | No conversion | `gearweapons/shields/b302f_shield`, `upgraded/gearweapons/focus/d005_focus` |
+| 36 | Rune of Elgoloth converts | No conversion | `gearweapons/caster/d105_scepter` |
+| 38 | Corruptian: → Acid | Chaos and Acid → Physical 45% | `faction/weapons/axe1h/f203a_axe` |
+| 38 | Ember's Calling: → Acid | Cold → Fire 30% | `lootsets/itemset_d222` |
+| 41 | The Vanquisher: Physical → Fire | Aether → Fire 25–30%; Vire's Might Physical → Fire comes from the Volcanic Might devotion | `lootsets/itemset_d202` |
+| 42 | Nature's Call Regalia converts | No conversion; Dracarris gives pets Physical → Fire 100% | `lootsets/itemset_d003b`, `gearweapons/caster/d012_dagger` |
+| 43 | Bysmiel's Trinkets: pets → Lightning | Pets Physical, Acid and Vitality → Elemental 50% | `lootsets/itemset_d213` |
+| 45 | Diviner's Vision | Pets Cold → Vitality 100% (set bonus) | `lootsets/itemset_d118` |
+| 46 | Ghol's Malice: pets Physical → Acid | Pets Vitality → Acid 50% | `lootsets/itemset_d212` |
+| 47, 50 | Ice King: pets → Cold | Player only: Witchfire Pierce → Cold (set), Chaos → Cold 100% (sword); no pet conversion | `lootsets/itemset_d315`, `gearweapons/melee2h/d307_sword2h` |
+| 48 | Mythical Blood Orb of Ch'thon: pets Elemental → Chaos | No pet conversion | — |
+| — | Seal of the Void | Physical → Chaos 10% | `materia/compa_sealvoid` |
+| — | Fatebreakers | Not a set; Fatebreaker's Chains: Physical → Aether 25% | `gearhands/d307_hands` |
+
+Not found under the matrix's name (no item or set tag matches): Apocalypse, Brute, Deathmarked (the set is Deathmark's Shadow, `itemset_d015b`), Demonbone, Fatebreakers, Frost Wight, Primal Sinner, Steel Piercer, Storm Serpent. The catalog names only what the DB has.

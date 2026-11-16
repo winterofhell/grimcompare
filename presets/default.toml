@@ -38,7 +38,8 @@ buff_mode = "average"
 
 [damage]
 # Skill records to score; empty = auto: the 3 learned class attack skills with the most points spent,
-# weighted by points. Example: skills = ["records/skills/playerclass04/shadowstrike.dbr"]
+# weighted by points. Listed skills without points are skipped; none learned yet = auto.
+# Example: skills = ["records/skills/playerclass04/shadowstrike.dbr"]
 skills = []
 # Weights of `skills`: "equal", or "points" (by points spent in each).
 skill_weights = "equal"

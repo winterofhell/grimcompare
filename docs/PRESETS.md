@@ -37,6 +37,7 @@ Exponents a / b / c, threat shares, Other weights, `melee_share`, `damage_reduct
 - `[match] damage` names: `physical`, `internal_trauma`, `pierce`, `cold`, `frostburn`, `fire`, `burn`, `acid`, `poison`, `lightning`, `electrocute`, `vitality`, `vitality_decay`, `chaos`, `aether`, `bleeding` (acid = Poison type direct, poison = its duration damage, ERRATA §0).
 - `[[stage]]`: `name`, `min_level`, `max_level`, `requires` (skill or mastery records with points) and `[stage.score]` / `[stage.damage]` / `[stage.survival]` / `[stage.other]` over the preset's own values. The last stage in file order that applies wins. The block heading reads `GD Compare - <name> - stage <stage>` (` - `, not ` | ` or `·`: the game font's glyph coverage is not verified).
 - `[damage] skill_weights = "points"`: main skills weigh by points spent, so a 1-point skill does not count like a maxed one.
+- `[damage] skills`: only the listed skills with points are scored; while none has points (a levelling character), the main skills are picked as auto does (1.0.0).
 
 ### `plague-garden` stages (design choices from the guide's levelling plan, `docs/build-ref/plague-garden.md` §4)
 | Stage | Applies when | Main skills |

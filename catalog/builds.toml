@@ -1,0 +1,1042 @@
+# GD Compare build catalog: the builds the setup wizard offers. Source: docs/build-ref/build-matrix.md
+# (intent only), every skill, set, conversion and class checked against the 1.3.1.1 database
+# (database.arz + GDX1..3, Text_EN). What the matrix got wrong: docs/build-ref/ERRATA.md §9.
+#
+# Per build:
+#   id, name, category (melee | ranged | caster | pets | hybrid)
+#   classes   class tags tagSkillClassNameXXYY as "XXYY" (XX, YY = mastery numbers, playerclassXX)
+#   damage    final damage types ([match] damage names, docs/PRESETS.md)
+#   skills    main skill records: attacks only (score.cpp attack_class, or the default weapon attack). Summons, totems,
+#             traps and auras are scored as a share on top of these, so a summoner lists the default weapon attack.
+#             The wizard keeps the default attack and the skills of the character's masteries.
+#   sets      lootset records for target_sets
+#   other     [other] weight overrides, only where Damage / Survivability do not see the stat
+#   conversion, stats, items: plain-words hints for the menu
+# [[build.variant]] overrides any of name, classes, damage, skills, sets, other, conversion, stats, items.
+# Skills are scored from the character's real points; conversions from the real gear. Nothing here is a weight
+# on damage types: a converted-away type scores ~0 from the math.
+
+# ---------------------------------------------------------------- Melee
+
+[[build]]
+id = "blitz-skater"
+name = "Blitz / Vire's Might skater"
+category = "melee"
+classes = ["0109", "0105", "0110"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/playerclass01/blitz1.dbr", "records/skills/playerclass09/viremight1.dbr", "records/skills/playerclass10/leap1.dbr"]
+conversion = "None: stay Physical. Krieg's Grip turns Blitz into Aether, so it is a different build."
+stats = "Physical and Internal Trauma damage, crit damage, Offensive Ability, cooldown reduction; block, armor, physical resist"
+items = "Cunning and Physique; shield block"
+
+[[build]]
+id = "forcewave"
+name = "Forcewave"
+category = "melee"
+classes = ["0109", "0108", "0105", "0102"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/playerclass01/shieldhammer1.dbr"]
+conversion = "None on the Physical route."
+stats = "Physical damage, cast speed (Forcewave is a spell), Offensive Ability, crit damage; life leech, physical resist, armor"
+items = "Forcewave ranks"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Physical"
+  [[build.variant]]
+  name = "Fire (Commando)"
+  classes = ["0102"]
+  damage = ["fire", "burn"]
+  conversion = "Physical to Fire: Shar'Zul's Worldeater 45%; Sunherald's Claymore converts Menhir's Bulwark's Physical and Pierce."
+  stats = "Fire and Burn damage, cast speed, Offensive Ability, crit damage; life leech, physical resist"
+  items = "Shar'Zul's Worldeater, Sunherald's Claymore"
+
+[[build]]
+id = "dw-pierce"
+name = "Dual-wield Pierce"
+category = "melee"
+classes = ["0104", "0410"]
+damage = ["pierce"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/cadence1.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+sets = ["records/items/lootsets/itemset_d120.dbr"]
+conversion = "Physical to Pierce from gear. Belgothian's Slaughter only converts Execution (Cold to Pierce); Servitor's Slicer only Leap."
+stats = "Pierce damage, attack speed, Cunning, Offensive Ability, crit damage; life leech, physical resist"
+items = "Belgothian's Slaughter, Servitor's Slicer (Reaver, Leap)"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "dw-cold-acid"
+name = "Dual-wield Cold / Acid assassin"
+category = "melee"
+classes = ["0407", "0409", "0304"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass04/shadowstrike.dbr"]
+conversion = "Pierce and Physical to Cold."
+stats = "Cold and Frostburn damage, attack speed, Offensive Ability, crit damage; life leech, dodge"
+items = "Deathmark's Shadow (Pierce to Cold), Chillheart (Fire and Lightning to Cold)"
+sets = ["records/items/lootsets/itemset_d015b.dbr"]
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Cold (Infiltrator)"
+  classes = ["0407"]
+  [[build.variant]]
+  name = "Acid (Dervish)"
+  classes = ["0409"]
+  damage = ["acid", "poison"]
+  skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass09/righteousfervor1.dbr", "records/skills/playerclass04/shadowstrike.dbr"]
+  conversion = "Dreeg's Reproach turns Righteous Fervor's Physical and Fire into Acid."
+  stats = "Acid and Poison damage, attack speed, Offensive Ability, crit damage; life leech, Ascension"
+  items = "Dreeg's Reproach (Righteous Fervor)"
+  sets = []
+  [[build.variant]]
+  name = "Acid (Witch Hunter)"
+  classes = ["0304"]
+  damage = ["acid", "poison"]
+  conversion = "Vitality and Chaos to Acid (Deception of Dreeg)."
+  stats = "Acid and Poison damage, attack speed, Offensive Ability, crit damage; life leech, dodge"
+  items = "Deception of Dreeg"
+  sets = ["records/items/lootsets/itemset_d014b.dbr"]
+
+[[build]]
+id = "avalanche"
+name = "Avalanche dual-wield"
+category = "melee"
+classes = ["0510", "0110"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+conversion = "Fire and Chaos to Cold: Chillflame Evoker (45% each, and Avalanche Pierce to Cold)."
+stats = "Cold damage, attack speed, Offensive Ability, crit damage, Avalanche chance; armor, physical resist, life leech"
+items = "2x Chillflame Evoker"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Cold (Evoker)"
+  classes = ["0510"]
+  [[build.variant]]
+  name = "Acid (Thane, Gloom Knight)"
+  classes = ["0110"]
+  damage = ["acid", "poison"]
+  skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/cadence1.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+  conversion = "Physical and Cold to Acid; the set turns Avalanche's Cold and Pierce into Acid."
+  stats = "Acid damage, attack speed, Offensive Ability, crit damage; armor, physical resist, life leech"
+  items = "Gloom Knight, Agony"
+  sets = ["records/items/lootsets/itemset_d309.dbr"]
+
+[[build]]
+id = "ring-of-steel-onslaught"
+name = "Ring of Steel + Onslaught"
+category = "melee"
+classes = ["0410"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/playerclass04/ringofsteel.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+sets = ["records/items/lootsets/itemset_d108.dbr"]
+conversion = "Korba's Fury turns Onslaught and Savagery Physical into Cold; Ring of Frost turns Ring of Steel's Pierce into Cold."
+stats = "Cold and Frostburn damage, attack speed, Offensive Ability, crit damage; life leech, dodge, physical resist"
+items = "Korba's Fury, Chillheart"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Cold"
+  [[build.variant]]
+  name = "Pierce"
+  damage = ["pierce"]
+  sets = []
+  conversion = "Stay Pierce: skip Ring of Frost and Cold conversions."
+  stats = "Pierce damage, attack speed, Cunning, Offensive Ability, crit damage; life leech, physical resist"
+  items = ""
+
+[[build]]
+id = "cadence-cold"
+name = "Cold dual-wield Cadence"
+category = "melee"
+classes = ["0107"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/cadence1.dbr"]
+conversion = "Arctis: Physical to Cold 15%, Vitality to Cold 45%, and Zolhan's Technique fully Cold."
+stats = "Cold damage, attack speed, Offensive Ability, crit damage, Zolhan's Technique chance; physical resist, life leech"
+items = "2x Arctis, Rune of Hagarrad (Biting Cold)"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "shadow-strike"
+name = "Shadow Strike"
+category = "melee"
+classes = ["0408", "0405", "0407"]
+damage = ["acid", "poison"]
+skills = ["records/skills/playerclass04/shadowstrike.dbr", "records/skills/default/defaultweaponattack.dbr"]
+conversion = "Depends on the set; keep every source on one type."
+stats = "Cooldown reduction, Offensive Ability, crit damage, % damage of your type; life, life leech"
+items = ""
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Acid (Reaper)"
+  classes = ["0408"]
+  sets = ["records/items/lootsets/itemset_d117.dbr"]
+  items = "Deathguard"
+  [[build.variant]]
+  name = "Cold (Spellbreaker, Zakull)"
+  classes = ["0405"]
+  damage = ["cold", "frostburn"]
+  sets = ["records/items/lootsets/itemset_d314.dbr"]
+  conversion = "Zakull's Anima: Shadow Strike Acid to Cold, Pierce to Cold on Star Pact and Spectral Binding."
+  items = "Zakull's Anima"
+  [[build.variant]]
+  name = "Vitality (Reaper, Morgoneth)"
+  classes = ["0408"]
+  damage = ["vitality", "vitality_decay"]
+  sets = ["records/items/lootsets/itemset_d219.dbr"]
+  conversion = "Armor of the Eternal Night: Shadow Strike Acid and Pierce to Vitality, gear Pierce to Vitality."
+  items = "Armor of the Eternal Night (Morgoneth)"
+  [[build.variant]]
+  name = "Pierce (Infiltrator)"
+  classes = ["0407"]
+  damage = ["pierce"]
+  items = ""
+
+[[build]]
+id = "primal-strike"
+name = "Primal Strike"
+category = "melee"
+classes = ["0106", "0609", "0607", "0406"]
+damage = ["lightning", "electrocute"]
+skills = ["records/skills/playerclass06/savagestrike1.dbr", "records/skills/playerclass06/savagery1.dbr"]
+sets = ["records/items/lootsets/itemset_d017b.dbr"]
+conversion = "Physical to Lightning: Ultos' Tempest 50%, Korvan Storm Halberd 15%, Stormrend fully on Primal Strike."
+stats = "Lightning and Electrocute damage, attack speed, Offensive Ability, crit damage; life regeneration, life leech, physical resist"
+items = "Ultos' Tempest, Korvan Storm Halberd, Stormrend"
+other = { life_leech = 1.0, life_regen = 0.05 }
+
+[[build]]
+id = "eye-of-reckoning"
+name = "Eye of Reckoning"
+category = "melee"
+classes = ["0609", "0209", "0910", "0109", "0409"]
+damage = ["lightning", "electrocute"]
+skills = ["records/skills/playerclass09/eyeofreckoning1.dbr"]
+conversion = "Turn Eye of Reckoning's Physical, Fire and Lightning into one type."
+stats = "Attack speed, flat damage of your type, Offensive Ability, crit damage; life, life leech, physical resist"
+items = ""
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Lightning (Archon)"
+  classes = ["0609"]
+  [[build.variant]]
+  name = "Fire (Shieldbreaker)"
+  classes = ["0209"]
+  damage = ["fire", "burn"]
+  [[build.variant]]
+  name = "Physical (Warlord, Zealot)"
+  classes = ["0109", "0910"]
+  damage = ["physical", "internal_trauma"]
+  conversion = "Awakened Shard of Menhir: Eye of Reckoning Fire to Physical, Lightning to Physical 25%."
+  items = "Awakened Shard of Menhir"
+  [[build.variant]]
+  name = "Acid (Dervish)"
+  classes = ["0409"]
+  damage = ["acid", "poison"]
+  sets = ["records/items/lootsets/itemset_d214.dbr"]
+  conversion = "The Korvan Dunefiend: Eye of Reckoning Physical and Fire to Acid."
+  items = "The Korvan Dunefiend, Agony"
+  [[build.variant]]
+  name = "Cold (Chillheart)"
+  classes = ["0609", "0209", "0910", "0109", "0409"]
+  damage = ["cold", "frostburn"]
+  conversion = "Chillheart: Eye of Reckoning Physical to Cold, Fire and Lightning to Cold 45%."
+  items = "Chillheart"
+
+[[build]]
+id = "sword-and-board"
+name = "Sword and board brawler"
+category = "melee"
+classes = ["0109", "0306", "0309", "0809"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/bladearc1.dbr", "records/skills/playerclass06/savagery1.dbr", "records/skills/playerclass09/righteousfervor1.dbr"]
+conversion = "None. Keep Physical."
+stats = "Block chance and recovery, armor, physical resist, life regeneration; attack speed, Physical damage, Offensive Ability"
+items = "A good shield"
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "death-knight"
+name = "Death Knight Aether / Vitality"
+category = "melee"
+classes = ["0108"]
+damage = ["aether"]
+skills = ["records/skills/playerclass01/blitz1.dbr", "records/skills/playerclass08/weaponpool01.dbr", "records/skills/default/defaultweaponattack.dbr"]
+conversion = "Krieg's Grip turns Blitz Physical into Aether; Mindwarp Physical to Aether 15%."
+stats = "Attack speed, Aether damage, Offensive Ability, crit damage; life, life leech, armor"
+items = "Krieg's Armament, Mindwarp"
+sets = ["records/items/lootsets/itemset_d101.dbr"]
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Aether (Krieg)"
+  [[build.variant]]
+  name = "Vitality (Blood Knight)"
+  damage = ["vitality", "vitality_decay"]
+  skills = ["records/skills/playerclass01/blitz1.dbr", "records/skills/default/defaultweaponattack.dbr"]
+  sets = ["records/items/lootsets/itemset_d123.dbr"]
+  conversion = "The Blood Knight: Aether to Vitality 30%, Counter Strike Physical to Vitality; Edge of Death and Nightbringer convert to Vitality."
+  items = "The Blood Knight, Edge of Death, Nightbringer"
+
+[[build]]
+id = "blade-arc-fire"
+name = "Fire Blade Arc"
+category = "melee"
+classes = ["0102", "0106"]
+damage = ["fire", "burn"]
+skills = ["records/skills/playerclass01/bladearc1.dbr"]
+conversion = "Physical to Fire: Shar'Zul's Worldeater 45%; Sunherald's Claymore converts Menhir's Bulwark."
+stats = "Attack speed (Blade Arc is a weapon attack), Fire and Burn damage, Offensive Ability, crit damage; life leech, life regeneration"
+items = "Sunherald's Claymore, Shar'Zul's Worldeater, Thermite Mine"
+other = { life_leech = 1.0, life_regen = 0.05 }
+
+[[build]]
+id = "werewolf"
+name = "Werewolf shapeshifter"
+category = "melee"
+classes = ["0310", "0610", "0810", "0910"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/playerclass10/werewolf1_skill01_claws.dbr", "records/skills/playerclass10/werewolf1_skill02_charge.dbr"]
+sets = ["records/items/lootsets/itemset_d301.dbr"]
+conversion = "Fenris: Werewolf Physical and Pierce to Cold."
+stats = "Attack speed (Feral Claws), Offensive Ability, crit damage, damage of your type; armor, physical resist, life"
+items = "Fenris"
+  [[build.variant]]
+  name = "Cold (Fenris)"
+  [[build.variant]]
+  name = "Pierce (Primalist, Sincarver)"
+  classes = ["0610"]
+  damage = ["pierce"]
+  sets = []
+  conversion = "Sincarver: Werewolf Physical to Pierce, Elemental and Vitality to Pierce 45% each."
+  items = "2x Sincarver"
+  [[build.variant]]
+  name = "Chaos (Mystic, Blight of Ch'thon)"
+  classes = ["0310"]
+  damage = ["chaos"]
+  sets = []
+  conversion = "Blight of Ch'thon: Werewolf Pierce to Chaos. Shadowheart: Elemental and Vitality to Chaos 45%."
+  items = "Shadowheart"
+
+[[build]]
+id = "retaliation-tank"
+name = "Retaliation melee tank"
+category = "melee"
+classes = ["0106", "0109", "0209", "0709"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass09/aegis1.dbr", "records/skills/playerclass06/savagery1.dbr", "records/skills/playerclass09/righteousfervor1.dbr"]
+conversion = "Match your retaliation type to your RR. Plain % Physical or % Fire does not raise retaliation."
+stats = "% retaliation damage, flat retaliation, retaliation added to attack; Physique, life regeneration, block, armor"
+items = ""
+other = { retaliation = 0.5, retaliation_modifier = 0.5, life_regen = 0.05 }
+  [[build.variant]]
+  name = "Physical (Warlord, Paladin)"
+  classes = ["0109", "0709"]
+  [[build.variant]]
+  name = "Lightning (Warder, Dawnseeker's Light)"
+  classes = ["0106"]
+  damage = ["lightning", "electrocute"]
+  sets = ["records/items/lootsets/itemset_d004b.dbr"]
+  conversion = "Dawnseeker's Light: Counter Strike Physical to Lightning, gear Physical to Lightning 10-15%."
+  items = "Dawnseeker's Light"
+  [[build.variant]]
+  name = "Fire (Shieldbreaker, Cinderborn)"
+  classes = ["0209"]
+  damage = ["fire", "burn"]
+  sets = ["records/items/lootsets/itemset_d312.dbr"]
+  conversion = "Cinderborn: Shattering Smash and Vindictive Flame Physical to Fire, Righteous Fervor Lightning to Fire."
+  items = "Cinderborn"
+
+# ---------------------------------------------------------------- Ranged
+
+[[build]]
+id = "pistol-fire-strike"
+name = "Dual pistol Fire Strike"
+category = "ranged"
+classes = ["0207", "0203"]
+damage = ["fire", "burn"]
+skills = ["records/skills/playerclass02/flamestrike1.dbr", "records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_d116.dbr"]
+conversion = "Dagallon's Destroyer: Physical to Fire 50%, Chaos to Fire 50%."
+stats = "Attack speed, Fire damage, Offensive Ability, crit damage; life leech, physical resist"
+items = "Dagallon's Destruction"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Fire (Purifier, Dagallon)"
+  classes = ["0207"]
+  [[build.variant]]
+  name = "Chaos (Pyromancer, Darkblaze)"
+  classes = ["0203"]
+  damage = ["chaos"]
+  sets = ["records/items/lootsets/itemset_d109.dbr"]
+  conversion = "Darkblaze Garb: Fire to Chaos 30% plus Fire Strike Fire and Lightning to Chaos; Exterminus Physical to Chaos 15%; Voidrend Talons Acid to Chaos 25%."
+  items = "Darkblaze Garb, Exterminus, Voidrend Talons"
+
+[[build]]
+id = "boltthrower"
+name = "Crossbow Pierce"
+category = "ranged"
+classes = ["0710"]
+damage = ["pierce"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+conversion = "Ugdenbog Boltthrower turns Lightning (not Cold or Physical) into Pierce."
+stats = "Attack speed, Storm Spread chance, Cunning, Pierce damage, crit damage; life leech, physical resist"
+items = "Ugdenbog Boltthrower"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "marksman-cold"
+name = "Cold dual pistols"
+category = "ranged"
+classes = ["0410"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+conversion = "Hagarradian Enforcer: Physical to Cold 15%, Acid to Cold 45%. Bloodmane converts nothing."
+stats = "Attack speed, Cold damage, Offensive Ability, crit damage; Defensive Ability, dodge, life leech"
+items = "2x Hagarradian Enforcer"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "aether-gunslinger"
+name = "Aether gunslinger"
+category = "ranged"
+classes = ["0710"]
+damage = ["aether"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+sets = ["records/items/lootsets/itemset_d308.dbr"]
+conversion = "Unwound Fate: Vitality to Aether 25% per piece, Pierce to Aether 45% on the pistol; Ragefire turns Onslaught Cold into Aether."
+stats = "Attack speed, Aether damage, Offensive Ability, crit damage; Inquisitor Seal, life leech"
+items = "Unwound Fate, Ragefire"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "rifle-pierce-elemental"
+name = "Two-handed rifle"
+category = "ranged"
+classes = ["0407", "0107", "0607"]
+damage = ["pierce"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/cadence1.dbr"]
+sets = ["records/items/lootsets/itemset_d019b.dbr"]
+conversion = "Valdun's Betrayal: Elemental to Pierce 50%, Cadence Fire to Pierce."
+stats = "Attack speed, damage of your type, Offensive Ability, crit damage; Inquisitor Seal, reflected damage reduction"
+items = "Valdun's Betrayal"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Pierce (Tactician, Valdun)"
+  classes = ["0107"]
+  [[build.variant]]
+  name = "Elemental (Tactician, Discord)"
+  classes = ["0107"]
+  damage = ["fire", "cold", "lightning", "burn", "frostburn", "electrocute"]
+  sets = []
+  conversion = "Discord turns Cadence Physical into Elemental."
+  items = ""
+  [[build.variant]]
+  name = "Pierce to Elemental (Infiltrator, Luminari)"
+  classes = ["0407"]
+  damage = ["fire", "cold", "lightning", "burn", "frostburn", "electrocute"]
+  skills = ["records/skills/default/defaultweaponattack.dbr"]
+  sets = ["records/items/lootsets/itemset_c106.dbr"]
+  conversion = "Luminari Regalia converts Pierce into Elemental (not into Pierce)."
+  items = "Luminari Regalia"
+
+[[build]]
+id = "arcane-archer"
+name = "Elemental ranged Battlemage"
+category = "ranged"
+classes = ["0105"]
+damage = ["fire", "cold", "lightning", "burn", "frostburn", "electrocute"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass01/cadence1.dbr"]
+conversion = "Discord: Cadence Physical to Elemental. Awakened Nar's Arcane Destroyer: Aether to Elemental 100%, Physical 45%."
+stats = "Attack speed, Elemental damage, Offensive Ability, crit damage; Maiven's Sphere, Mirror, life leech"
+items = "Awakened Nar's Arcane Destroyer, Iskandra's Unification"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "stun-jacks"
+name = "Lightning Stun Jacks"
+category = "ranged"
+classes = ["0206"]
+damage = ["lightning", "electrocute"]
+skills = ["records/skills/playerclass02/stunjacks1.dbr", "records/skills/playerclass06/savagery1.dbr"]
+sets = ["records/items/lootsets/itemset_d022b.dbr"]
+conversion = "Light's Guardian turns Stun Jacks' Physical into Lightning; Stormrend does too."
+stats = "Cast speed, cooldown reduction, Lightning and Electrocute damage, Offensive Ability; life regeneration, Blast Shield"
+items = "Light's Guardian, Stormrend"
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "gunner-fire-chaos"
+name = "Fire / Chaos gunner"
+category = "ranged"
+classes = ["0209", "0203"]
+damage = ["fire", "burn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass02/flamestrike1.dbr", "records/skills/playerclass09/aegis1.dbr"]
+sets = ["records/items/lootsets/itemset_d107.dbr"]
+conversion = "Stronghold of the Legion: Physical to Fire 50%."
+stats = "Attack speed, block, cooldown reduction, Fire damage, Offensive Ability"
+items = "Stronghold of the Legion"
+  [[build.variant]]
+  name = "Fire (Shieldbreaker, Stronghold)"
+  classes = ["0209"]
+  [[build.variant]]
+  name = "Chaos (Pyromancer, Harbinger)"
+  classes = ["0203"]
+  damage = ["chaos"]
+  skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass03/doombolt1.dbr"]
+  sets = ["records/items/lootsets/itemset_d005b.dbr"]
+  conversion = "The Harbinger's Message: Vitality to Chaos, Doom Bolt Vitality to Chaos."
+  stats = "Attack speed, Chaos damage, Doom Bolt ranks, cooldown reduction, Offensive Ability; life"
+  items = "The Harbinger's Message"
+
+# ---------------------------------------------------------------- Casters
+
+[[build]]
+id = "aether-ray"
+name = "Albrecht's Aether Ray"
+category = "caster"
+classes = ["0508", "0507", "0509", "0305"]
+damage = ["aether"]
+skills = ["records/skills/playerclass05/aetherray1.dbr"]
+conversion = "Vitality to Aether: Chains of Ygraad 50%. The Clairvoyant converts Chaos, Chosen Robes Lightning."
+stats = "Cast speed, Aether damage, Spirit, Offensive Ability, crit damage; physical resist, energy regeneration"
+items = "Chains of Ygraad, Albrecht's Commendation"
+  [[build.variant]]
+  name = "Aether"
+  [[build.variant]]
+  name = "Chaos (Warlock, Tainted Power)"
+  classes = ["0305", "0508"]
+  damage = ["chaos"]
+  conversion = "Tainted Power turns Aether Ray's Aether and Lightning into Chaos; Black Scorch Covenant adds Fire to Chaos."
+  items = "Black Scorch Covenant"
+  sets = ["records/items/lootsets/itemset_d021b.dbr"]
+
+[[build]]
+id = "drain-essence"
+name = "Drain Essence"
+category = "caster"
+classes = ["0408", "0508", "0708", "0810"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/playerclass08/lifetap1.dbr"]
+sets = ["records/items/lootsets/itemset_d203.dbr"]
+conversion = "Chillwhisper: Vitality and Aether to Cold 30%; Gravechill turns Drain Essence's Aether into Cold."
+stats = "Cast speed, damage of your type, Drain Essence ranks, Offensive Ability; armor, physical resist"
+items = "Chillwhisper"
+  [[build.variant]]
+  name = "Cold (Chillwhisper)"
+  classes = ["0408", "0708", "0810"]
+  [[build.variant]]
+  name = "Aether (Spellbinder, Uroboruuk)"
+  classes = ["0508"]
+  damage = ["aether"]
+  sets = ["records/items/lootsets/itemset_d114.dbr"]
+  conversion = "Uroboruuk's Guise: Drain Essence Vitality to Aether."
+  items = "Uroboruuk's Guise"
+  [[build.variant]]
+  name = "Vitality"
+  classes = ["0708", "0810", "0408"]
+  damage = ["vitality", "vitality_decay"]
+  sets = []
+  conversion = "None: Drain Essence is Vitality."
+  items = ""
+
+[[build]]
+id = "flames-of-ignaffar"
+name = "Flames of Ignaffar"
+category = "caster"
+classes = ["0207", "0307", "0709", "0407"]
+damage = ["fire", "burn"]
+skills = ["records/skills/playerclass07/purifyingflame1.dbr"]
+conversion = "Fire stays Fire."
+stats = "Cast speed, damage of your type, Offensive Ability, crit damage; life leech, Inquisitor Seal"
+items = "Bloodsworn Sigil"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Fire"
+  [[build.variant]]
+  name = "Chaos (Tainted Flame)"
+  classes = ["0307", "0709", "0207"]
+  damage = ["chaos"]
+  conversion = "Tainted Flame turns Flames of Ignaffar's Fire and Lightning into Chaos."
+  sets = ["records/items/lootsets/itemset_d217.dbr"]
+  items = "The Voidsoul"
+  [[build.variant]]
+  name = "Cold (Farath's Cube)"
+  classes = ["0407"]
+  damage = ["cold", "frostburn"]
+  conversion = "Farath's Cube turns Flames of Ignaffar's Fire and Lightning into Cold."
+  items = "Farath's Cube"
+
+[[build]]
+id = "winds-of-asterkarn"
+name = "Winds of Asterkarn"
+category = "caster"
+classes = ["0510", "0910"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/playerclass10/windsofasterkarn1.dbr", "records/skills/playerclass05/skyshard1.dbr", "records/skills/playerclass09/judgment1.dbr"]
+conversion = "Winds of Asterkarn is Cold; keep conversions into Cold."
+stats = "Cast speed, cooldown reduction, Cold and Frostburn damage, Offensive Ability; armor, physical resist"
+items = "Stormfang (Zealot)"
+  [[build.variant]]
+  name = "Cold (Evoker)"
+  classes = ["0510"]
+  [[build.variant]]
+  name = "Cold / Lightning (Zealot, Stormfang)"
+  classes = ["0910"]
+  damage = ["cold", "frostburn", "lightning", "electrocute"]
+  sets = ["records/items/lootsets/itemset_d310.dbr"]
+
+[[build]]
+id = "prm"
+name = "Panetti's Replicating Missile"
+category = "caster"
+classes = ["0507", "0508"]
+damage = ["fire", "lightning", "burn", "electrocute"]
+skills = ["records/skills/playerclass05/arcanemissile.dbr"]
+sets = ["records/items/lootsets/itemset_d011b.dbr"]
+conversion = "Invoker's Will: PRM Aether to Fire and Lightning, Cold to Fire and Lightning."
+stats = "Cast speed, Elemental damage, Offensive Ability, crit damage; Inquisitor Seal, Mirror, energy regeneration"
+items = "Invoker's Will"
+  [[build.variant]]
+  name = "Fire / Lightning (Mage Hunter)"
+  classes = ["0507"]
+  [[build.variant]]
+  name = "Vitality (Spellbinder, Dreadwalker)"
+  classes = ["0508"]
+  damage = ["vitality", "vitality_decay"]
+  skills = ["records/skills/playerclass05/arcanemissile.dbr", "records/skills/playerclass08/lifetap1.dbr"]
+  sets = ["records/items/awakened/lootsets/itemset_c105.dbr"]
+  conversion = "Awakened Dreadwalker: Aether to Vitality; the dagger turns PRM's Lightning into Vitality."
+  items = "Awakened Dreadwalker, Conduit of Arcane Whispers"
+
+[[build]]
+id = "phantasmal-blades"
+name = "Phantasmal Blades"
+category = "caster"
+classes = ["0408", "0304", "0410", "0405"]
+damage = ["vitality", "vitality_decay"]
+skills = ["records/skills/playerclass04/phantomblade.dbr"]
+conversion = "Turn all of Phantasmal Blades' Pierce, Cold, Vitality and Chaos into one type."
+stats = "Cast speed (not attack speed), flat damage, damage of your type, Offensive Ability; energy regeneration, life"
+items = ""
+  [[build.variant]]
+  name = "Vitality (Spectral Arbalest)"
+  classes = ["0408"]
+  conversion = "Spectral Arbalest: Phantasmal Blades Pierce and Chaos to Vitality."
+  items = "Spectral Arbalest"
+  [[build.variant]]
+  name = "Aether (Blaze Herald)"
+  classes = ["0408"]
+  damage = ["aether"]
+  conversion = "Blaze Herald: Pierce to Aether 45%."
+  items = "Blaze Herald"
+  [[build.variant]]
+  name = "Acid (Witch Hunter, Venomlance)"
+  classes = ["0304"]
+  damage = ["acid", "poison"]
+  conversion = "Venomlance: Phantasmal Blades Pierce and Vitality to Acid, Frenetic Throw Chaos to Acid."
+  items = "Venomlance"
+  [[build.variant]]
+  name = "Pierce (Reaver, Jarinthor's Head)"
+  classes = ["0410"]
+  damage = ["pierce"]
+  conversion = "Jarinthor's Head: Cold and Chaos to Pierce 45%, Phantasmal Blades Vitality to Pierce."
+  items = "Jarinthor's Head"
+  [[build.variant]]
+  name = "Elemental (Spellbreaker, Spelldrinker)"
+  classes = ["0405"]
+  damage = ["fire", "cold", "lightning", "burn", "frostburn", "electrocute"]
+  conversion = "Spelldrinker turns Aether and Pierce into Elemental (not Cold)."
+  items = "Spelldrinker"
+
+[[build]]
+id = "doom-bolt"
+name = "Doom Bolt"
+category = "caster"
+classes = ["0310", "0103", "0305", "0203"]
+damage = ["chaos"]
+skills = ["records/skills/playerclass03/doombolt1.dbr", "records/skills/playerclass10/onslaught1.dbr", "records/skills/playerclass01/cadence1.dbr"]
+sets = ["records/items/lootsets/itemset_d005b.dbr"]
+conversion = "The Harbinger's Message: Vitality to Chaos (Doom Bolt fully). Voidheart: Fire to Chaos 25%."
+stats = "Cooldown reduction, attack speed (Onslaught), Chaos damage, Offensive Ability, crit damage; life, armor"
+items = "The Harbinger's Message, Voidheart, Woolly Voidguard (Witchblade)"
+
+[[build]]
+id = "meteor"
+name = "Sky Shard / Devastation caster"
+category = "caster"
+classes = ["0506", "0510", "0205", "0105"]
+damage = ["cold", "lightning", "frostburn", "electrocute"]
+skills = ["records/skills/playerclass05/skyshard1.dbr", "records/skills/playerclass05/devastation.dbr"]
+conversion = "Keep Trozan's Sky Shard Cold and Lightning."
+stats = "Cooldown reduction, cast speed, damage of your type, Offensive Ability; Maiven's Sphere, Mirror"
+items = ""
+  [[build.variant]]
+  name = "Cold / Lightning (Druid, Evoker)"
+  classes = ["0506", "0510"]
+  [[build.variant]]
+  name = "Fire (Sorcerer, Pyran)"
+  classes = ["0205"]
+  damage = ["fire", "burn"]
+  skills = ["records/skills/playerclass05/devastation.dbr"]
+  sets = ["records/items/lootsets/itemset_d215.dbr"]
+  conversion = "Pyran's Ruminations: Devastation Aether to Fire; Lightning and Cold to Fire 30%."
+  items = "Pyran's Ruminations"
+  [[build.variant]]
+  name = "Physical (Battlemage, Spellscourge)"
+  classes = ["0105"]
+  damage = ["physical", "internal_trauma"]
+  skills = ["records/skills/playerclass05/devastation.dbr"]
+  sets = ["records/items/lootsets/itemset_d110.dbr"]
+  conversion = "The Spellscourge: Elemental to Physical 25-45%, Devastation Aether to Physical."
+  stats = "Cooldown reduction, Physical damage, block, armor, Offensive Ability"
+  items = "The Spellscourge"
+
+[[build]]
+id = "bomber"
+name = "Demolitionist bomber"
+category = "caster"
+classes = ["0205", "0203", "0204"]
+damage = ["lightning", "electrocute"]
+skills = ["records/skills/playerclass02/grenado1.dbr", "records/skills/playerclass02/canisterbomb1.dbr", "records/skills/playerclass02/blackwater1.dbr"]
+sets = ["records/items/lootsets/itemset_d008b.dbr"]
+conversion = "Barrelsmith's Destroyers: Fire to Lightning 45% per pistol, Canister Bomb Pierce to Lightning. Skyfire Grenado and Concussive Bomb turn Physical into Lightning."
+stats = "Cooldown reduction, cast speed, damage of your type and its DoT, Offensive Ability; energy regeneration, Blast Shield"
+items = "Barrelsmith's Destroyers"
+  [[build.variant]]
+  name = "Lightning (Sorcerer, Barrelsmith)"
+  classes = ["0205"]
+  [[build.variant]]
+  name = "Fire (Pyromancer, Saboteur)"
+  classes = ["0203", "0204"]
+  damage = ["fire", "burn"]
+  sets = []
+  conversion = "Keep Fire: skip Skyfire Grenado and Lightning conversions."
+  items = ""
+
+[[build]]
+id = "nightblade-spell"
+name = "Nightblade spell (Ring of Steel, Ill Omen)"
+category = "caster"
+classes = ["0408", "0405"]
+damage = ["vitality", "vitality_decay"]
+skills = ["records/skills/playerclass04/ringofsteel.dbr", "records/skills/playerclass04/shadowstrike.dbr", "records/skills/playerclass08/illomen1.dbr"]
+sets = ["records/items/lootsets/itemset_d219.dbr"]
+conversion = "Armor of the Eternal Night (Morgoneth) converts Pierce to Vitality, not to Cold."
+stats = "Cooldown reduction, Vitality damage, Offensive Ability, crit damage; life, life leech"
+items = "Armor of the Eternal Night"
+other = { life_leech = 1.0 }
+  [[build.variant]]
+  name = "Vitality (Morgoneth)"
+  [[build.variant]]
+  name = "Cold (Ring of Frost)"
+  damage = ["cold", "frostburn"]
+  sets = []
+  conversion = "Ring of Frost turns Ring of Steel's Pierce into Cold."
+  items = ""
+
+[[build]]
+id = "bone-harvest-raven"
+name = "Wereraven Bone Harvest"
+category = "caster"
+classes = ["0810"]
+damage = ["chaos"]
+skills = ["records/skills/playerclass08/soulscythe1.dbr", "records/skills/playerclass10/wereraven1_skill01_icicles.dbr", "records/skills/playerclass10/wereraven1_skill02_icering.dbr"]
+sets = ["records/items/awakened/lootsets/itemset_c301b.dbr"]
+conversion = "Talons of Ch'thon: Wereraven Cold to Chaos. Awakened Lokhor's Folly: Physical to Chaos 100%, Elemental 50%. Harvester of Death turns Bone Harvest Physical into Cold, which Talons does not reach."
+stats = "Cast speed, Chaos damage, Offensive Ability, crit damage; armor, physical resist"
+items = "Awakened Lokhor's Folly, Stoneplate Greaves"
+  [[build.variant]]
+  name = "Chaos (Lokhor)"
+  [[build.variant]]
+  name = "Vitality"
+  damage = ["vitality", "vitality_decay"]
+  sets = []
+  conversion = "Keep Vitality; skip Talons of Ch'thon."
+  items = ""
+
+[[build]]
+id = "storm-totem"
+name = "Storm Totem / Wind Devil"
+category = "caster"
+classes = ["0506", "0607", "0106", "0206"]
+damage = ["lightning", "electrocute"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass06/savagery1.dbr", "records/skills/playerclass05/skyshard1.dbr"]
+conversion = "Physical to Lightning (Stormcaller's Pact 15%)."
+stats = "Lightning and Electrocute damage, cooldown reduction, cast speed, Offensive Ability; life regeneration, run speed"
+items = "Ludrigan's Pride (Vindicator)"
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "mortar-trap"
+name = "Mortar Trap"
+category = "caster"
+classes = ["0209", "0205"]
+damage = ["fire", "burn"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass02/flamestrike1.dbr"]
+conversion = "Physical to Fire. Rune of Elgoloth carries no conversion."
+stats = "Mortar Trap limit, cooldown reduction, Fire and Burn damage, Offensive Ability; life regeneration, Blast Shield"
+items = "Pyran's Ruminations (Sorcerer)"
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "vitality-zones"
+name = "Vitality zone caster"
+category = "caster"
+classes = ["0306", "0608", "0308", "0809"]
+damage = ["vitality", "vitality_decay"]
+skills = ["records/skills/playerclass08/ravenousearth1.dbr", "records/skills/playerclass03/sigilofdestruction1.dbr", "records/skills/playerclass06/devouringswarm1.dbr"]
+sets = ["records/items/lootsets/itemset_d119.dbr"]
+conversion = "None needed: the zones are Vitality. Dark One's Gift turns Chaos into Vitality 25%."
+stats = "Cast speed, cooldown reduction, Vitality and Vitality Decay damage, Offensive Ability; life, armor"
+items = "Dark One's Gift"
+
+[[build]]
+id = "evil-eye"
+name = "Dreeg's Evil Eye"
+category = "caster"
+classes = ["0309", "0306", "0304", "0203"]
+damage = ["acid", "poison"]
+skills = ["records/skills/playerclass03/evileye1.dbr"]
+sets = ["records/items/lootsets/itemset_d014b.dbr"]
+conversion = "Deception of Dreeg: Chaos and Vitality to Acid. (Corruptian converts Acid away, into Physical.)"
+stats = "Cast speed or cooldown reduction (Focused Gaze), Acid and Poison damage, Poison duration, Offensive Ability; life regeneration"
+items = "Deception of Dreeg"
+other = { life_regen = 0.05 }
+  [[build.variant]]
+  name = "Acid / Poison"
+  [[build.variant]]
+  name = "Fire / Burn (Pyromancer, Ember's Calling)"
+  classes = ["0203"]
+  damage = ["fire", "burn"]
+  sets = ["records/items/lootsets/itemset_d222.dbr"]
+  conversion = "Ember's Calling converts Cold into Fire, not Acid. Acid to Fire needs other gear."
+  items = "Ember's Calling"
+
+[[build]]
+id = "pox-swarm"
+name = "Bloody Pox / Devouring Swarm"
+category = "caster"
+classes = ["0306", "0310", "0304"]
+damage = ["bleeding", "vitality", "vitality_decay"]
+skills = ["records/skills/playerclass03/pox1.dbr", "records/skills/playerclass06/devouringswarm1.dbr"]
+conversion = "None: Bleeding cannot be converted."
+stats = "Bleeding damage and duration, Vitality damage, Offensive Ability, crit damage; life regeneration, run speed, life"
+items = ""
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "word-of-pain"
+name = "Word of Pain + Storm Box"
+category = "caster"
+classes = ["0507", "0407"]
+damage = ["fire", "cold", "lightning", "burn", "frostburn", "electrocute"]
+skills = ["records/skills/playerclass07/wordofpain1.dbr", "records/skills/playerclass07/lightningnet1.dbr"]
+conversion = "Keep Elemental. Allagast's Arcane Net turns Storm Box's Lightning into Aether."
+stats = "Cast speed, Elemental damage, Offensive Ability, crit damage; Inquisitor Seal, Mirror, life regeneration"
+items = ""
+
+[[build]]
+id = "vanquisher-skate"
+name = "Fire Vire's Might skater"
+category = "caster"
+classes = ["0509", "0209"]
+damage = ["fire", "burn"]
+skills = ["records/skills/playerclass09/viremight1.dbr", "records/skills/playerclass09/judgment1.dbr"]
+sets = ["records/items/lootsets/itemset_d202.dbr"]
+conversion = "Volcanic Might turns Vire's Might Physical into Fire. The Vanquisher converts Aether to Fire, not Physical."
+stats = "Cooldown reduction, Fire and Burn damage, Offensive Ability; stun, slow and freeze resist, life, physical resist"
+items = "The Vanquisher"
+other = { stun_resist = 0.3, slow_resist = 0.2, freeze_resist = 0.2 }
+
+# ---------------------------------------------------------------- Pets
+
+[[build]]
+id = "fire-beastcaller"
+name = "Fire pets"
+category = "pets"
+classes = ["0306"]
+damage = ["fire", "burn"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_d003b.dbr"]
+conversion = "Dracarris: pets' Physical to Fire 100%. Nature's Call Regalia converts nothing."
+stats = "Pet damage, pet attack speed, pet crit damage; pet resists and life, your Fire RR"
+items = "Dracarris, Nature's Call Regalia"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "bysmiel-pets"
+name = "Elemental pets (Bysmiel's Trinkets)"
+category = "pets"
+classes = ["0306"]
+damage = ["fire", "cold", "lightning"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_d213.dbr"]
+conversion = "Bysmiel's Trinkets: pets' Physical, Acid and Vitality to Elemental (not Lightning)."
+stats = "Pet damage, pet cast and attack speed, pet crit damage; pet resists and life"
+items = "Bysmiel's Trinkets"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "skeleton-army"
+name = "Skeleton army"
+category = "pets"
+classes = ["0308"]
+damage = ["chaos"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/awakened/lootsets/itemset_c011b.dbr"]
+conversion = "Awakened Desecrator Covenant: pets' Physical, Vitality and Elemental to Chaos."
+stats = "Pet damage, pet attack and cast speed, pet crit damage; pet life and resists (critical), cooldown reduction"
+items = "Awakened Desecrator Covenant"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "vitality-pets"
+name = "Vitality pets"
+category = "pets"
+classes = ["0608", "0308"]
+damage = ["vitality", "vitality_decay"]
+skills = ["records/skills/default/defaultweaponattack.dbr", "records/skills/playerclass08/reapspirit1.dbr"]
+sets = ["records/items/lootsets/itemset_d118.dbr"]
+conversion = "Guardian of Death's Gates: pets' Physical to Vitality 100%. Diviner's Vision: pets' Cold to Vitality."
+stats = "Pet damage, pet crit damage, pet speed; cooldown reduction (Reap Spirit), pet resists"
+items = "Guardian of Death's Gates, Diviner's Vision"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "blight-fiend"
+name = "Acid Blight Fiend"
+category = "pets"
+classes = ["0608", "0308"]
+damage = ["acid", "poison"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_d212.dbr"]
+conversion = "Ghol's Malice: pets' Vitality to Acid 50% (not Physical)."
+stats = "Pet damage, pet crit damage, pet speed; cooldown reduction, pet life and Acid resist"
+items = "Ghol's Malice"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "cold-pets"
+name = "Cold pets (Ice King)"
+category = "pets"
+classes = ["0310", "0308"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_d315.dbr"]
+conversion = "Ice King's Adornments converts the player's Pierce (Witchfire) and Chaos (the sword) to Cold; no pet conversion found."
+stats = "Pet damage, pet attack speed, pet crit damage; pet resists and life, your Cold RR"
+items = "Ice King's Adornments"
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "warlock-duo"
+name = "Familiar + Hellhound Warlock"
+category = "pets"
+classes = ["0305"]
+damage = ["chaos", "fire", "lightning"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+conversion = "No pet conversion on Blood Orb of Ch'thon (it is a Chaos / Vitality caster off-hand)."
+stats = "Pet damage, pet speed, pet crit damage; cooldown reduction, pet resists"
+items = ""
+other = { pet_bonus = { weight = 1.0, when = "pets" }, retaliation = 0, retaliation_modifier = 0 }
+
+[[build]]
+id = "player-scaled-pets"
+name = "Player-scaled summons"
+category = "pets"
+classes = ["0209", "0709", "0408", "0506"]
+damage = ["fire", "burn"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+conversion = "Your own conversions apply; pet bonuses do nothing for these."
+stats = "Your % damage of the type, Offensive Ability, crit damage, RR; summon limit, cooldown reduction, cast speed"
+items = ""
+  [[build.variant]]
+  name = "Guardians of Empyrion (Shieldbreaker, Paladin)"
+  classes = ["0209", "0709"]
+  [[build.variant]]
+  name = "Acid Guardians (Scion of Dreeg)"
+  classes = ["0209", "0709"]
+  damage = ["acid", "poison", "vitality"]
+  conversion = "Scion of Dreeg: the Guardians' Physical to Vitality, Elemental to Acid."
+  [[build.variant]]
+  name = "Blade Spirit (Reaper)"
+  classes = ["0408"]
+  damage = ["pierce", "physical"]
+  [[build.variant]]
+  name = "Wind Devil (Druid)"
+  classes = ["0506"]
+  damage = ["lightning", "electrocute"]
+
+# ---------------------------------------------------------------- Hybrids
+
+[[build]]
+id = "ice-king-hybrid"
+name = "Werewolf + Hellhounds (Ice King)"
+category = "hybrid"
+classes = ["0310"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/playerclass10/werewolf1_skill01_claws.dbr"]
+sets = ["records/items/lootsets/itemset_d315.dbr"]
+conversion = "Ice King's Adornments: Witchfire Pierce and the sword's Chaos to Cold."
+stats = "Attack speed, Cold damage, Offensive Ability, armor; pet damage, pet resists"
+items = "Ice King's Adornments"
+other = { pet_bonus = { weight = 0.6, when = "pets" }, life_leech = 1.0 }
+
+[[build]]
+id = "woolly-voidguard"
+name = "Doom Bolt sword and board"
+category = "hybrid"
+classes = ["0103"]
+damage = ["chaos"]
+skills = ["records/skills/playerclass01/cadence1.dbr", "records/skills/playerclass03/doombolt1.dbr", "records/skills/default/defaultweaponattack.dbr"]
+conversion = "Woolly Voidguard has no conversion: it changes Cadence and Doom Bolt. Physical to Chaos from Consecrated Blade (Witchfire) 30% and gear."
+stats = "Attack speed, Chaos damage, Doom Bolt ranks, Offensive Ability; block, armor, physical resist, life leech"
+items = "Woolly Voidguard"
+other = { life_leech = 1.0 }
+
+[[build]]
+id = "storm-spread-deceiver"
+name = "Storm Spread pistols + Familiars"
+category = "hybrid"
+classes = ["0307"]
+damage = ["fire", "cold", "lightning", "electrocute"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+sets = ["records/items/lootsets/itemset_c106.dbr"]
+conversion = "Luminari Regalia: Pierce to Elemental."
+stats = "Attack speed, Storm Spread chance, Elemental and Lightning damage, Offensive Ability; Inquisitor Seal, life leech"
+items = "Luminari Regalia"
+other = { pet_bonus = { weight = 0.4, when = "pets" }, life_leech = 1.0 }
+
+[[build]]
+id = "cold-aura-walker"
+name = "Cold aura walker"
+category = "hybrid"
+classes = ["0407"]
+damage = ["cold", "frostburn"]
+skills = ["records/skills/default/defaultweaponattack.dbr"]
+conversion = "Turn Elemental and Pierce into Cold."
+stats = "Cold and Frostburn damage, Cold RR, Offensive Ability; Inquisitor Seal, life regeneration, armor, life"
+items = ""
+other = { life_regen = 0.05 }
+
+[[build]]
+id = "physical-chaos-hybrid"
+name = "Physical Devastation / Chaos Aether Ray"
+category = "hybrid"
+classes = ["0105", "0509", "0305", "0508"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/playerclass05/devastation.dbr"]
+sets = ["records/items/lootsets/itemset_d110.dbr"]
+conversion = "The Spellscourge: Elemental to Physical, Devastation Aether to Physical."
+stats = "Cooldown reduction, Physical damage, block, armor, Offensive Ability"
+items = "The Spellscourge"
+  [[build.variant]]
+  name = "Physical Devastation (Spellscourge)"
+  classes = ["0105", "0509"]
+  [[build.variant]]
+  name = "Chaos Aether Ray (Tainted Power)"
+  classes = ["0305", "0508"]
+  damage = ["chaos"]
+  skills = ["records/skills/playerclass05/aetherray1.dbr"]
+  sets = ["records/items/lootsets/itemset_d021b.dbr"]
+  conversion = "Tainted Power: Aether Ray's Aether and Lightning to Chaos; Black Scorch Covenant adds Fire to Chaos."
+  stats = "Cast speed, Chaos damage, Offensive Ability, crit damage; physical resist"
+  items = "Black Scorch Covenant"

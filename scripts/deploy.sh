@@ -20,11 +20,8 @@ STEAM="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/gdcompare"
 MANIFEST_NAME="GDCompare.installed"
 
-# Ultimate ASI Loader, pinned (github.com/ThirteenAG/Ultimate-ASI-Loader, release 2026-08-16).
-UAL_VERSION="v9.7.4"
-UAL_URL="https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/$UAL_VERSION/Ultimate-ASI-Loader_x64.zip"
-UAL_ZIP_SHA256="8272d83b2692662098746f2d0ad0e2d85f3c8358ab1d63f75fbe835c2c8135fd"
-UAL_DLL_SHA256="fa266e3513d02c08a1b808f28c10538a489eaffaa4b0707f7cc1066e71b5afd7"
+# shellcheck source=ual.sh
+. "$ROOT/scripts/ual.sh"
 
 die() { echo "deploy: $*" >&2; exit 1; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
@@ -43,14 +40,15 @@ find_game() {
 
 ASI="$ROOT/build/adapter/adapter/GDCompare.asi"
 UAL_INI="$ROOT/adapter/ual/dinput8.ini"
-if [[ $LOADER_ONLY == 0 ]]; then
-  if [[ -z "${IN_NIX_SHELL:-}" ]]; then
-    nix-shell "$ROOT/shell.nix" --run "cmake --workflow --preset adapter"
-  else
-    cmake --workflow --preset adapter
-  fi
-  [[ -f "$ASI" ]] || die "build produced no $ASI"
-fi
+SETUP="$ROOT/build/core/installer/gdcompare-setup"  # prints the launch options
+build() {
+  if [[ -z "${IN_NIX_SHELL:-}" ]]; then nix-shell "$ROOT/shell.nix" --run "$1"; else bash -c "$1"; fi
+}
+cmds="cmake --preset core >/dev/null && cmake --build build/core --target gdcompare-setup"
+[[ $LOADER_ONLY == 0 ]] && cmds="cmake --workflow --preset adapter && $cmds"
+build "$cmds"
+[[ $LOADER_ONLY == 1 || -f "$ASI" ]] || die "build produced no $ASI"
+[[ -x "$SETUP" ]] || die "build produced no $SETUP"
 
 GAME="$(find_game)"
 TARGET="$GAME/${GD_SUBDIR:-compat}"
@@ -58,20 +56,7 @@ TARGET="$GAME/${GD_SUBDIR:-compat}"
 # wine names the process after the exe; its cmdline starts with a Windows path (S:\...\Grim Dawn.exe)
 if pgrep -x 'Grim Dawn.exe' >/dev/null || pgrep -f '^[A-Za-z]:\\.*Grim Dawn\.exe' >/dev/null; then die "Grim Dawn is running; quit it first"; fi
 
-# ASI loader: download once, verify both hashes.
-mkdir -p "$CACHE"
-UAL_ZIP="$CACHE/Ultimate-ASI-Loader_x64-$UAL_VERSION.zip"
-UAL_DLL="$CACHE/dinput8-$UAL_VERSION.dll"
-if [[ ! -f "$UAL_DLL" ]]; then
-  if [[ ! -f "$UAL_ZIP" ]]; then
-    curl -fsSL "$UAL_URL" -o "$UAL_ZIP.part"
-    mv -f "$UAL_ZIP.part" "$UAL_ZIP"
-  fi
-  [[ "$(sha "$UAL_ZIP")" == "$UAL_ZIP_SHA256" ]] || { rm -f "$UAL_ZIP"; die "ASI loader zip hash mismatch"; }
-  python3 -I -c 'import sys,zipfile; open(sys.argv[2],"wb").write(zipfile.ZipFile(sys.argv[1]).read("dinput8.dll"))' \
-    "$UAL_ZIP" "$UAL_DLL"
-fi
-[[ "$(sha "$UAL_DLL")" == "$UAL_DLL_SHA256" ]] || { rm -f "$UAL_DLL"; die "dinput8.dll hash mismatch"; }
+fetch_ual "$CACHE" || die "could not get the ASI loader"
 
 # A destination may be replaced only if absent, identical, or in our manifest.
 MANIFEST="$TARGET/$MANIFEST_NAME"
@@ -135,7 +120,7 @@ mv -f "$MANIFEST.new" "$MANIFEST"
 
 echo
 echo "Steam → Grim Dawn → Properties → Launch Options:"
-python3 -I "$ROOT/scripts/launch_options.py" add "$STEAM" "$TARGET"
+"$SETUP" launch-options add --steam "$STEAM" --game-folder "$TARGET"
 echo
 echo "Launch with the 'Compatibility Mode' entry (runs compat/Grim Dawn.exe)."
 if [[ $LOADER_ONLY == 0 ]]; then
