@@ -512,7 +512,7 @@ struct Raw {
   double crit = 0;
   double cooldown = 0;     // modifiers add negative values
   double leech = 0;        // own ADCtH plus modifiers' (Bramblevine)
-  std::map<int, std::map<int, double>> conversion;
+  Conversions conversion;  // in the order CollectLocalConversionAttributes adds them
 };
 
 int damage_type_named(std::string_view name) {
@@ -532,6 +532,13 @@ void add_flat(const arz::Record& r, std::uint32_t level, double scale, Amounts& 
     if (chance > 0 && chance < 100) v *= chance / 100;
     out[{f.type, !f.duration.empty()}] += v * scale;
   }
+}
+
+// ConversionAttributeAccumulator::AddAttribute 0x17D890: a new source type appends its Data, a known one adds to it.
+void add_pair(Conversions& c, int from, int to, double pct) {
+  auto it = std::find_if(c.begin(), c.end(), [&](const auto& x) { return x.first == from; });
+  if (it == c.end()) it = c.insert(c.end(), {from, {}});
+  it->second[to] += pct;
 }
 
 bool has_damage(const arz::Record& r, std::uint32_t level) {
@@ -557,7 +564,7 @@ void add_record(const arz::Record& r, std::uint32_t level, Raw& out) {
                                       std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
     const int from = damage_type_named(r.string(in)), to = damage_type_named(r.string(outk));
     const double v = at_level(r, pct, level);
-    if (from && to && v > 0) out.conversion[from][to] += v;
+    if (from && to && v > 0) add_pair(out.conversion, from, to, v);
   }
 }
 
@@ -691,20 +698,22 @@ void split_elemental(Amounts& a) {
 
 }  // namespace
 
-// Skill::CollectCombatParameters 0x499E40: the skill's own conversions first (0x49A3B7), then the character's
-// (SkillManager::GetConversionAttributes + equipment, 0x49A5D7), each level weighed on its own.
-// ConversionAttributeAccumulator::Weigh 0x17D520: a source type whose percents add up over 100% has every pair
-// scaled by 100 / total. ConvertDamage 0x119ED0, per source type: an entry matches its own type, BasePhysical
-// matches Physical, Elemental matches Cold / Fire / Lightning; DoT is not moved into Pierce, Chaos or Aether
-// (0x119FE0: those pairs are skipped, the others keep their weighed percent); the entry keeps 100 - the moved
-// percent. New entries are flagged (byte +0xF, 0x119E44) and never converted again, in either level.
-// Elemental -> X runs before the element's own conversions (community order, MECHANICS §2.4: the engine runs the
-// source types in accumulator order, not traced).
-std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input,
-                                    const std::map<int, std::map<int, double>>& skill_pct,
+// Skill::CollectCombatParameters 0x499E40: the skill's own conversions first (CollectLocalConversionAttributes
+// 0x496F00: its record's pairs, then its modifiers', 0x49A3B7), then the character's (0x49A5D7:
+// SkillManager::GetConversionAttributes, Character::GetEquipConversionAttributes, vt+0x708 — the same calls as
+// SkillManager::CollectAvailableConversionAttributes 0x536400, which fills the snapshot in that Data order).
+// ConversionAttributeAccumulator::Apply 0x17DB20 runs ConvertDamage once per Data, i.e. per source type in the order
+// AddAttribute 0x17D890 first saw it; Weigh 0x17D520 only scales, never reorders. ConvertDamage 0x119ED0, for one
+// source type: an entry matches its own type, BasePhysical matches Physical, Elemental matches Cold / Fire /
+// Lightning; every pair takes its weighed percent of the same entry amount (a source type over 100% has every pair
+// scaled by 100 / total); DoT is not moved into Pierce, Chaos or Aether (0x119FE0: those pairs are skipped, the
+// others keep their weighed percent); the entry is then scaled to 100 - the moved percent, so the next source type
+// that matches it (Fire after Elemental, or Elemental after Fire) works on the rest. New entries are flagged (byte
+// +0xF, 0x119E44) and never converted again, in either level.
+std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input, const Conversions& skill_pct,
                                     const std::vector<snap::Conversion>& global, std::vector<std::string>& notes) {
-  std::map<int, std::map<int, double>> g;
-  for (const auto& c : global) g[c.from][c.to] += c.percent * 100;
+  Conversions g;
+  for (const auto& c : global) add_pair(g, c.from, c.to, c.percent * 100);
   auto no_dot = [](int t) { return t == 4 || t == 10 || t == 11; };
   Amounts in = input;
   split_elemental(in);
@@ -712,18 +721,16 @@ std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input,
   for (const auto& [key, amount] : in) {
     double left = amount;
     const bool element = key.first == 5 || key.first == 6 || key.first == 8;
-    const std::map<int, std::map<int, double>>* levels[] = {&skill_pct, &g};
-    for (const auto* level : levels)
-      for (const int from : {element ? kElemental : 0, key.first}) {
-        const auto it = from ? level->find(from) : level->end();
-        if (it == level->end()) continue;
+    for (const Conversions* level : {&skill_pct, static_cast<const Conversions*>(&g)})
+      for (const auto& [from, tos] : *level) {
+        if (from != key.first && !(element && from == kElemental)) continue;
         double total = 0;
-        for (const auto& [to, pct] : it->second) total += std::max(0.0, pct);
+        for (const auto& [to, pct] : tos) total += std::max(0.0, pct);
         if (total <= 0) continue;
         const double scale = total > 100 ? 100 / total : 1;
         if (total > 100.01) notes.push_back("conversion > 100% from " + std::string(names::combat_attribute(from)) + " (weighed)");
         double moved = 0;
-        for (const auto& [to, pct] : it->second) {
+        for (const auto& [to, pct] : tos) {
           if (pct <= 0 || (key.second && no_dot(to))) continue;
           const double part = left * pct * scale / 100;
           out[{to, key.second}] += part;
@@ -1158,6 +1165,12 @@ PetStats pet_bonuses(const snap::Snapshot& s, const arz::Database& db) {
   return out;
 }
 
+// Pet attack / cast speed %: the type's modifier plus TotalSpeed (13).
+std::pair<double, double> pet_speed_bonus(const PetStats& b) {
+  const double total = stat(b, fields::Kind::Char, kTotalSpeed, true);
+  return {stat(b, fields::Kind::Char, kAttackSpeed, true) + total, stat(b, fields::Kind::Char, kCastSpeed, true) + total};
+}
+
 effects::Rates rates(const snap::Snapshot& s, const std::vector<Skill>& skills, const std::vector<Main>& mains,
                      const Settings& p, const arz::Database& db, const PetStats& b) {
   effects::Rates r;
@@ -1170,9 +1183,7 @@ effects::Rates rates(const snap::Snapshot& s, const std::vector<Skill>& skills, 
   r.kills = p.kills_per_sec;
   r.pet_attacks = p.pet_attack_rate;
   r.char_level = s.level;
-  const double total = stat(b, fields::Kind::Char, kTotalSpeed, true);
-  r.pet_attack_speed = stat(b, fields::Kind::Char, kAttackSpeed, true) + total;
-  r.pet_cast_speed = stat(b, fields::Kind::Char, kCastSpeed, true) + total;
+  std::tie(r.pet_attack_speed, r.pet_cast_speed) = pet_speed_bonus(b);
   for (std::size_t k = 0; k < skills.size(); ++k) {
     if (!mains[k].sk) continue;
     const bool weapon = mains[k].raw.weapon_pct > 0;
@@ -1238,8 +1249,9 @@ void pet_scaling(const snap::Snapshot& s, const Settings& p, const arz::Database
   h.pet_hit = formulas::expected_hit(formulas::probability_to_hit(oa, enemy_da(s, p)), s.pth, 0).multiplier;
 }
 
+// `captured`: the snapshot s.pets comes from when s is a prediction from it (null: s itself).
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
-          const Amounts& base, std::vector<std::string>& notes) {
+          const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr) {
   Side out;
   for (const auto& k : skills) {
     const snap::Skill* sk = skill_by_record(s, k.record);
@@ -1250,7 +1262,13 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
   // shortcut: a Class Pet only an item proc summons gets no pet speed bonus — revisit if one shows up.
   std::optional<PetStats> pets;
   if (out.utility.context.pets) pets = pet_bonuses(s, db);
-  out.effects = effects::collect(s, db, rates(s, skills, out.mains, p, db, pets ? *pets : PetStats{}), p.uptime, enemy_types(p));
+  effects::Rates r = rates(s, skills, out.mains, p, db, pets ? *pets : PetStats{});
+  if (pets && captured && captured != &s && !s.pets.empty()) {
+    const auto [a, c] = pet_speed_bonus(pet_bonuses(*captured, db));
+    r.pet_attack_shift = r.pet_attack_speed - a;
+    r.pet_cast_shift = r.pet_cast_speed - c;
+  }
+  out.effects = effects::collect(s, db, r, p.uptime, enemy_types(p));
   std::map<int, double> target = p.enemy_resist;
   for (auto& [type, r] : target) r += enemy::resist(type, enemy::difficulty(s));
   out.resist = effects::resist_multipliers(target, out.effects.reductions);
@@ -1493,14 +1511,14 @@ std::vector<const Buff*> open_buffs(const std::vector<Buff>& learned, const std:
 }
 
 Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database* db,
-                  const Amounts& base, std::vector<std::string>& notes) {
+                  const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr) {
   Scored out;
   if (!db) {
     out.x.utility = utility_of(s, p, db);
     out.states.emplace_back(1.0, eval(s, 1, out.x, out.pr, p, db, notes));
     return out;
   }
-  out.x = side(s, skills, p, *db, base, notes);
+  out.x = side(s, skills, p, *db, base, notes, captured);
   out.pr = procs(s, out.x, p, *db);
   const std::vector<Buff> learned = learned_buffs(s, p, *db);
   std::vector<const Buff*> open = open_buffs(learned, out.pr.buffs);
@@ -2005,7 +2023,10 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
   Result out;
   std::vector<std::string> notes_b, notes_a;
   const Amounts base = db ? shared_base(before, after, *db) : Amounts{};
-  const Scored B = score_side(before, skills, p, db, base, notes_b), A = score_side(after, skills, p, db, base, notes_a);
+  // A prediction (model::swap) keeps the before side's capture time and live pets.
+  const snap::Snapshot* captured = after.taken_at == before.taken_at ? &before : nullptr;
+  const Scored B = score_side(before, skills, p, db, base, notes_b),
+               A = score_side(after, skills, p, db, base, notes_a, captured);
   const Eval &b0 = B.shown(), &a0 = A.shown();
   const Procs &pb = B.pr, &pa = A.pr;
   if (!B.buffs.empty()) out.before += "buff states (likeliest shown): " + B.buffs + "; ";

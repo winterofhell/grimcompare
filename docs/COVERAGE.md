@@ -335,9 +335,9 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveTotalResistanceReductionPercentMin` | I9 A4 X14 | Damage: resistance reduction through gdc::effects (uptime, highest-only) |
 | `offhand` | C44 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `petBonusName` | I485 A42 R10 X465 | Damage: Class Pet damage (% damage, attack / cast speed, OA of the pet bonus record; experimental); the rest Other `pet_bonus`, only with pets |
-| `racialBonusPercentDamage` | I132 C5 A11 R6 X140 | Other `racial_damage` / `racial_defense`: % x 10% of enemies per race listed (design share, no race simulation; record values) |
-| `racialBonusPercentDefense` | I65 C2 A3 R2 | Other `racial_damage` / `racial_defense`: % x 10% of enemies per race listed (design share, no race simulation; record values) |
-| `racialBonusRace` | I197 C9 A29 R8 X140 | Other `racial_damage` / `racial_defense`: % x 10% of enemies per race listed (design share, no race simulation; record values) |
+| `racialBonusPercentDamage` | I132 C5 A11 R6 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
+| `racialBonusPercentDefense` | I65 C2 A3 R2 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
+| `racialBonusRace` | I197 C9 A29 R8 X140 | Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values) |
 | `ranged1h` | C37 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `ranged2h` | C37 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `retaliationAetherMin` | I5 | Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1) |

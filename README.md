@@ -64,7 +64,7 @@ nix-shell --run 'cmake --workflow --preset adapter'   # build/adapter/adapter/GD
 
 - Only checked against Grim Dawn 1.3.1.1 x64. On other versions it logs a warning and turns off any hook it can't find.
 - The score is a model, not a fight simulation: one target, no positioning. The enemy is the median monster for your level and difficulty, the mean boss for resists.
-- Pets are experimental. Summons with no lifetime in the database (Blade Spirit, Squall, Celestial Guardian) aren't scored.
+- Pets are experimental. With pets summoned, their attack rate comes from the game's own speed and animation data; otherwise from their records.
 - Not scored: energy cost reduction, pet bonuses from buffs and set bonuses, flat racial damage. Full list in [docs/COVERAGE.md](docs/COVERAGE.md).
 - Anything the mod can't value shows as `+? unscored: <effect>` instead of a guess.
 

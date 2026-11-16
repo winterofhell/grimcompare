@@ -6,7 +6,8 @@
 // the field's DurationMin
 // procs: templateAutoCast / itemSkillAutoController -> chanceToRun, triggerType, triggerParam; passives:
 // lifeMonitorPercent, onHitActivationChance, skillChanceWeight (Skill_WPAttack_*)
-// pets: spawnObjects, petLimit, spawnObjectsTimeToLive, the pet's attackSkillName and skillName<n>
+// pets: spawnObjects, petLimit, spawnObjectsTimeToLive (+ modifiers'; a transmuter's modSpawnObjectsTimeToLive /
+// modSpawnObjects), the pet's attackSkillName and skillName<n>; live pets' speeds and animations (Snapshot::pets)
 #include <algorithm>
 #include <cstdint>
 #include <map>
@@ -35,6 +36,8 @@ struct Rates {
   double kills = 0;       // OnKill
   double pet_attacks = 0; // preset pet_attack_rate per pet; 0 = from the pet's record (estimate)
   double pet_attack_speed = 0, pet_cast_speed = 0;  // pet bonus %, Class Pet only
+  // This side's pet bonus % minus that of the snapshot its live pets (Snapshot::pets) were captured in.
+  double pet_attack_shift = 0, pet_cast_shift = 0;
   double char_level = 0;  // pets' charLevel (the player's level)
 };
 

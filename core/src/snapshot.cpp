@@ -208,6 +208,26 @@ J skill(const Skill& s) {
   return j;
 }
 
+J pet(const Pet& p) {
+  J j{{"id", p.id}};
+  put(j, "skill_id", p.skill_id);
+  put(j, "record", p.record);
+  put(j, "attack_speed", p.attack_speed);
+  put(j, "cast_speed", p.cast_speed);
+  put(j, "attack_speed_modifier", p.attack_speed_modifier);
+  put(j, "cast_speed_modifier", p.cast_speed_modifier);
+  put(j, "default_skill_id", p.default_skill_id);
+  put_list(j, "skills", p.skills, [](const PetSkill& k) {
+    J x{{"id", k.id}};
+    put(x, "record", k.record);
+    put(x, "current_level", k.current_level);
+    put(x, "anim_frames", k.anim_frames);
+    if (k.anim_frame_rate != 0) x["anim_frame_rate"] = k.anim_frame_rate;
+    return x;
+  });
+  return j;
+}
+
 J item_skill_modifier(const ItemSkillModifier& m) {
   J j{{"skill_id", m.skill_id}};
   put(j, "skill_record", m.skill_record);
@@ -406,6 +426,28 @@ Skill read_skill(const J& j, int schema) {
   return s;
 }
 
+Pet read_pet(const J& j) {
+  Pet p;
+  get(j, "id", p.id);
+  get(j, "skill_id", p.skill_id);
+  get(j, "record", p.record);
+  get(j, "attack_speed", p.attack_speed);
+  get(j, "cast_speed", p.cast_speed);
+  get(j, "attack_speed_modifier", p.attack_speed_modifier);
+  get(j, "cast_speed_modifier", p.cast_speed_modifier);
+  get(j, "default_skill_id", p.default_skill_id);
+  get_list(j, "skills", p.skills, [](const J& x) {
+    PetSkill k;
+    get(x, "id", k.id);
+    get(x, "record", k.record);
+    get(x, "current_level", k.current_level);
+    get(x, "anim_frames", k.anim_frames);
+    get(x, "anim_frame_rate", k.anim_frame_rate);
+    return k;
+  });
+  return p;
+}
+
 ItemSkillModifier read_item_skill_modifier(const J& j) {
   ItemSkillModifier m;
   get(j, "skill_id", m.skill_id);
@@ -495,6 +537,7 @@ std::string to_json(const Snapshot& s, int indent) {
   put_list(j, "tooltip_items", s.tooltip_items, item);
   put(j, "tooltip_age_ms", s.tooltip_age_ms);
   put_list(j, "inventory", s.inventory, item);
+  put_list(j, "pets", s.pets, pet);
   return indent < 0 ? j.dump() : j.dump(indent) + "\n";
 }
 
@@ -543,6 +586,7 @@ Snapshot from_json(std::string_view text) {
     get_list(j, "tooltip_items", s.tooltip_items, read_item);
     get(j, "tooltip_age_ms", s.tooltip_age_ms);
     get_list(j, "inventory", s.inventory, read_item);
+    get_list(j, "pets", s.pets, read_pet);
     return s;
   } catch (const nlohmann::json::exception& e) {
     throw std::runtime_error(std::string("snapshot JSON: ") + e.what());

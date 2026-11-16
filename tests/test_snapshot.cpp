@@ -67,6 +67,17 @@ Snapshot sample() {
   s.item_skill_modifiers = {{77, "records/skills/a.dbr", 901, "records/skills/mod.dbr", 10, false, true,
                              ItemStats{{}, {}, {}, {}, {{5, false, 16, 16, 0}}, {}, {}, {}}}};
   s.inventory = {Item{2002, -1, "records/items/x.dbr", "Item", "", std::nullopt, std::nullopt, std::nullopt, std::nullopt}};
+  Pet pet;
+  pet.id = 3001;
+  pet.skill_id = 77;
+  pet.record = "records/skills/playerclass03/pets/pet_hellhound_a16.dbr";
+  pet.attack_speed = 1.35f;
+  pet.cast_speed = 1.1f;
+  pet.attack_speed_modifier = 25;
+  pet.default_skill_id = 3002;
+  pet.skills = {{3002, "records/skills/default/defaultpetattack.dbr", 1, 20, 30},
+                {3003, "records/skills/playerclass03/pets/petskill_hellhound_fireclaw.dbr", 16, 0, 0}};
+  s.pets = {pet};
   return s;
 }
 
@@ -128,6 +139,17 @@ TEST_CASE("snapshot JSON round-trips") {
   CHECK(!b.item_skill_modifiers[0].from_relic);
   CHECK(b.item_skill_modifiers[0].location == 10);
   CHECK(b.item_skill_modifiers[0].stats->offensive_damage[0].min == 16);
+  REQUIRE(b.pets.size() == 1);
+  CHECK(b.pets[0].skill_id == 77);
+  CHECK(b.pets[0].attack_speed == 1.35f);
+  CHECK(b.pets[0].attack_speed_modifier == 25);
+  CHECK(b.pets[0].cast_speed_modifier == 0);
+  CHECK(b.pets[0].default_skill_id == 3002);
+  REQUIRE(b.pets[0].skills.size() == 2);
+  CHECK(b.pets[0].skills[0].anim_frames == 20);
+  CHECK(b.pets[0].skills[0].anim_frame_rate == 30);
+  CHECK(b.pets[0].skills[1].current_level == 16);
+  CHECK(b.pets[0].skills[1].anim_frames == 0);
 }
 
 TEST_CASE("snapshot JSON: names written, zeros omitted, floats short") {
@@ -150,7 +172,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 12})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 13})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),

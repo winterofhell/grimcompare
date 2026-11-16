@@ -3,6 +3,7 @@
 # usage: python3 -I re/tools/enemy_table.py <game dir> > re/EnemyByLevel.tsv
 #        python3 -I re/tools/enemy_table.py <game dir> --resists > re/EnemyResistByDifficulty.tsv
 #        python3 -I re/tools/enemy_table.py <game dir> --penalty > re/PlayerResistByDifficulty.tsv
+#        python3 -I re/tools/enemy_table.py <game dir> --races > re/EnemyRaces.tsv
 # For every Monster record under records/creatures/enemies/ (Common, Champion, Hero) at charLevel = L:
 #   level  = the record's charLevel equation
 #   OA, DA = combatformulas.dbr offensive/defensiveAbilityEquation on the bio record's
@@ -28,6 +29,10 @@
 # the share of monsters that lower it, rr = mean (weighted by those shares) of the median amount among them.
 # boss_rr / boss_rr_share: the same over the Quest, Boss (Nemesis included) and SuperBoss records.
 # --penalty: gameengine.dbr playerAttributePak defensive<Type> (single-player entry), as a positive number.
+# --races: the same Common / Champion / Hero records grouped by characterRacialProfile (lowercase, sorted, ","
+#   joined; "" = none). Racial bonuses match a target whose list shares any tag with the bonus's racialBonusRace,
+#   case-insensitively (ItemEquipment::ContributeRacialBonusDamage 0x33FC00 -> 0x592080 -> 0x591FE0). Every record
+#   is in the table at every level and the difficulty paks set no race, so the shares do not depend on either.
 import re, statistics, sys
 sys.path.insert(0, __import__('os').path.dirname(__file__))
 import arz
@@ -115,6 +120,16 @@ for n in index:
         r = rec(n)
         if r.get('monsterClassification') in ('Common', 'Champion', 'Hero'): mons.append(r)
         if r.get('monsterClassification') in ('Quest', 'Boss', 'SuperBoss'): bosses.append(r)
+
+if '--races' in sys.argv:
+    groups = {}
+    for r in mons:
+        v = r.get('characterRacialProfile', [])
+        key = ','.join(sorted({x.lower() for x in (v if isinstance(v, list) else [v]) if x}))
+        groups[key] = groups.get(key, 0) + 1
+    print('races\tmonsters')
+    for k in sorted(groups): print('%s\t%d' % (k, groups[k]))
+    sys.exit(0)
 
 print('difficulty\tlevel\tmonsters\toa\tda\thit\thit_physical\tmonsters_with_skill_hit\trr\trr_share\tcrit_damage\tbosses\tboss_rr\tboss_rr_share')
 for d, name in enumerate(DIFFICULTIES):

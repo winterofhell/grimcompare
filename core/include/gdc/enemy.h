@@ -1,7 +1,10 @@
 #pragma once
 // Median Common / Champion / Hero monster per level and difficulty (1.3.1.1 + GDX1..3), from
-// re/EnemyByLevel.tsv, re/EnemyResistByDifficulty.tsv and re/PlayerResistByDifficulty.tsv
+// re/EnemyByLevel.tsv, re/EnemyResistByDifficulty.tsv, re/PlayerResistByDifficulty.tsv and re/EnemyRaces.tsv
 // (re/tools/enemy_table.py, docs/MECHANICS.md §8, §9).
+#include <string>
+#include <vector>
+
 #include "gdc/snapshot.h"
 
 namespace gdc::enemy {
@@ -27,6 +30,12 @@ Enemy at(double level, int difficulty);
 
 // What gameengine.dbr monsterAttributePak adds to every monster's resist (CombatAttributeType) at that difficulty.
 double resist(int type, int difficulty);
+
+// Share of the table's monsters a racial bonus listing `races` (racialBonusRace) applies to: those whose
+// characterRacialProfile shares any tag with it, case-insensitively (ItemEquipment::ContributeRacialBonusDamage
+// 0x33FC00 adds each entry once on a match, 0x592080 / 0x591FE0). The table holds every record at every level and
+// no difficulty pak sets a race, so the share is the same at every level and difficulty.
+double race_share(const std::vector<std::string>& races);
 
 // What gameengine.dbr playerAttributePak takes off the player's resist (CombatAttributeType) at that difficulty.
 // Already in the snapshot's totals; used for what the next difficulty takes off on top.

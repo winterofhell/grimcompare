@@ -97,6 +97,10 @@ constexpr std::size_t kSlotItemType = 0x550;
 // (first always, the other two when non-zero).
 constexpr std::size_t kSlotReqLevel = 0x528, kSlotReqAttr[3] = {0x530, 0x538, 0x540};
 constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF0, 0xE08}, {0xE00, 0xDF4, 0xE0C}};
+// Character::GetPetPen 0x7E100 (Character+0x2050); PetPen+8 is an MSVC std::list head (PetPen::GetPetOwner 0x3C9B00),
+// node {next, prev, u32 pet id @0x10, u32 summoning skill id @0x14, ..., bool released @0x1C}:
+// Skill_SpawnPet::KillExtraPets 0x509890.
+constexpr std::size_t kPetList = 8, kPetNodeId = 0x10, kPetNodeSkill = 0x14, kPetNodeReleased = 0x1C, kMaxPets = 64;
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
 
 struct Api {
@@ -151,6 +155,11 @@ struct Api {
   const void *ci_spell = nullptr, *ci_buff_self = nullptr;  // SkillActivatedSpell / SkillActivatedBuffSelf
   // (skill, Character&, Name& out, frames out, frame rate out): 0x51A310 / 0x20B40.
   bool (*hit_callback_point)(const void*, void*, u32*, u32*, int*) = nullptr;
+  // Optional (snapshot schema 12): all four or no pets.
+  const void* (*pet_pen)(const void*) = nullptr;
+  const void *ci_character = nullptr, *ci_activated = nullptr;
+  u32 (*default_skill_id)(const void*, int) = nullptr;  // SkillManager::GetDefaultSkillId(DefaultSkill)
+  bool pets_ok = false;
 
   void* (*char_acc_ctor)(void*) = nullptr;
   void (*char_acc_dtor)(void*) = nullptr;
@@ -793,6 +802,59 @@ void sec_item_skills(Ctx& c) {
   }
 }
 
+// Each pet under its own SEH: a fault drops that pet, logged, and marks the capture incomplete.
+void sec_pets(Ctx& c) {
+  if (!g.pets_ok) return;
+  const void* head = rd<const void*>(g.pet_pen(c.player), kPetList);
+  if (!head) return;
+  const void* n = rd<const void*>(head, 0);
+  for (std::size_t i = 0; n && n != head && i < kMaxPets; ++i, n = rd<const void*>(n, 0)) {
+    if (rd<std::uint8_t>(n, kPetNodeReleased) != 0) continue;
+    const u32 id = rd<u32>(n, kPetNodeId);
+    snap::Pet p;
+    auto read = [&] {
+      void* pet = lookup(id);
+      if (!pet || !is_a(class_info(pet), g.ci_character)) return;
+      p.id = id;
+      p.skill_id = rd<u32>(n, kPetNodeSkill);
+      set_cstr(p.record, g.object_name(pet));
+      p.attack_speed = g.attack_speed(pet);
+      p.cast_speed = g.cast_speed(pet);
+      p.attack_speed_modifier = g.total_char_mod(pet, 15);
+      p.cast_speed_modifier = g.total_char_mod(pet, 16);
+      const void* sm = g.skill_manager(pet);
+      p.default_skill_id = g.default_skill_id(sm, 0);
+      const Span list = vec(g.skill_list(sm), sizeof(void*));
+      for (std::size_t k = 0; k < list.count; ++k) {
+        const void* sk = rd<const void*>(list.begin, k * sizeof(void*));
+        if (!sk) continue;
+        snap::PetSkill& ps = p.skills.emplace_back();
+        ps.id = g.object_id(sk);
+        set_cstr(ps.record, g.object_name(sk));
+        ps.current_level = g.current_level(sk);
+        if (is_a(class_info(sk), g.ci_activated) &&
+            rd<const void*>(rd<const void*>(sk), kSlotHitCallbackPoint) == reinterpret_cast<const void*>(g.hit_callback_point)) {
+          u32 name = 0, frames = 0;
+          int rate = 0;
+          g.hit_callback_point(sk, pet, &name, &frames, &rate);
+          ps.anim_frames = frames;
+          ps.anim_frame_rate = rate;
+        }
+      }
+    };
+    seh::Fault f;
+    if (!seh::run(read, f)) {
+      char buf[160];
+      std::snprintf(buf, sizeof buf, "pet %u: FAULT 0x%08lX at 0x%016llX", id, f.code, static_cast<unsigned long long>(f.addr));
+      c.s.errors.emplace_back(buf);
+      c.s.complete = false;
+      log::printf("snapshot: %s", buf);
+      continue;
+    }
+    if (p.id != 0) c.s.pets.push_back(std::move(p));
+  }
+}
+
 void modifier_stats(const void* mod, void* player, snap::ItemStats& s) {
   item_damage(mod, g.mod_damage, s.offensive_damage);
   combat_with_procs([&](void* acc) { g.mod_offensive_modifiers(mod, acc); }, player, s.offensive_modifiers);
@@ -920,7 +982,8 @@ bool snapshot_init(const Resolve& r) {
   b(g.main_player, "GameEngine::GetMainPlayer");
   b(g.player_name, "Player::GetPlayerName");
   b(g.difficulty, "GameEngine::GetGameDifficulty");
-  bind(r, g.difficulty_ramp, "GameEngine::GetDifficultyRamp");
+  // A string literal would pick std::bind by ADL; the string_view picks ours.
+  bind(r, g.difficulty_ramp, std::string_view{"GameEngine::GetDifficultyRamp"});
   b(g.om_get, "Singleton<ObjectManager>::Get");
   b(g.object_name, "Object::GetObjectName");
   b(g.object_id, "Object::GetObjectId");
@@ -967,6 +1030,12 @@ bool snapshot_init(const Resolve& r) {
   b(g.ci_spell, "SkillActivatedSpell::classInfo");
   b(g.ci_buff_self, "SkillActivatedBuffSelf::classInfo");
   b(g.hit_callback_point, "SkillActivated::GetHitCallbackPoint");
+  {
+    auto opt = [&](auto& out, std::string_view label) { return bind(r, out, label); };  // optional: no `ok`
+    g.pets_ok = opt(g.pet_pen, "Character::GetPetPen") && opt(g.ci_character, "Character::classInfo") &&
+                opt(g.ci_activated, "SkillActivated::classInfo") && opt(g.default_skill_id, "SkillManager::GetDefaultSkillId");
+  }
+  if (!g.pets_ok) log::write("snapshot: pet getters unresolved; pets not read");
   b(g.char_acc_ctor, "CharAttributeAccumulator::CharAttributeAccumulator()");
   b(g.char_acc_dtor, "CharAttributeAccumulator::~CharAttributeAccumulator()");
   b(g.combat_acc_ctor, "CombatDisplayAccumulator::CombatDisplayAccumulator(bool)");
@@ -1092,6 +1161,7 @@ Take snapshot_take(snap::Snapshot& s, snap::Spares& spare, const std::vector<std
   ok = guarded("skills", sec_skills, c) && ok;
   ok = guarded("item_skill_modifiers", sec_item_skill_modifiers, c) && ok;
   ok = guarded("item_skills", sec_item_skills, c) && ok;
+  ok = guarded("pets", sec_pets, c) && ok;
   ok = guarded("equipped", sec_equipped, c) && ok;
   ok = guarded("tooltip", sec_tooltip, c) && ok;
   if (with_inventory) ok = guarded("inventory", sec_inventory, c) && ok;

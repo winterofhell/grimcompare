@@ -344,6 +344,15 @@ constexpr Target kPlanned[] = {
      "?classInfo@SkillActivatedBuffSelf@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c060
     {Module::Game, Kind::Call, true, "skills", "SkillActivated::GetHitCallbackPoint",
      "?GetHitCallbackPoint@SkillActivated@GAME@@UEAA_NAEAVCharacter@2@AEAVName@2@AEAI2@Z"},  // 0x51a310
+    // Live pets (snapshot schema 12): the player's PetPen, each pet checked is-a Character, its SkillManager's
+    // default skill, GetHitCallbackPoint on its skills that are-a SkillActivated (CalculateSkillDps 0x3E09A3's check).
+    {Module::Game, Kind::Call, false, "pets", "Character::GetPetPen", "?GetPetPen@Character@GAME@@QEBAAEBVPetPen@2@XZ"},  // 0x7e100
+    {Module::Game, Kind::Data, false, "pets", "Character::classInfo",
+     "?classInfo@Character@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5cba0
+    {Module::Game, Kind::Data, false, "pets", "SkillActivated::classInfo",
+     "?classInfo@SkillActivated@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5bfd0
+    {Module::Game, Kind::Call, false, "pets", "SkillManager::GetDefaultSkillId",
+     "?GetDefaultSkillId@SkillManager@GAME@@UEBAIW4DefaultSkill@2@@Z"},  // 0x52ec10
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr const char* kModVersion = "0.9.11 (endgame RR buffer on Ultimate only)";
+constexpr const char* kModVersion = "0.9.12 (live pets, pet timing)";
 constexpr DWORD kPollMs = 250;
 // shortcut: generous fixed waits, no source for real load times — revisit when the log shows how long modules
 // and gGameEngine actually take.

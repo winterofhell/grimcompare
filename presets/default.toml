@@ -168,6 +168,6 @@ experience = 0.2                              # per 100% experience gained, x (1
 retaliation = 0.02                            # per 1000 retaliation damage
 retaliation_modifier = 0.02                   # per 100% retaliation damage
 pet_bonus = { weight = 0.2, when = "pets" }   # per 100% mean defensive bonus to pets (life, resists, ...)
-racial_damage = 1.0                           # per 100% more damage to all enemies: racial % x 10% per race listed
-racial_defense = 1.0                          # per 100% less damage from all enemies: racial % x 10% per race listed
+racial_damage = 1.0                           # per 100% more damage to all enemies: racial % x share of monsters of those races
+racial_defense = 1.0                          # per 100% less damage from all enemies: racial % x share of monsters of those races
 default = 0.05                                # per 100 of any other stat (gold, light radius, ...): named in Shift

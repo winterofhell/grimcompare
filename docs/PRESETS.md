@@ -103,5 +103,5 @@ Templates (`presets/*.toml`; all ten masteries; every weight is a design choice,
 
 Limitations:
 - Weapon pool skills count toward the archetype but are not main skills, so a build whose only attack is one has no main damage skill and fails `[match] damage`.
-- Pet damage is an experimental estimate from the pet records (docs/MECHANICS.md §4); the tooltip says so. `PetPlayerScaling` summons without a lifetime in the DB (Blade Spirit, Squall, Celestial Guardian) stay `+? unscored`.
+- Pet damage is an experimental estimate from the pet records (docs/MECHANICS.md §4); the tooltip says so. Summons without a time to live (Blade Spirit, Squall, Celestial Guardian too) are kept at `petLimit`; with a live pet in the snapshot its engine speed and hit animation set the rate.
 - No ranged template.

@@ -119,6 +119,16 @@ struct Builder {
     return fmt(cooldown, 1) + " s" + (own && cdr > 0 ? " x (1 - " + fmt(cdr * 100, 0) + "%)" : "");
   }
 
+  // Skill::GetSkillModifierData 0x49AF90 (from GetCooldownTime 0x4917E0, GetPetLimit 0x493880,
+  // GetSpawnObjectTimeToLive 0x493660): the skill's profile plus its learned (Skill+0x140) and item (Skill+0x158)
+  // modifiers', added by SkillProfile_Modifiers 0x54ACF0. e.modifiers holds both.
+  double summed(const Effect& e, const arz::Record& skill, std::string_view key) const {
+    double v = key == "skillCooldownTime" ? own_or_buff(skill, key, e.level, db) : at(skill, key, e.level);
+    for (const auto& [m, lv] : e.modifiers)
+      if (const arz::Record* r = db.record(m)) v += at(*r, key, lv);
+    return std::max(0.0, v);
+  }
+
   // Expected time between casts = recharge + 1 / (chance x rate), triggers assumed random.
   void trigger(Effect& e, const arz::Record& skill, double chance, std::string_view trigger, bool own) {
     double rate = 0;
@@ -141,7 +151,7 @@ struct Builder {
       e.basis = what + ": rate unknown";
       return;
     }
-    const double cooldown = own_or_buff(skill, "skillCooldownTime", e.level, db);
+    const double cooldown = summed(e, skill, "skillCooldownTime");
     e.per_sec = chance > 0 ? 1 / (recharge(cooldown, own) + 1 / (chance * rate)) : 0;
     e.origin = Origin::Derived;
     e.basis = fmt(chance * 100, 0) + "% " + what + " x " + fmt(rate, 2) + "/s" +
@@ -186,7 +196,7 @@ struct Builder {
 
   // Design choice: cast whenever ready; kept up with no cooldown or when CDR takes it all.
   void cast(Effect& e, const arz::Record& skill, const char* how, bool own) {
-    const double cooldown = own_or_buff(skill, "skillCooldownTime", e.level, db);
+    const double cooldown = summed(e, skill, "skillCooldownTime");
     const double wait = recharge(cooldown, own);
     e.origin = Origin::Derived;
     if (wait > 0) {
@@ -209,18 +219,31 @@ struct Builder {
   // fields); its share of the pet's time comes off the plain attack. Other attack skills with a cooldown: once
   // per cooldown. A preset pet_attack_rate replaces the plain attack's rate.
   void pets(const Effect summon, const arz::Record& skill) {
-    const std::string pet_name = summoned_record(skill, summon.level);
+    std::string pet_name = summoned_record(skill, summon.level);
+    const double limit = summed(summon, skill, "petLimit");
+    double ttl = summed(summon, skill, "spawnObjectsTimeToLive");
+    // GetSpawnObjectTimeToLive 0x493660: the last modifier with a non-zero vt+0x6F0 replaces the sum; only
+    // Skill_SpawnPetTransmuter 0x509F40 has one (modSpawnObjectsTimeToLive[level - 1]), Skill_Modifier's is 0.
+    // Skill::AddModifierPetChanges 0x494CE0: its modSpawnObjects replaces the pet, indexed by the summon's level
+    // (min(level - 1, size - 1), 0x50A631; summon_blightbeast1b: max level 1, 26 entries).
+    for (const auto& [m, lv] : summon.modifiers)
+      if (const arz::Record* r = db.record(m); r && classes::is_a(r->cls, "Skill_SpawnPetTransmuter")) {
+        if (const double t = at(*r, "modSpawnObjectsTimeToLive", lv); t != 0) ttl = t;
+        const auto it = r->fields.find("modSpawnObjects");
+        if (it != r->fields.end() && !it->second.strings.empty())
+          pet_name = it->second.strings[std::min<std::size_t>(std::max<std::uint32_t>(summon.level, 1), it->second.strings.size()) - 1];
+      }
     const arz::Record* pet = db.record(pet_name);
     if (!pet) return;
-    const double limit = at(skill, "petLimit", summon.level), ttl = at(skill, "spawnObjectsTimeToLive", summon.level);
     double alive = 0;
     std::string how;
-    // A Class Pet without spawnObjectsTimeToLive stays until it dies (Hellhound, Raven, Briarthorn, Blight Fiend,
-    // Skeletons), so it is kept up whatever the summon's cooldown. PetPlayerScaling ones without it (Blade Spirit,
-    // Squall, Celestial Guardian) do expire, but their lifetime is in neither record: rate unknown.
+    // Skill_TargetedSpawnPet::SpawnPet 0x50A560 calls Monster::SetLifetime 0x37B620 only for a time to live > 0, and
+    // every pet record's own lifeTime (Monster::Load 0x37482B) is 0. Without one a pet stays until it dies or a new
+    // one past petLimit replaces it (KillExtraPets 0x509890), so it is kept at the limit whatever the summon's
+    // cooldown: Hellhound, Raven, Briarthorn, Skeletons, and the invincible Blade Spirit, Squall, Celestial Guardian.
     // shortcut: no petLimit read as one pet — revisit if a permanent summon without petLimit shows up.
     const bool scaled = pet->cls == "PetPlayerScaling";
-    const bool permanent = !scaled && ttl <= 0;
+    const bool permanent = ttl <= 0;
     if (summon.maintained || permanent) {
       alive = limit > 0 ? limit : 1;
       how = (permanent ? "permanent, kept at " : "kept at ") + fmt(alive, 0);
@@ -238,9 +261,41 @@ struct Builder {
     for (const auto& [n, l] : list)
       if (const arz::Record* r = db.record(n); r && classes::is_a(r->cls, "Skill_Passive") && has_flat(*r, l))
         weapon.emplace_back(n, l);
-    const double aspd = pet->number("characterAttackSpeed") * (1 + (scaled ? 0 : rates.pet_attack_speed) / 100);
-    const double cspd = pet->number("characterSpellCastSpeed") * (1 + (scaled ? 0 : rates.pet_cast_speed) / 100);
-    auto speed = [&](const arz::Record& r) { return classes::speed(r.cls) == classes::Speed::kCast ? cspd : aspd; };
+    // A live pet of this record (snapshot schema 12): the engine's own speeds, shifted by the pet bonus change since
+    // the capture (GetTotalCharModifier is the % in them; the cap is not re-applied to the shift), and per skill
+    // the hit animation, so uses per second = speed x frame rate / frames, as the engine times the player's spells
+    // (docs/MECHANICS.md §5 "Uses per second").
+    const snap::Pet* live = nullptr;
+    for (const auto& p : s.pets)
+      if (p.record == pet_name && p.attack_speed > 0 && p.cast_speed > 0) {
+        live = &p;
+        break;
+      }
+    auto shifted = [](double captured, double mod, double shift) {
+      return 1 + mod / 100 > 0 ? captured * std::max(0.0, 1 + (mod + shift) / 100) / (1 + mod / 100) : captured;
+    };
+    const double aspd = live ? shifted(live->attack_speed, live->attack_speed_modifier, scaled ? 0 : rates.pet_attack_shift)
+                             : pet->number("characterAttackSpeed") * (1 + (scaled ? 0 : rates.pet_attack_speed) / 100);
+    const double cspd = live ? shifted(live->cast_speed, live->cast_speed_modifier, scaled ? 0 : rates.pet_cast_shift)
+                             : pet->number("characterSpellCastSpeed") * (1 + (scaled ? 0 : rates.pet_cast_speed) / 100);
+    auto anim = [&](auto match) -> const snap::PetSkill* {
+      if (live)
+        for (const auto& k : live->skills)
+          if (match(k) && k.anim_frames > 0 && k.anim_frame_rate > 0) return &k;
+      return nullptr;
+    };
+    // Uses per second at most, and how.
+    auto speed_of = [&](const arz::Record& r, const snap::PetSkill* k, std::string& how) {
+      const bool cast = classes::speed(r.cls) == classes::Speed::kCast;
+      const double sp = cast ? cspd : aspd;
+      how = std::string(live ? "engine " : "record ") + (cast ? "cast" : "attack") + " speed " + fmt(sp, 2);
+      if (!k) return sp;
+      how += " x " + std::to_string(k->anim_frame_rate) + " / " + std::to_string(k->anim_frames) + " frames";
+      return sp * k->anim_frame_rate / k->anim_frames;
+    };
+    auto speed = [&](const arz::Record& r, std::string_view name, std::string& how) {
+      return speed_of(r, anim([&](const snap::PetSkill& k) { return k.record == name; }), how);
+    };
 
     struct Use {
       std::string record;
@@ -260,9 +315,10 @@ struct Builder {
       const double chance = pet->number(std::string("specialAttack") + n + "Chance") / 100;
       const double wait = std::max(pet->number(std::string("specialAttack") + n + "Delay"), at(*r, "skillCooldownTime", lv));
       if (wait <= 0 || chance <= 0) continue;
-      const double sp = speed(*r), u = sp > 0 ? std::min(chance / wait, sp) : chance / wait;
+      std::string how;
+      const double sp = speed(*r, name, how), u = sp > 0 ? std::min(chance / wait, sp) : chance / wait;
       if (sp > 0) busy += u / sp;
-      uses.push_back({name, lv, u, "special every " + fmt(wait, 1) + " s x " + fmt(chance * 100, 0) + "%", Origin::Derived});
+      uses.push_back({name, lv, u, "special every " + fmt(wait, 1) + " s x " + fmt(chance * 100, 0) + "%, " + how, Origin::Derived});
     }
     for (const auto& [name, lv] : list) {
       const arz::Record* r = db.record(name);
@@ -270,19 +326,26 @@ struct Builder {
       if (std::any_of(uses.begin(), uses.end(), [&](const Use& u) { return u.record == name; })) continue;
       const double cooldown = at(*r, "skillCooldownTime", lv);
       if (cooldown <= 0) continue;
-      const double sp = speed(*r), u = 1 / cooldown;
+      std::string how;
+      const double sp = speed(*r, name, how), u = sp > 0 ? std::min(1 / cooldown, sp) : 1 / cooldown;
       if (sp > 0) busy += u / sp;
-      uses.push_back({name, lv, u, "cooldown " + fmt(cooldown, 1) + " s", Origin::Derived});
+      uses.push_back({name, lv, u, "cooldown " + fmt(cooldown, 1) + " s, " + how, Origin::Derived});
     }
     const arz::Record* plain = attack.empty() ? pet : db.record(attack);
     if (plain && (plain != pet || !weapon.empty())) {
       const std::uint32_t lv = plain == pet ? 1 : std::max<std::uint32_t>(level_of(attack), 1);
       if (rates.pet_attacks > 0)
         uses.push_back({plain == pet ? pet_name : attack, lv, rates.pet_attacks, "preset pet_attack_rate", Origin::Preset});
-      else if (const double sp = speed(*plain); sp > 0)
-        uses.push_back({plain == pet ? pet_name : attack, lv, sp * std::max(0.0, 1 - busy),
-                        "plain attack " + fmt(sp, 2) + "/s" + (busy > 0 ? " x (1 - " + fmt(busy, 2) + " specials)" : ""),
-                        Origin::Derived});
+      else {
+        // The pet's own weapon: its SkillManager's default skill (GetDefaultSkillId(0)) holds the animation.
+        const snap::PetSkill* k = plain == pet ? anim([&](const snap::PetSkill& x) { return x.id == live->default_skill_id; })
+                                               : anim([&](const snap::PetSkill& x) { return x.record == attack; });
+        std::string how;
+        if (const double sp = speed_of(*plain, k, how); sp > 0)
+          uses.push_back({plain == pet ? pet_name : attack, lv, sp * std::max(0.0, 1 - busy),
+                          "plain attack, " + how + (busy > 0 ? " x (1 - " + fmt(busy, 2) + " specials)" : ""),
+                          Origin::Derived});
+      }
     }
     for (const auto& u : uses) {
       Effect e;

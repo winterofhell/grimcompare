@@ -17,8 +17,9 @@ namespace gdc::snap {
 // 6: Snapshot::item_skills, Skill::item_id. Schemas 2..5 still read (granted skills unknown).
 // 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
 // 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
-// 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown).
-inline constexpr int kSchema = 11;
+// 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown). 11: difficulty_ramp, requirements.met_at.
+// 12: Snapshot::pets (before: empty = unknown).
+inline constexpr int kSchema = 12;
 inline constexpr int kMinSchema = 2;
 
 struct CharAttribute {
@@ -177,6 +178,28 @@ struct PthTable {
   float damage_modifier[6] = {};   // pthDamageModifier1..6 (+0x284, stride 8)
 };
 
+// Schema 12. A pet in the player's PetPen (Character::GetPetPen 0x7E100: Character+0x2050, an MSVC std::list at +8
+// as PetPen::GetPetOwner 0x3C9B00 walks it). Node +0x10 pet id, +0x14 the summoning skill's id, +0x1C released:
+// Skill_SpawnPet::KillExtraPets 0x509890 counts nodes with +0x1C == 0 and +0x14 == its id, releases +0x10 and sets
+// +0x1C. Released nodes are skipped.
+struct PetSkill {
+  std::uint32_t id = 0;
+  std::string record;
+  std::uint32_t current_level = 0;
+  // SkillActivated::GetHitCallbackPoint 0x51A310 called with the pet, as for the player's skills. 0 = none.
+  std::uint32_t anim_frames = 0;
+  std::int32_t anim_frame_rate = 0;
+};
+struct Pet {
+  std::uint32_t id = 0, skill_id = 0;
+  std::string record;
+  // Character::GetAttackSpeed 0x692E0 / GetSpellCastSpeed 0x693A0 on the pet (pet bonuses, caps and slows in),
+  // and its GetTotalCharModifier 15 / 16, the % those speeds carry.
+  float attack_speed = 0, cast_speed = 0, attack_speed_modifier = 0, cast_speed_modifier = 0;
+  std::uint32_t default_skill_id = 0;  // SkillManager::GetDefaultSkillId(0) 0x52EC10 of the pet's SkillManager
+  std::vector<PetSkill> skills;        // SkillManager::GetSkillList of the pet
+};
+
 struct Snapshot {
   int schema = kSchema;
   std::string mod_version;
@@ -220,6 +243,7 @@ struct Snapshot {
   std::vector<Item> tooltip_items;
   std::uint32_t tooltip_age_ms = 0;
   std::vector<Item> inventory;
+  std::vector<Pet> pets;
 };
 
 std::string to_json(const Snapshot& s, int indent = 2);

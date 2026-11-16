@@ -7,6 +7,7 @@
 #include "gdc/attribute_names.h"
 #include "gdc/db_fields.h"
 #include "gdc/effects.h"
+#include "gdc/enemy.h"
 #include "gdc/stat_model.h"
 
 namespace gdc::utility {
@@ -106,14 +107,11 @@ std::string label(std::string_view what, int type, std::string_view name) {
 // The parts score::Damage reads for a Class Pet's hits (damage %, Cunning, Spirit, speeds, OA) are left to it;
 // shortcut: the rest (life, resists, DA, regen, ...) is weighed by its mean % only — revisit with a pet survival
 // model.
-// racialBonusRace lists Race001..Race012 tags (and "Aetherial"); 10 distinct tags on items. shortcut: each listed
-// race taken as 10% of the enemies (design choice, no race table) — revisit with the enemies' characterRacialProfile.
+// racialBonusRace: the share of the monster table the bonus applies to (enemy::race_share). The engine reads the
+// first value of racialBonusPercentDamage / Defense (0x33FC00: [entry+0x20] / [entry+0x38], element 0).
 double racial_share(const arz::Record& r) {
   const auto it = r.fields.find("racialBonusRace");
-  if (it == r.fields.end()) return 0;
-  std::size_t n = 0;
-  for (const auto& race : it->second.strings) n += !race.empty();
-  return std::min(1.0, 0.1 * static_cast<double>(n));
+  return it == r.fields.end() ? 0 : enemy::race_share(it->second.strings);
 }
 
 double pet_bonus(const arz::Record& r) {

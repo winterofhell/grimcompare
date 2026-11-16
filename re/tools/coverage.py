@@ -80,7 +80,7 @@ def how(f):
     if re.match(r'offensiveSlow\w+DurationModifier$', f):
         return 'scored', 'Damage: +% DoT duration of that final type, from the equipped items\' records (shortcut: record values, skills\' part not seen)'
     if f in ('racialBonusPercentDamage', 'racialBonusPercentDefense', 'racialBonusRace'):
-        return 'scored', 'Other `racial_damage` / `racial_defense`: % x 10% of enemies per race listed (design share, no race simulation; record values)'
+        return 'scored', 'Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values)'
     if f == 'racialBonusAbsoluteDamage':
         return 'zero', '0 by design: flat damage vs a race (2 records; no race simulation)'
     if f not in field:

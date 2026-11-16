@@ -129,10 +129,14 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db);
 
 std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db);
 
-// Damage by type after conversions as Skill::CollectCombatParameters: `skill` (from -> to -> percent) first, then
-// `global` (fractions), each weighed to 100% per source type; converted damage is not converted again; Elemental in
-// or out is a third each of Cold, Fire, Lightning (docs/MECHANICS.md §2).
-std::map<DamageKey, double> convert(const std::map<DamageKey, double>& in, const std::map<int, std::map<int, double>>& skill,
+// Source type -> (to -> percent), in the order the engine first saw each source type.
+using Conversions = std::vector<std::pair<int, std::map<int, double>>>;
+
+// Damage by type after conversions as Skill::CollectCombatParameters: `skill` first, then `global` (fractions, in
+// snapshot order), each weighed to 100% per source type and run source type by source type in first-seen order;
+// converted damage is not converted again; Elemental in or out is a third each of Cold, Fire, Lightning
+// (docs/MECHANICS.md §2).
+std::map<DamageKey, double> convert(const std::map<DamageKey, double>& in, const Conversions& skill,
                                     const std::vector<snap::Conversion>& global, std::vector<std::string>& notes);
 
 struct Skill {

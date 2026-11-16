@@ -364,7 +364,7 @@ TEST_CASE("effects: pet skill level equations (skillLevel<n>, characterAttribute
   CHECK_FALSE(effects::equation("", 1));
 }
 
-TEST_CASE("effects: a Class Pet without a time to live stays up; a timed player-scaled one by its rate (installed game; skips if absent)") {
+TEST_CASE("effects: a pet without a time to live is kept at petLimit; a transmuter's lifetime by its rate (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) return;
   effects::Rates rates;
@@ -372,26 +372,92 @@ TEST_CASE("effects: a Class Pet without a time to live stays up; a timed player-
   rates.action = 2;
   snap::Snapshot s;
   s.level = 96;
+  auto pets_of = [&](std::string_view summon) {
+    std::vector<effects::Effect> v;
+    for (const auto& e : effects::collect(s, *db, rates, {}, {}).effects)
+      if (e.pet && e.source.ends_with(summon)) v.push_back(e);
+    return v;
+  };
   // summon_hellhound1: no spawnObjectsTimeToLive, petLimit 1, cooldown 18 s.
   learn(s, 1, "records/skills/playerclass03/summon_hellhound1.dbr", 16);
-  auto c = effects::collect(s, *db, rates, {}, {});
-  const auto hound = std::find_if(c.effects.begin(), c.effects.end(), [](const effects::Effect& e) {
-    return e.pet && e.record.ends_with("pet_hellhound_a16.dbr");  // its plain attack
+  auto v = pets_of("summon_hellhound1.dbr");
+  const auto hound = std::find_if(v.begin(), v.end(), [](const effects::Effect& e) {
+    return e.record.ends_with("pet_hellhound_a16.dbr");  // its plain attack
   });
-  REQUIRE(hound != c.effects.end());
+  REQUIRE(hound != v.end());
   INFO(hound->basis);
   CHECK(hound->pets == 1);
   CHECK(hound->per_sec > 0);
   CHECK_FALSE(hound->player_scaled);
   CHECK(hound->basis.find("permanent") != std::string::npos);
-  // summon_bladespirit: PetPlayerScaling, no time to live in either record: not guessed.
-  learn(s, 2, "records/skills/playerclass04/summon_bladespirit.dbr", 10);
-  c = effects::collect(s, *db, rates, {}, {});
-  for (const auto& e : c.effects)
-    if (e.pet && e.player_scaled) {
-      INFO(e.record, ": ", e.basis);
-      CHECK(e.per_sec == 0);
-    }
+  // summon_bladespirit: PetPlayerScaling, no time to live anywhere (invincible, stays until replaced); petLimit 3
+  // at level 16.
+  learn(s, 2, "records/skills/playerclass04/summon_bladespirit.dbr", 16);
+  v = pets_of("summon_bladespirit.dbr");
+  REQUIRE_FALSE(v.empty());
+  for (const auto& e : v) {
+    INFO(e.record, ": ", e.basis);
+    CHECK(e.player_scaled);
+    CHECK(e.pets == 3);
+  }
+  // summon_blightbeast1 (petLimit 1, cooldown 18 s) + summon_blightbeast1b (Skill_SpawnPetTransmuter: petLimit +2,
+  // cooldown -13 s, modSpawnObjectsTimeToLive 12, modSpawnObjects blightbeast_<level>b): one cast per 5 s x 12 s,
+  // up to 3 pets.
+  learn(s, 3, "records/skills/playerclass08/summon_blightbeast1.dbr", 16);
+  learn(s, 4, "records/skills/playerclass08/summon_blightbeast1b.dbr", 1);
+  s.skills.back().modifier_ids.clear();
+  s.skills[s.skills.size() - 2].modifier_ids = {4};
+  v = pets_of("summon_blightbeast1.dbr");
+  REQUIRE_FALSE(v.empty());
+  for (const auto& e : v) {
+    INFO(e.record, ": ", e.basis);
+    CHECK(e.pet_record == "records/skills/playerclass08/pets/blightbeast_16b.dbr");
+    CHECK(e.pets == doctest::Approx(12.0 / 5));
+  }
+  s.skill_attributes = {{1, 60}};  // CooldownReduction 60%: 2 s, so the limit
+  for (const auto& e : pets_of("summon_blightbeast1.dbr")) CHECK(e.pets == 3);
+}
+
+TEST_CASE("effects: a live pet's engine speed and hit animation set its attack rate (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  effects::Rates rates;
+  rates.char_level = 96;
+  snap::Snapshot s;
+  s.level = 96;
+  learn(s, 1, "records/skills/playerclass03/summon_hellhound1.dbr", 16);
+  auto plain = [&] {
+    for (const auto& e : effects::collect(s, *db, rates, {}, {}).effects)
+      if (e.pet && e.record.ends_with("pet_hellhound_a16.dbr")) return e;
+    FAIL("no plain attack");
+    return effects::Effect{};
+  };
+  const double estimate = plain().per_sec;
+  CHECK(plain().basis.find("record attack speed") != std::string::npos);
+  snap::Pet hound;
+  hound.record = "records/skills/playerclass03/pets/pet_hellhound_a16.dbr";
+  hound.attack_speed = 1.5f;
+  hound.cast_speed = 1.2f;
+  hound.attack_speed_modifier = 20;
+  hound.default_skill_id = 9;
+  hound.skills = {{9, "records/skills/default/defaultpetattack.dbr", 1, 20, 30}};
+  s.pets = {hound};
+  auto e = plain();
+  INFO(e.basis);
+  CHECK(e.basis.find("engine attack speed 1.50 x 30 / 20 frames") != std::string::npos);
+  CHECK(e.per_sec > 0);
+  CHECK(e.per_sec == doctest::Approx(1.5 * 30 / 20));  // no special with a level in pet_hellhound_a16
+  CHECK(e.per_sec != doctest::Approx(estimate));
+  // +30% pet attack speed since the capture: 1.5 x (1 + 0.5) / (1 + 0.2) = 1.875.
+  rates.pet_attack_shift = 30;
+  e = plain();
+  CHECK(e.basis.find("engine attack speed 1.88") != std::string::npos);
+  // Without its default skill's animation the speed alone is the rate.
+  rates.pet_attack_shift = 0;
+  s.pets[0].skills[0].anim_frames = 0;
+  e = plain();
+  CHECK(e.basis.find("engine attack speed 1.50") != std::string::npos);
+  CHECK(e.basis.find("frames") == std::string::npos);
 }
 
 TEST_CASE("effects: buff classes by the engine's class tree (installed game; skips if absent)") {

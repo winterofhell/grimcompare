@@ -562,8 +562,21 @@ TEST_CASE("score: convert as the engine") {
          {{{10, false}, 40}, {{9, false}, 60}, {{9, true}, 60}, {{6, true}, 40}});
     CHECK_FALSE(notes.empty());
   }
-  SUBCASE("Elemental -> X before the element's own") {
+  // ConversionAttributeAccumulator::Apply 0x17DB20: one ConvertDamage per source type, in first-seen order.
+  SUBCASE("Elemental seen first: Elemental -> X before Fire -> Y") {
     near(score::convert({{{6, false}, 100}}, {}, {{58, 10, 0.5f}, {6, 9, 0.5f}}, notes),
          {{{10, false}, 50}, {{9, false}, 25}, {{6, false}, 25}});
+  }
+  SUBCASE("Fire seen first: Fire -> Y before Elemental -> X") {
+    near(score::convert({{{6, false}, 100}}, {}, {{6, 9, 0.5f}, {58, 10, 0.5f}}, notes),
+         {{{9, false}, 50}, {{10, false}, 25}, {{6, false}, 25}});
+  }
+  SUBCASE("a source type's pairs all take from the same amount") {
+    near(score::convert({{{6, false}, 100}}, {}, {{6, 9, 0.5f}, {58, 10, 0.2f}, {6, 10, 0.25f}}, notes),
+         {{{9, false}, 50}, {{10, false}, 25 + 5}, {{6, false}, 20}});
+  }
+  SUBCASE("skill level keeps its order too") {
+    near(score::convert({{{8, false}, 100}}, {{8, {{2, 50.0}}}, {58, {{10, 50.0}}}}, {}, notes),
+         {{{2, false}, 50}, {{10, false}, 25}, {{8, false}, 25}});
   }
 }
