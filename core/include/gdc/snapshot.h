@@ -19,14 +19,17 @@ namespace gdc::snap {
 // 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
 // 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown). 11: difficulty_ramp, requirements.met_at.
 // 12: Snapshot::pets (before: empty = unknown). 13: character.save (before: empty = unknown).
-inline constexpr int kSchema = 13;
+// 14: character.save with the Steam account and main / user folder (a schema 13 key reads as unknown).
+inline constexpr int kSchema = 14;
 inline constexpr int kMinSchema = 2;
 
 // The save a character lives in, as GameEngine::GetPlayerFolder (Game.dll 1.3.1.2 0x2E2D80) builds it:
-// <save root>main\\ + "_" + name (ManglePlayerName) or "__" + name (MangleBackupPlayerName), the root being Steam
-// Cloud's or My Games/Grim Dawn/save (GameEngine::GetCloudStorage). Key: "cloud/_Name" or "local/__Name".
-std::string save_key(bool cloud, std::string_view folder);
-// The character name in a save key ("cloud/__Bob" -> "Bob"); empty when it is not one.
+// <save root> + "main\\" (campaign) or "user\\" (custom game) + "_" + name (ManglePlayerName) or "__" + name
+// (MangleBackupPlayerName). The root is Steam Cloud's userdata/<account>/219990/remote/save when
+// GameEngine::GetCloudStorage is set, else My Games/Grim Dawn/save. Keys: "cloud/928303920/main/_Name",
+// "local/user/__Name". steam_account 0 = the local root.
+std::string save_key(std::uint32_t steam_account, bool custom, std::string_view folder);
+// The character name in a save key ("cloud/1/main/__Bob" -> "Bob"); empty when it is not a key.
 std::string save_key_name(std::string_view key);
 
 struct CharAttribute {
@@ -216,8 +219,8 @@ struct Snapshot {
   std::vector<std::string> errors;
 
   std::string character_name;  // UTF-8
-  // Schema 13. Which save the character is: "cloud/_Name", "local/_Name", or "__Name" for the engine's backup
-  // folder (save_key). Empty = unknown.
+  // Schema 14 (save_key): "cloud/<Steam account>/main/_Name", "local/user/_Name", "__Name" for the engine's
+  // backup folder. Empty = unknown.
   std::string save;
   std::uint32_t level = 0;
   int difficulty = -1;  // GameEngine::GetGameDifficulty (raw enum)

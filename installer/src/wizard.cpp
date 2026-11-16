@@ -108,13 +108,17 @@ std::optional<Who> pick_character(const Ctx& c, const Game& game) {
   libraries.push_back(game.root.parent_path().parent_path().parent_path());  // <library>/steamapps/common/Grim Dawn
   const auto chars = find_characters(save_roots(roots, libraries));
   std::vector<ui::Item> items;
-  std::map<std::string, std::set<bool>> kinds;  // name -> cloud / local seen
-  for (const auto& ch : chars) kinds[ch.header.name].insert(ch.save.starts_with("cloud/"));
+  // "cloud/<account>" or "local" per name: shown only when one name is in more than one.
+  auto root = [](const std::string& save) { return save.substr(0, save.starts_with("cloud/") ? save.find('/', 6) : 5); };
+  std::map<std::string, std::set<std::string>> roots_of;
+  for (const auto& ch : chars) roots_of[ch.header.name].insert(root(ch.save));
   for (const auto& ch : chars) {
     const auto m = class_masteries(ch.header.class_tag);
     std::string where;
+    if (ch.save.find("/user/") != std::string::npos) where += tr(", custom game");
     if (is_backup(ch.save)) where += tr(", backup copy");
-    if (kinds[ch.header.name].size() > 1) where += ch.save.starts_with("cloud/") ? tr(", Steam Cloud") : tr(", local save");
+    if (roots_of[ch.header.name].size() > 1)
+      where += ch.save.starts_with("cloud/") ? fmt(tr(", Steam account {}"), {root(ch.save).substr(6)}) : tr(", local save");
     items.push_back({ch.header.name, fmt(tr("{}, level {}{}{}"), {class_label(c, m), std::to_string(ch.header.level),
                                                                      ch.header.hardcore ? tr(", hardcore") : "", where})});
   }

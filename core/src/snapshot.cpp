@@ -1,5 +1,6 @@
 #include "gdc/snapshot.h"
 
+#include <algorithm>
 #include <charconv>
 #include <stdexcept>
 #include <system_error>
@@ -559,6 +560,7 @@ Snapshot from_json(std::string_view text) {
     if (const auto c = j.find("character"); c != j.end()) {
       get(*c, "name", s.character_name);
       get(*c, "save", s.save);
+      if (s.schema < 14) s.save.clear();  // "cloud/_Name": no account, no main / user
       get(*c, "level", s.level);
       get(*c, "difficulty", s.difficulty);
       get(*c, "difficulty_ramp", s.difficulty_ramp);
@@ -646,14 +648,25 @@ void spare_out(std::vector<T>& from, std::vector<T>& spare) {
 
 }  // namespace
 
-std::string save_key(bool cloud, std::string_view folder) {
-  return (cloud ? "cloud/" : "local/") + std::string(folder);
+std::string save_key(std::uint32_t steam_account, bool custom, std::string_view folder) {
+  return (steam_account ? "cloud/" + std::to_string(steam_account) + "/" : std::string("local/")) +
+         (custom ? "user/" : "main/") + std::string(folder);
 }
 
 std::string save_key_name(std::string_view key) {
-  const auto slash = key.find('/');
-  if (slash == std::string_view::npos) return {};
-  std::string_view folder = key.substr(slash + 1);
+  std::vector<std::string_view> parts;
+  for (std::size_t at = 0;;) {
+    const auto slash = key.find('/', at);
+    parts.push_back(key.substr(at, slash == std::string_view::npos ? std::string_view::npos : slash - at));
+    if (slash == std::string_view::npos) break;
+    at = slash + 1;
+  }
+  const bool cloud = parts[0] == "cloud" && parts.size() == 4 && !parts[1].empty() &&
+                     std::all_of(parts[1].begin(), parts[1].end(), [](char c) { return c >= '0' && c <= '9'; });
+  const bool local = parts[0] == "local" && parts.size() == 3;
+  if (!cloud && !local) return {};
+  if (const auto f = parts[parts.size() - 2]; f != "main" && f != "user") return {};
+  std::string_view folder = parts.back();
   if (folder.starts_with("__")) folder.remove_prefix(2);
   else if (folder.starts_with('_')) folder.remove_prefix(1);
   else return {};

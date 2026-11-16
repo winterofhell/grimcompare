@@ -86,7 +86,7 @@ flows() {
   check "backup kept" bash -c "ls '$TARGET'/GDCompare.backup/*/GDCompare.asi >/dev/null"
 
   # Wizard: the first character, its masteries, the first catalog build of the first category, saved.
-  run wizard 0 $'1\n1\n1\n1\n1\ny\n\n' "${SETUP[@]}" --wizard
+  run wizard 0 $'1\n1\n1\n1\n1\ny\n\ny\n' "${SETUP[@]}" --wizard
   check "lists saved characters" has "Which character is this for?"
   check "saves the preset" has "Saved "
   local preset

@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -973,10 +972,7 @@ void tooltip_freeze() {
       log::printf("freeze: %s; nothing written", !pub ? "no character snapshot yet" : "database not loaded yet");
       return;
     }
-    std::string file = "frozen-";
-    for (const char c : pub->snap.character_name)
-      file += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
-    if (file == "frozen-") file += "character";
+    const std::string file = score::frozen_file(pub->snap);
     AcquireSRWLockShared(&g_lock);
     const std::shared_ptr<const Presets> ps = g_presets;
     ReleaseSRWLockShared(&g_lock);

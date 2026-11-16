@@ -1,5 +1,5 @@
 #pragma once
-// Characters from the save folder, read-only: the header of each save/main/<folder>/player.gdc.
+// Characters from the save folder, read-only: the header of each save/main|user/<folder>/player.gdc.
 //
 // .gdc header (decoded from three local saves 2026-11-16; names, classes and levels match the characters in game):
 // key = first u32 ^ 0x55555555; table[i] = k = rotr(k, 1) x 39916801 (mod 2^32) for i = 0..255, k starting at key.
@@ -30,7 +30,7 @@ std::vector<int> class_masteries(std::string_view class_tag);
 struct Character {
   SaveHeader header;
   std::filesystem::path file;
-  std::string save;  // gdc::snap::save_key: "cloud/_Name" for a root under Steam's .../remote/save, else "local/..."
+  std::string save;  // gdc::snap::save_key: "cloud/<account>/main/_Name" under Steam's userdata, else "local/..."
 };
 
 // Save roots in the order tried: Steam Cloud (userdata/<id>/219990/remote/save), the Proton prefix's and the

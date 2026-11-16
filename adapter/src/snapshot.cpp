@@ -103,7 +103,8 @@ constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF
 constexpr std::size_t kPetList = 8, kPetNodeId = 0x10, kPetNodeSkill = 0x14, kPetNodeReleased = 0x1C, kMaxPets = 64;
 // GameEngine::GetPlayerFolder(Player*) 0x2E2FC8 (1.3.1.2): a set byte at Player+0x4BDD picks MangleBackupPlayerName
 // ("__" + name, rva 0x61815c) over ManglePlayerName ("_" + name, rva 0x6180ec) for the save folder.
-constexpr std::size_t kBackupFolder = 0x4BDD;
+// GetPlayerFolder(Player*) also passes Player+0x4B48: set = main\\ whatever the game mode.
+constexpr std::size_t kBackupFolder = 0x4BDD, kMainFolder = 0x4B48;
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
 
 struct Api {
@@ -112,7 +113,14 @@ struct Api {
   const char16_t* (*player_name)(const void*) = nullptr;
   int (*difficulty)(const void*) = nullptr;
   u32 (*difficulty_ramp)(const void*) = nullptr;  // optional: null reads as 0
-  bool (*cloud_storage)(const void*) = nullptr;   // optional: null leaves character.save empty
+  // Optional, any null leaves character.save empty.
+  bool (*cloud_storage)(const void*) = nullptr;
+  const void* const* engine2_var = nullptr;  // gEngine
+  void* (*game_info)(const void*) = nullptr;  // lea rax, [rcx+0x430]: reads nothing
+  u32 (*game_mode)(const void*) = nullptr;
+  // Steamworks flat API (steam_api_flat.h), from the steam_api64.dll the game already loaded.
+  void* (*steam_user)() = nullptr;
+  u64 (*steam_id)(void*) = nullptr;
   void* (*om_get)() = nullptr;
   const char* (*object_name)(const void*) = nullptr;
   u32 (*object_id)(const void*) = nullptr;
@@ -615,9 +623,18 @@ void player_name(const void* player, std::string& out) {
 void sec_character(Ctx& c) {
   void* p = c.player;
   player_name(p, c.s.character_name);
-  if (g.cloud_storage && !c.s.character_name.empty())
-    c.s.save = snap::save_key(g.cloud_storage(c.engine),
-                              (rd<std::uint8_t>(p, kBackupFolder) != 0 ? "__" : "_") + c.s.character_name);
+  c.s.save.clear();
+  if (g.cloud_storage && g.engine2_var && g.game_info && g.game_mode && !c.s.character_name.empty()) {
+    const bool cloud = g.cloud_storage(c.engine);
+    const void* engine2 = *g.engine2_var;
+    void* info = engine2 ? g.game_info(engine2) : nullptr;
+    // SteamID64 low 32 bits = the account id of Steam's userdata/<id> folder.
+    void* user = cloud && g.steam_user ? g.steam_user() : nullptr;
+    const auto account = static_cast<u32>(user ? g.steam_id(user) : 0);
+    if (info && (!cloud || account != 0))
+      c.s.save = snap::save_key(account, rd<std::uint8_t>(p, kMainFolder) == 0 && g.game_mode(info) != 1,
+                                (rd<std::uint8_t>(p, kBackupFolder) != 0 ? "__" : "_") + c.s.character_name);
+  }
   c.s.level = g.char_level(p);
   c.s.difficulty = g.difficulty(c.engine);
   c.s.difficulty_ramp = g.difficulty_ramp ? g.difficulty_ramp(c.engine) : 0;
@@ -992,6 +1009,17 @@ bool snapshot_init(const Resolve& r) {
   // A string literal would pick std::bind by ADL; the string_view picks ours.
   bind(r, g.difficulty_ramp, std::string_view{"GameEngine::GetDifficultyRamp"});
   bind(r, g.cloud_storage, std::string_view{"GameEngine::GetCloudStorage"});
+  bind(r, g.engine2_var, std::string_view{"gEngine"});
+  bind(r, g.game_info, std::string_view{"Engine::GetGameInfo"});
+  bind(r, g.game_mode, std::string_view{"GameInfo::GetMode"});
+  if (HMODULE steam = GetModuleHandleW(L"steam_api64.dll")) {
+    g.steam_user = reinterpret_cast<void* (*)()>(GetProcAddress(steam, "SteamAPI_SteamUser_v023"));
+    g.steam_id = reinterpret_cast<u64 (*)(void*)>(GetProcAddress(steam, "SteamAPI_ISteamUser_GetSteamID"));
+  }
+  if (!g.steam_user || !g.steam_id) {
+    g.steam_user = nullptr;
+    log::write("snapshot: Steam user unresolved; cloud saves bind presets by name only");
+  }
   b(g.om_get, "Singleton<ObjectManager>::Get");
   b(g.object_name, "Object::GetObjectName");
   b(g.object_id, "Object::GetObjectId");

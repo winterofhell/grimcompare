@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <fstream>
 #include <iterator>
 
@@ -134,7 +135,7 @@ std::vector<fs::path> save_roots(const std::vector<fs::path>& steam_roots, const
   if (const fs::path docs = documents_dir(); !docs.empty()) out.push_back(docs / my_games);
   std::erase_if(out, [](const fs::path& p) {
     std::error_code e;
-    return !fs::is_directory(p / "main", e);
+    return !fs::is_directory(p / "main", e) && !fs::is_directory(p / "user", e);
   });
   return out;
 }
@@ -142,18 +143,26 @@ std::vector<fs::path> save_roots(const std::vector<fs::path>& steam_roots, const
 std::vector<Character> find_characters(const std::vector<fs::path>& roots) {
   std::vector<Character> out;
   for (const auto& root : roots) {
-    const bool cloud = root.parent_path().filename() == "remote";
-    std::error_code ec;
-    for (const auto& d : fs::directory_iterator(root / "main", ec)) {
-      const fs::path file = d.path() / "player.gdc";
-      std::ifstream f(file, std::ios::binary);
-      if (!f) continue;
-      std::vector<unsigned char> head(4096);  // the header is well under this
-      f.read(reinterpret_cast<char*>(head.data()), static_cast<std::streamsize>(head.size()));
-      head.resize(static_cast<std::size_t>(f.gcount()));
-      std::string error;
-      if (auto h = read_save_header(head, error))
-        out.push_back({std::move(*h), file, gdc::snap::save_key(cloud, u8string(d.path().filename()))});
+    // userdata/<account>/219990/remote/save; 0 for My Games.
+    std::uint32_t account = 0;
+    if (root.parent_path().filename() == "remote") {
+      const std::string id = u8string(root.parent_path().parent_path().parent_path().filename());
+      const auto [end, ec] = std::from_chars(id.data(), id.data() + id.size(), account);
+      if (ec != std::errc{} || end != id.data() + id.size() || account == 0) continue;
+    }
+    for (const bool custom : {false, true}) {
+      std::error_code ec;
+      for (const auto& d : fs::directory_iterator(root / (custom ? "user" : "main"), ec)) {
+        const fs::path file = d.path() / "player.gdc";
+        std::ifstream f(file, std::ios::binary);
+        if (!f) continue;
+        std::vector<unsigned char> head(4096);  // the header is well under this
+        f.read(reinterpret_cast<char*>(head.data()), static_cast<std::streamsize>(head.size()));
+        head.resize(static_cast<std::size_t>(f.gcount()));
+        std::string error;
+        if (auto h = read_save_header(head, error))
+          out.push_back({std::move(*h), file, gdc::snap::save_key(account, custom, u8string(d.path().filename()))});
+      }
     }
   }
   std::sort(out.begin(), out.end(), [](const Character& a, const Character& b) {

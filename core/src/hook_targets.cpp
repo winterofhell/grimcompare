@@ -23,6 +23,9 @@ constexpr Target kPlanned[] = {
      "?GetDifficultyRamp@GameEngine@GAME@@QEBAIXZ"},  // 0x2d85a0
     // movzx eax, byte [rcx+0x375EA]; GetUserSaveDataFolder (0x2E2B20 in 1.3.1.2) drops the My Games base when set.
     {Module::Game, Kind::Call, false, "engine", "GameEngine::GetCloudStorage", "?GetCloudStorage@GameEngine@GAME@@QEBA_NXZ"},
+    // lea rax, [rcx+0x430] / mov eax, [rcx+0x1CC]: GetPlayerFolder (0x2E2D80 in 1.3.1.2) picks main\\ for mode 1, else user\\.
+    {Module::Engine, Kind::Call, false, "engine", "Engine::GetGameInfo", "?GetGameInfo@Engine@GAME@@QEAAPEAVGameInfo@2@XZ"},  // 0x77b60
+    {Module::Engine, Kind::Call, false, "engine", "GameInfo::GetMode", "?GetMode@GameInfo@GAME@@QEBAIXZ"},  // 0x8ed00
     {Module::Game, Kind::Detour, true, "tooltip", "ItemEquipment::GetUIDisplayText",
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",

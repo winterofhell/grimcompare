@@ -177,6 +177,9 @@ struct Conversion {
 std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const snap::Snapshot& after,
                                             const Settings& p, const std::vector<DamageKey>& targets,
                                             const arz::Database* db);
+// File name (no extension) F10 writes for this character: "frozen-winterofhell-928303920" (Steam account),
+// "-local", plus "-custom" / "-backup"; the name alone when the save is unknown. ASCII only.
+std::string frozen_file(const snap::Snapshot& s);
 // parse(freeze(...)) must give back the same settings.
 std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Database& db, const std::string& name,
                    const Labels& labels = {});

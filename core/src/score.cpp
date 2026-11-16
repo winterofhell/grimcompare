@@ -377,7 +377,7 @@ std::optional<Preset> parse(std::string_view text, std::string& error) {
     if (k == "saves") {
       if (!ps.strings(v, k, p.match_saves, "save key")) return false;
       for (const auto& s : p.match_saves)
-        if (snap::save_key_name(s).empty()) return ps.fail(v, "match.saves: \"" + s + "\" is not like \"cloud/_Name\" or \"local/_Name\"");
+        if (snap::save_key_name(s).empty()) return ps.fail(v, "match.saves: \"" + s + "\" is not like \"cloud/<Steam account>/main/_Name\" or \"local/main/_Name\"");
       return true;
     }
     if (k == "character") {
@@ -1832,6 +1832,21 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
   else if (weapon * 2 >= attack) a.name = utility::context(s, &db, "").weapon.starts_with("WeaponHunting_") ? "ranged" : "melee";
   else a.name = "caster";
   return a;
+}
+
+std::string frozen_file(const snap::Snapshot& s) {
+  std::string out = "frozen-";
+  for (const char c : s.character_name)
+    out += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
+  if (out == "frozen-") out += "character";
+  if (snap::save_key_name(s.save).empty()) return out;
+  // Same-named characters on two Steam accounts, in the local saves, in a custom game or the engine's backup copy
+  // each get their own file.
+  const std::string_view key = s.save;
+  out += key.starts_with("cloud/") ? "-" + std::string(key.substr(6, key.find('/', 6) - 6)) : std::string("-local");
+  if (key.find("/user/") != std::string_view::npos) out += "-custom";
+  if (key.find("/__") != std::string_view::npos) out += "-backup";
+  return out;
 }
 
 bool same_save_key(std::string_view a, std::string_view b) {

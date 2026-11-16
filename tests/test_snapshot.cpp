@@ -19,7 +19,7 @@ Snapshot sample() {
   s.complete = false;
   s.errors = {"inventory: FAULT 0xC0000005"};
   s.character_name = "Bob";
-  s.save = "cloud/__Bob";
+  s.save = "cloud/7/main/__Bob";
   s.level = 30;
   s.difficulty = 0;
   s.skill_points = 2;
@@ -174,7 +174,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 14})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 15})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),

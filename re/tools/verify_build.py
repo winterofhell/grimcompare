@@ -20,7 +20,9 @@ import gddis  # noqa: E402
 CHECKS = [
     ('GetCloudStorage GameEngine+0x375EA', 'GAME::GameEngine::GetCloudStorage(void) const', [r'movzx eax, byte ptr \[rcx \+ 0x375ea\]']),
     ('kBackupFolder Player+0x4BDD', 'GAME::GameEngine::GetPlayerFolder(class GAME::Player *) const',
-     [r'movzx r10d, byte ptr \[rbx \+ 0x4bdd\]']),
+     [r'movzx r10d, byte ptr \[rbx \+ 0x4bdd\]', r'movzx r9d, byte ptr \[rbx \+ 0x4b48\]']),
+    ('save folder: main\\ for GameInfo::GetMode 1 or the Player+0x4B48 byte, else user\\',
+     'GAME::GameEngine::GetPlayerFolder(std::string const &, bool, bool) const', [r'call qword ptr \[rip \+ 0x[0-9a-f]+\]', r'cmp eax, 1']),
     ('save folder: cloud drops the base, backup picks "__"', 'GAME::GameEngine::GetUserSaveDataFolder(void) const',
      [r'cmp byte ptr \[rcx \+ 0x375ea\], 0']),
     ('Character+0x5D0 attached items', 'GAME::Character::GetAttachedItems(void) const', [r'lea rax, \[rcx \+ 0x5d0\]']),
