@@ -24,6 +24,8 @@ add_executable(gdc_tests
   test_sanity.cpp
   test_symmetry.cpp
   test_regress.cpp
+  test_classes.cpp
+  test_templates.cpp
 )
 target_link_libraries(gdc_tests PRIVATE gdc_core)
 target_include_directories(gdc_tests PRIVATE ${PROJECT_SOURCE_DIR}/third_party)

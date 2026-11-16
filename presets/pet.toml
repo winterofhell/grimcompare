@@ -5,9 +5,8 @@
 # from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
 # Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
 # "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
-# Limitation: pet damage is scored only next to main skills and only with pet_attack_rate > 0, which the
-# database does not give (presets/default.toml). Until then pets' damage and RR show as "+? unscored", and
-# pet bonuses count through [other] pet_bonus.
+# Pets are scored with the experimental pet model (docs/MECHANICS.md §4): their damage per second joins Damage
+# (pet bonus %, attack speed, OA, +skills to summons); pet bonuses' defensive part counts through [other] pet_bonus.
 
 [preset]
 name = "pet"
@@ -28,13 +27,13 @@ masteries = [
 archetype = "pet"
 
 [score]
-damage = 0.3      # design choice: the player's own attacks are a small part of a pet build's damage
-other = 0.5       # design choice: pet_bonus below carries the pets' damage
+damage = 1.0      # design choice: the pets' damage is in Damage now
+other = 0.35      # design choice: pet_bonus below carries the pets' survival
 
 [damage]
 skill_weights = "points"
 
 [other]
-pet_bonus = { weight = 2.0, when = "pets" }   # design choice: 10x default; per 100% mean bonus to pets
+pet_bonus = { weight = 1.0, when = "pets" }   # design choice: 5x default; per 100% mean defensive bonus to pets
 retaliation = 0
 retaliation_modifier = 0

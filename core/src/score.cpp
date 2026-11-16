@@ -10,6 +10,7 @@
 #include <tuple>
 
 #include "gdc/attribute_names.h"
+#include "gdc/classes.h"
 #include "gdc/combat_formulas.h"
 #include "gdc/db_fields.h"
 #include "gdc/enemy.h"
@@ -507,6 +508,7 @@ struct Raw {
   Amounts flat;            // dot: per second x duration
   Amounts pct;             // 58 / 60 spread
   double weapon_pct = 0;
+  classes::Speed speed = classes::Speed::kNone;  // of the skill's own record
   double crit = 0;
   double cooldown = 0;     // modifiers add negative values
   double leech = 0;        // own ADCtH plus modifiers' (Bramblevine)
@@ -564,6 +566,7 @@ Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Databas
   Raw raw;
   const arz::Record* rec = db.record(sk.record);
   if (!rec) return raw;
+  raw.speed = classes::speed(rec->cls);
   if (!has_damage(*rec, sk.current_level))
     if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) rec = buff;
   add_record(*rec, sk.current_level, raw);
@@ -642,8 +645,20 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   for (const auto& sk : s.skills) {
     if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
     const arz::Record* r = db.record(sk.record);
-    if (!r || (r->cls != "Skill_Passive" && r->cls != "Skill_BuffSelfToggled") || !skill_on(sk, *r)) continue;
-    add_flat(*r, sk.current_level, 1, out);
+    // Passives, toggles and auras (Skill_BuffRadiusToggled keeps its stats on the buffSkillName record:
+    // presenceofvirtue1_buff.dbr). Skill_BuffSelfDuration is a toggle subclass; with a duration it is a timed buff.
+    // shortcut: a timed buff's flat damage (bloodofdreeg1_buff.dbr poison) is left out — revisit if a weapon build
+    // relies on one.
+    if (!r || !(classes::is_a(r->cls, "Skill_Passive") || classes::is_a(r->cls, "Skill_BuffSelfToggled") ||
+                classes::is_a(r->cls, "Skill_BuffRadiusToggled")))
+      continue;
+    if (!skill_on(sk, *r) || model::buff_timing(sk, db)) continue;
+    const arz::Record* stats = r;
+    if (!has_damage(*r, sk.current_level))
+      if (const arz::Record* buff = db.record(r->string("buffSkillName"));
+          buff && classes::is_a(buff->cls, "SkillBuff_Passive"))  // not a SkillBuff_Debuf (auracensure1_buff.dbr)
+        stats = buff;
+    add_flat(*stats, sk.current_level, 1, out);
   }
   for (const auto& sk : s.item_skills) {
     if (sk.current_level == 0) continue;
@@ -661,16 +676,38 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   return out;
 }
 
-// Skill conversions first, then the character's on the rest; converted damage is not converted again
-// (MECHANICS §2). Sums over 100% are scaled to 100% (unverified).
-// CombatAttributeAccumulator::ConvertDamage 0x119ED0 moves DoT along with direct damage, except into Pierce,
-// Chaos, Aether (no DoT form). Elemental -> X runs before the element's own conversions (community order,
-// MECHANICS §2.4; engine order not traced).
-Amounts convert(const Amounts& in, const std::map<int, std::map<int, double>>& skill_pct,
-                const std::vector<snap::Conversion>& global, std::vector<std::string>& notes) {
+// Elemental damage is a third each of Cold, Fire and Lightning: ConvertCombatAttributes 0x1199F0 makes three
+// entries (types 5, 6, 8) at 1/3 (const 0x7A8010) for a conversion into Elemental, and ConvertDamage 0x119ED0 treats
+// Elemental as those three types. So it is split before % bonuses and conversions apply.
+void split_elemental(Amounts& a) {
+  for (const bool dot : {false, true}) {
+    const auto it = a.find({kElemental, dot});
+    if (it == a.end()) continue;
+    const double third = it->second / 3;
+    a.erase(it);
+    for (int t : fields::spread(kElemental, false)) a[{t, dot}] += third;
+  }
+}
+
+}  // namespace
+
+// Skill::CollectCombatParameters 0x499E40: the skill's own conversions first (0x49A3B7), then the character's
+// (SkillManager::GetConversionAttributes + equipment, 0x49A5D7), each level weighed on its own.
+// ConversionAttributeAccumulator::Weigh 0x17D520: a source type whose percents add up over 100% has every pair
+// scaled by 100 / total. ConvertDamage 0x119ED0, per source type: an entry matches its own type, BasePhysical
+// matches Physical, Elemental matches Cold / Fire / Lightning; DoT is not moved into Pierce, Chaos or Aether
+// (0x119FE0: those pairs are skipped, the others keep their weighed percent); the entry keeps 100 - the moved
+// percent. New entries are flagged (byte +0xF, 0x119E44) and never converted again, in either level.
+// Elemental -> X runs before the element's own conversions (community order, MECHANICS §2.4: the engine runs the
+// source types in accumulator order, not traced).
+std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input,
+                                    const std::map<int, std::map<int, double>>& skill_pct,
+                                    const std::vector<snap::Conversion>& global, std::vector<std::string>& notes) {
   std::map<int, std::map<int, double>> g;
   for (const auto& c : global) g[c.from][c.to] += c.percent * 100;
-  auto no_dot = [](int t) { return t == 4 || t == 10 || t == 11; };  // ConvertDamage 0x119FE0
+  auto no_dot = [](int t) { return t == 4 || t == 10 || t == 11; };
+  Amounts in = input;
+  split_elemental(in);
   Amounts out;
   for (const auto& [key, amount] : in) {
     double left = amount;
@@ -680,37 +717,38 @@ Amounts convert(const Amounts& in, const std::map<int, std::map<int, double>>& s
       for (const int from : {element ? kElemental : 0, key.first}) {
         const auto it = from ? level->find(from) : level->end();
         if (it == level->end()) continue;
-        double sum = 0;
-        for (const auto& [to, pct] : it->second)
-          if (!(key.second && no_dot(to))) sum += pct;
-        if (sum <= 0) continue;
-        const double scale = sum > 100 ? 100 / sum : 1;
-        if (sum > 100.01) notes.push_back("conversion > 100% from " + std::string(names::combat_attribute(from)) + " (scaled)");
-        const double moved = left * std::min(sum, 100.0) / 100;
-        for (const auto& [to, pct] : it->second)
-          if (!(key.second && no_dot(to))) out[{to, key.second}] += left * pct * scale / 100;
+        double total = 0;
+        for (const auto& [to, pct] : it->second) total += std::max(0.0, pct);
+        if (total <= 0) continue;
+        const double scale = total > 100 ? 100 / total : 1;
+        if (total > 100.01) notes.push_back("conversion > 100% from " + std::string(names::combat_attribute(from)) + " (weighed)");
+        double moved = 0;
+        for (const auto& [to, pct] : it->second) {
+          if (pct <= 0 || (key.second && no_dot(to))) continue;
+          const double part = left * pct * scale / 100;
+          out[{to, key.second}] += part;
+          moved += part;
+        }
         left -= moved;
       }
     out[key] += left;
   }
-  // Elemental: a third each to Cold, Fire, Lightning (unverified).
-  for (const bool dot : {false, true}) {
-    const auto it = out.find({kElemental, dot});
-    if (it == out.end()) continue;
-    const double third = it->second / 3;
-    out.erase(it);
-    for (int t : fields::spread(kElemental, false)) out[{t, dot}] += third;
-  }
+  split_elemental(out);
   return out;
 }
+
+namespace {
 
 // combatformulas.dbr: physical / pierce + Cunning/245, physical DoT + Cunning/215, magical + Spirit/215,
 // magical DoT + Spirit/200; damage = base x (1 + % / 100 + this). Checked in game (lvl16-wp-lhand-* fixtures):
 // Poison Nova 21/s x (1 + 0.93 + 198.22 / 200) = 61 x 5 s = 305 shown (MECHANICS §5).
-double attribute_bonus(const snap::Snapshot& s, int type, bool dot) {
+double attribute_bonus(double cunning, double spirit, int type, bool dot) {
   const bool physical = type == kPhysical || type == 4 || type == kBleeding;
-  if (physical) return char_total(s, kCunning) / (dot ? 215.0 : 245.0);
-  return char_total(s, kSpirit) / (dot ? 200.0 : 215.0);
+  if (physical) return cunning / (dot ? 215.0 : 245.0);
+  return spirit / (dot ? 200.0 : 215.0);
+}
+double attribute_bonus(const snap::Snapshot& s, int type, bool dot) {
+  return attribute_bonus(char_total(s, kCunning), char_total(s, kSpirit), type, dot);
 }
 
 // shortcut: record value of DamageAttributeDurMod_* only — no affix rolls, no skill / devotion parts, so large
@@ -764,16 +802,22 @@ CooldownUses cooldown_uses(double cooldown, double cdr, double rate) {
   return out;
 }
 
-// A captured hit animation (schema 10) means a SkillActivatedSpell / BuffSelf: Player::CalculateSkillDps picks the cast
-// path by class (0x3E0BEE..0x3E0CFD), whatever weapon damage % its modifiers add (Vile Eye on Dreeg's Evil Eye).
+// The adapter captures a hit animation (schema 10) for SkillActivatedSpell / BuffSelf only.
 bool has_anim(const snap::Skill& sk) { return sk.anim_frames > 0 && sk.anim_frame_rate > 0; }
 
-// Uses per second at most. With a hit animation: cast speed x frame rate / frames, as CalculateSkillDps stores in
-// SkillAttackInfo+0x2C. Without one: attack speed for weapon-damage skills, cast speed for the rest, read as uses per
-// second (unverified).
-double use_rate(const snap::Snapshot& s, const snap::Skill& sk, bool weapon) {
+// Attack or cast speed by the skill's class as Player::CalculateSkillDps (classes::speed), whatever weapon damage %
+// its modifiers add (Vile Eye on Dreeg's Evil Eye, shieldhammer1's 100%). A class outside those branches
+// (SkillSecondary_*, unknown): attack speed with weapon damage, else cast speed (unverified).
+bool attack_speed(const Raw& raw) {
+  return raw.speed == classes::Speed::kAttack || (raw.speed == classes::Speed::kNone && raw.weapon_pct > 0);
+}
+
+// Uses per second at most. Cast class with a hit animation: cast speed x frame rate / frames, as CalculateSkillDps
+// stores in SkillAttackInfo+0x2C. Otherwise the sheet's attack / cast speed read as uses per second (unverified).
+double use_rate(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw) {
+  if (attack_speed(raw)) return s.attack_speed;
   if (has_anim(sk)) return static_cast<double>(s.cast_speed) * sk.anim_frame_rate / sk.anim_frames;
-  return weapon ? s.attack_speed : s.cast_speed;
+  return s.cast_speed;
 }
 
 SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
@@ -784,6 +828,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   Amounts amounts = raw.flat;
   if (raw.weapon_pct > 0)
     for (const auto& [k, v] : g.flat) amounts[k] += v * raw.weapon_pct / 100;
+  split_elemental(amounts);  // raw.pct holds Elemental % spread already
   for (auto& [k, v] : amounts) {  // skill % applies to the original type (MECHANICS §2.5)
     const auto it = raw.pct.find(k);
     if (it != raw.pct.end()) v *= 1 + it->second / 100;
@@ -803,10 +848,9 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   const double crit_bonus = (crit_row ? crit_row->damage_modifier : 0) + raw.crit / 100;
   double pth = 0;
   const formulas::Hit h = attack(s, p, crit_bonus, &pth);
-  const bool weapon = raw.weapon_pct > 0;
   out.per_use = sum * h.multiplier;
   out.cooldown = raw.cooldown;
-  out.rate = use_rate(s, sk, weapon);
+  out.rate = use_rate(s, sk, raw);
   std::string pace;
   if (raw.cooldown > 0) {
     const CooldownUses u = cooldown_uses(raw.cooldown, utility::cooldown_reduction(s), out.rate);
@@ -815,12 +859,11 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
     pace = " cooldown " + fmt(raw.cooldown, 2) + " s x (1 - " + fmt(u.cdr * 100) + "%) " + fmt(u.per_sec, 2) + "/s" +
            (u.capped ? " (speed cap)" : "");
   } else {
-    const bool attack_speed = weapon && !has_anim(sk);
-    const double speed = 1 + (char_modifier(s, attack_speed ? kAttackSpeed : kCastSpeed) + char_modifier(s, kTotalSpeed)) / 100;
+    const double speed = 1 + (char_modifier(s, attack_speed(raw) ? kAttackSpeed : kCastSpeed) + char_modifier(s, kTotalSpeed)) / 100;
     out.value = out.per_use * std::max(0.0, speed);
     pace = " speed " + fmt(speed, 2);
   }
-  if (has_anim(sk))
+  if (!attack_speed(raw) && has_anim(sk))
     pace += " (anim " + std::to_string(sk.anim_frames) + "f@" + std::to_string(sk.anim_frame_rate) + " -> " +
             fmt(out.rate, 2) + "/s)";
   out.inputs = stem(sk.record) + " L" + std::to_string(sk.current_level) + " dmg " + fmt(sum) + " pth " + fmt(pth) +
@@ -1073,8 +1116,50 @@ struct Main {
   Raw raw;
 };
 
+// Stats of a pet bonus (petBonusName) record or the bonuses a Class Pet gets.
+using PetStats = std::map<std::tuple<fields::Kind, int, bool>, double>;
+
+double stat(const PetStats& b, fields::Kind kind, int type, bool modifier) {
+  const auto it = b.find({kind, type, modifier});
+  return it != b.end() ? it->second : 0;
+}
+
+bool timed(const arz::Record& r, std::uint32_t level, const arz::Database& db) {
+  const arz::Record* b = db.record(r.string("buffSkillName"));
+  const arz::Record& x = b ? *b : r;
+  return (classes::is_a(x.cls, "SkillBuff_Passive") || classes::is_a(x.cls, "Skill_BuffSelfDuration")) &&
+         at_level(x, "skillActiveDuration", level) > 0;
+}
+
+// What GameEngine::ContributePetBonus* hands a Class Pet (effects.h): the petBonusName records of equipped items
+// with their affixes and components (level 1) and of learned skills, devotions and item skills with points (own or
+// buffSkillName record, at their level). shortcut: timed buffs' and set bonuses' pet bonuses are left out (sets
+// lists them unscored) — revisit with a pet build snapshot.
+PetStats pet_bonuses(const snap::Snapshot& s, const arz::Database& db) {
+  PetStats out;
+  auto take = [&](const arz::Record& r, std::uint32_t level) {
+    if (const arz::Record* b = db.record(r.string("petBonusName")))
+      for (const auto& [k, v] : sets::bonus(*b, static_cast<int>(level)).stats) out[k] += v;
+  };
+  for (const auto& it : s.equipped)
+    for (const auto& r : model::item_records(it))
+      if (const arz::Record* rec = db.record(r)) take(*rec, 1);
+  for (const auto* list : {&s.skills, &s.item_skills})
+    for (const auto& sk : *list) {
+      if (sk.current_level == 0 || (list == &s.skills && sk.level == 0)) continue;
+      const arz::Record* r = db.record(sk.record);
+      if (!r) continue;
+      const arz::Record* b = db.record(r->string("buffSkillName"));
+      if (r->string("petBonusName").empty() && (!b || b->string("petBonusName").empty())) continue;
+      if (timed(*r, sk.current_level, db)) continue;
+      take(*r, sk.current_level);
+      if (b) take(*b, sk.current_level);
+    }
+  return out;
+}
+
 effects::Rates rates(const snap::Snapshot& s, const std::vector<Skill>& skills, const std::vector<Main>& mains,
-                     const Settings& p, const arz::Database& db) {
+                     const Settings& p, const arz::Database& db, const PetStats& b) {
   effects::Rates r;
   r.hits_taken = p.incoming_hits_per_sec;
   r.melee_hits = r.hits_taken * p.melee_share;
@@ -1084,10 +1169,14 @@ effects::Rates rates(const snap::Snapshot& s, const std::vector<Skill>& skills, 
   r.low_health = p.low_health_per_sec;
   r.kills = p.kills_per_sec;
   r.pet_attacks = p.pet_attack_rate;
+  r.char_level = s.level;
+  const double total = stat(b, fields::Kind::Char, kTotalSpeed, true);
+  r.pet_attack_speed = stat(b, fields::Kind::Char, kAttackSpeed, true) + total;
+  r.pet_cast_speed = stat(b, fields::Kind::Char, kCastSpeed, true) + total;
   for (std::size_t k = 0; k < skills.size(); ++k) {
     if (!mains[k].sk) continue;
     const bool weapon = mains[k].raw.weapon_pct > 0;
-    const double rate = skills[k].weight * use_rate(s, *mains[k].sk, weapon);
+    const double rate = skills[k].weight * use_rate(s, *mains[k].sk, mains[k].raw);
     r.action += rate;
     if (weapon) r.weapon += rate;
   }
@@ -1109,14 +1198,45 @@ struct Side {
   Utility utility;
   struct Hit {
     std::string record;
-    bool pet = false;            // own bonuses not modelled
+    bool pet = false;            // Class Pet: pet bonuses, not the player's
     bool player_scaled = false;  // uses the player's bonuses, like a proc
     double per_sec = 0;
-    Amounts flat;
+    Amounts flat;                // Class Pet: with the pet's % and attribute bonuses applied
+    double pet_hit = 1;          // Class Pet: expected hit multiplier at the pet's OA
   };
   std::vector<Hit> hits;
   std::map<std::string, std::string> hits_unknown;
 };
+
+// A Class Pet's hit, experimental (docs/MECHANICS.md §4): per type x (1 + (pet bonus % + the pet's own passives' %)
+// / 100 + its attributes as combatformulas.dbr for the player), and the expected hit at its OA against the enemy DA.
+// The pet's level is the player's; Cunning / Spirit / OA come from its characterAttributeEquations record (DB
+// equations of charLevel) plus pet bonuses. shortcut: the formulas are the player's (unverified for pets), no crit
+// damage or DoT duration bonuses, no conversions — revisit with a pet build snapshot.
+void pet_scaling(const snap::Snapshot& s, const Settings& p, const arz::Database& db, const PetStats& bonus,
+                 const effects::Effect& e, Side::Hit& h) {
+  const arz::Record* pet = db.record(e.pet_record);
+  if (!pet) return;
+  Raw own;
+  for (const auto& [r, l] : effects::pet_skills(*pet, s.level, {}, db))
+    if (const arz::Record* x = db.record(r); x && classes::is_a(x->cls, "Skill_Passive")) add_record(*x, l, own);
+  const arz::Record* bio = db.record(pet->string("characterAttributeEquations"));
+  auto attr = [&](std::string_view field, int type) {
+    const double base = bio ? effects::equation(bio->string(field), s.level).value_or(0) : 0;
+    return (base + stat(bonus, fields::Kind::Char, type, false)) * (1 + stat(bonus, fields::Kind::Char, type, true) / 100);
+  };
+  const double cunning = attr("characterDexterity", kCunning), spirit = attr("characterIntelligence", kSpirit);
+  for (auto& [k, v] : h.flat) {
+    double pct = 0;
+    if (const auto it = own.pct.find(k); it != own.pct.end()) pct += it->second;
+    for (const int t : {k.first, 60, k.first == 5 || k.first == 6 || k.first == 8 ? kElemental : -1})
+      if (t > 0) pct += stat(bonus, fields::Kind::Damage, t, k.second);
+    v *= std::max(0.0, 1 + pct / 100 + attribute_bonus(cunning, spirit, k.first, k.second));
+  }
+  const double oa_base = bio ? effects::equation(bio->string("characterOffensiveAbility"), s.level).value_or(0) : 0;
+  const double oa = (oa_base + stat(bonus, fields::Kind::Char, 21, false)) * (1 + stat(bonus, fields::Kind::Char, 22, false) / 100);
+  h.pet_hit = formulas::expected_hit(formulas::probability_to_hit(oa, enemy_da(s, p)), s.pth, 0).multiplier;
+}
 
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
           const Amounts& base, std::vector<std::string>& notes) {
@@ -1125,12 +1245,16 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
     const snap::Skill* sk = skill_by_record(s, k.record);
     out.mains.push_back({sk, sk ? skill_raw(s, *sk, db, notes) : Raw{}});
   }
-  out.effects = effects::collect(s, db, rates(s, skills, out.mains, p, db), p.uptime, enemy_types(p));
+  out.utility = utility_of(s, p, &db);
+  // Only a Class Pet takes pet bonuses; skip the walk without a summon of one (utility::context).
+  // shortcut: a Class Pet only an item proc summons gets no pet speed bonus — revisit if one shows up.
+  std::optional<PetStats> pets;
+  if (out.utility.context.pets) pets = pet_bonuses(s, db);
+  out.effects = effects::collect(s, db, rates(s, skills, out.mains, p, db, pets ? *pets : PetStats{}), p.uptime, enemy_types(p));
   std::map<int, double> target = p.enemy_resist;
   for (auto& [type, r] : target) r += enemy::resist(type, enemy::difficulty(s));
   out.resist = effects::resist_multipliers(target, out.effects.reductions);
   out.gear = gear(s, db, base);
-  out.utility = utility_of(s, p, &db);
   // Gear ADCtH only reaches skills with weapon damage, x min(weaponDamagePct / 100, 1):
   // SkillManager::CollectAvailableOffensiveDamageAttributes 0x535FB0 adds GetEquipArmorDamageAttributes only from
   // Skill::CollectCombatParameters 0x499E40 when weapon % > 0, and DamageAttributeAbs_LifeLeech::
@@ -1155,22 +1279,32 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
       if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) add_flat(*buff, lv, 1, a);
     // A Skill_WPAttack_* replaces a weapon attack, so only its excess over 100% counts.
     // shortcut: the replaced attack is taken as the default attack — revisit with a weapon build.
-    double weapon_pct = e.pet ? 0 : at_level(*rec, "weaponDamagePct", lv);
-    if (weapon_pct > 0 && rec->cls.starts_with("Skill_WPAttack_")) weapon_pct -= 100;
-    if (a.empty() && weapon_pct == 0) continue;
+    // A pet's weapon is its own (effects::Effect::weapon); the pet record stands for its plain attack.
+    double weapon_pct = classes::is_a(rec->cls, "Character") ? 100 : at_level(*rec, "weaponDamagePct", lv);
+    if (!e.pet && weapon_pct > 0 && rec->cls.starts_with("Skill_WPAttack_")) weapon_pct -= 100;
+    Amounts pet_weapon;
+    if (e.pet)
+      for (const auto& [r, l] : e.weapon)
+        if (const arz::Record* w = db.record(r)) add_flat(*w, l, 1, pet_weapon);
+    if (a.empty() && (weapon_pct == 0 || (e.pet && pet_weapon.empty()))) continue;
     if (e.per_sec <= 0) {
       out.hits_unknown.emplace(e.record, e.basis);
       continue;
     }
     if (weapon_pct != 0)
-      for (const auto& [k, v] : out.gear.flat) a[k] += v * weapon_pct / 100;
-    out.hits.push_back({e.record, e.pet && !e.player_scaled, e.player_scaled, e.per_sec, std::move(a)});
+      for (const auto& [k, v] : e.pet ? pet_weapon : out.gear.flat) a[k] += v * weapon_pct / 100;
+    Side::Hit h{e.record, e.pet && !e.player_scaled, e.player_scaled, e.per_sec, std::move(a)};
+    if (h.pet) {
+      if (!pets) pets = pet_bonuses(s, db);
+      pet_scaling(s, p, db, *pets, e, h);
+    }
+    out.hits.push_back(std::move(h));
   }
   return out;
 }
 
-// PetPlayerScaling pets attack with the owner's combat parameters (effects::summoned), like procs.
-// shortcut: Class Pet bonuses and the pet's own OA / crit are not modelled — revisit with a pet DPS test.
+// PetPlayerScaling pets attack with the owner's combat parameters (effects::summoned), like procs. Class Pet hits
+// come scaled by pet_scaling (pet bonuses, the pet's OA). shortcut: no pet crit damage — revisit with a pet DPS test.
 struct Extra {
   double per_sec = 0;
   std::string inputs;
@@ -1188,6 +1322,7 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, st
     double per_use = 0;
     if (e.pet) {
       for (const auto& [k, v] : e.flat) per_use += v * resist(k.first);
+      per_use *= e.pet_hit;
     } else {
       for (const auto& [k, v] : convert(e.flat, {}, s.conversions, notes)) {
         const auto* m = find(s.damage_modifiers, k.first);
@@ -1308,7 +1443,7 @@ struct Eval {
 Eval eval(const snap::Snapshot& s, double absorbed, const Side& x, const Procs& pr, const Settings& p,
           const arz::Database* db, std::vector<std::string>& notes) {
   Eval e;
-  if (db && !x.mains.empty()) {
+  if (db) {
     for (const auto& m : x.mains)
       e.skills.push_back(m.sk ? skill_damage(s, *m.sk, m.raw, x.gear, p, notes, nullptr, &x.resist) : SkillDamage{});
     e.extra = extra_damage(s, x, p, notes);
@@ -1418,6 +1553,12 @@ Other mixed_other(const Scored& sd) {
   return out;
 }
 
+// Skills that are an attack of their own: Skill_Attack* and Skill_BuffAttackRadiusToggled's subclasses (devastation:
+// Skill_BuffAttackRadiusDrop). Not toggles or auras, whose flat damage is a bonus to attacks.
+bool attack_class(std::string_view cls) {
+  return cls.starts_with("Skill_Attack") || classes::is_a(cls, "Skill_BuffAttackRadiusToggled");
+}
+
 std::string resist_inputs(const Side& x) {
   std::string out = "enemy x";
   for (const auto& [t, m] : x.resist) out += " " + std::string(names::combat_attribute(t)) + " " + fmt(m, 2);
@@ -1439,7 +1580,7 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
       if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
       if (!sk.record.starts_with("records/skills/playerclass")) continue;
       const arz::Record* r = db->record(sk.record);
-      if (!r || !r->cls.starts_with("Skill_Attack")) continue;
+      if (!r || !(attack_class(r->cls) || classes::is_a(r->cls, "SkillActivatedWeaponPool"))) continue;
       const arz::Record* d = r;
       if (!has_damage(*d, sk.current_level)) d = db->record(r->string("buffSkillName"));
       if (!d || !has_damage(*d, sk.current_level)) continue;
@@ -1513,7 +1654,7 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
     const arz::Record* buff = db.record(r->string("buffSkillName"));
     // Every playerclass record of these classes has weaponDamagePct.
     if (r->cls.starts_with("Skill_WeaponPool_") || r->cls.starts_with("Skill_WPAttack_")) return kWeapon;
-    if (r->cls.starts_with("Skill_Attack")) {
+    if (attack_class(r->cls)) {
       const arz::Record* d = has_damage(*r, lv) ? r : (buff && has_damage(*buff, lv) ? buff : nullptr);
       if (d) return at_level(*d, "weaponDamagePct", lv) > 0 ? kWeapon : kAttack;
     }
@@ -1779,12 +1920,39 @@ std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const 
                                             const arz::Database* db) {
   std::vector<Conversion> out;
   if (p.conversion_warn.empty()) return out;
+  // The build's types: >= 10% of its main skills' damage (design choice). A gear conversion acts only on damage no
+  // conversion made (convert(): new entries are not converted again), so the source side is read with the gear
+  // conversions taken out, the target side with them. Unknown (no database, no main skills): every type counts.
+  // shortcut: a skill's own conversion output still counts as a source — revisit if it over-warns.
+  auto types = [&](const snap::Snapshot& s) {
+    std::set<int> t;
+    if (db)
+      for (const auto& [k, share] : damage_profile(s, *db))
+        if (share >= 0.1) t.insert(k.first);
+    return t;
+  };
+  std::optional<std::set<int>> source, dealt;
+  auto deals = [&](int type) {
+    if (!source) {
+      snap::Snapshot native = before;
+      native.conversions.clear();
+      source = types(native);
+    }
+    if (source->empty()) return true;
+    if (type == kElemental) return source->contains(5) || source->contains(6) || source->contains(8);
+    if (type == kPhysical) return source->contains(kPhysical) || source->contains(kBasePhysical);
+    return source->contains(type);
+  };
   auto warned = [&](int from, int to) {
     for (const auto& t : targets)
       if (t.first == to) return false;
-    return std::any_of(p.conversion_warn.begin(), p.conversion_warn.end(), [&](const auto& w) {
+    const bool listed = std::any_of(p.conversion_warn.begin(), p.conversion_warn.end(), [&](const auto& w) {
       return (w.first == 0 || w.first == from) && (w.second == 0 || w.second == to);
     });
+    if (!listed || !deals(from)) return false;
+    if (!targets.empty()) return true;  // a preset's [match] types are the build's
+    if (!dealt) dealt = types(before);
+    return to == kElemental || dealt->empty() || !dealt->contains(to);
   };
   std::map<std::pair<int, int>, double> was, now;
   for (const auto& c : before.conversions) was[{c.from, c.to}] += c.percent * 100;
@@ -1849,8 +2017,27 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
             std::none_of(out.unscored.begin(), out.unscored.end(), [&](const Unscored& u) { return u.record == record; }))
           out.unscored.push_back({record, why});
   };
+  auto pets_only = [&] {
+    for (const Scored* sd : {&B, &A})
+      for (const auto& [prob, e] : sd->states)
+        if (!(e.extra.per_sec > 0)) return false;
+    return true;
+  };
   if (!db) out.notes.push_back("no database: damage not scored");
-  else if (skills.empty()) out.notes.push_back("no main damage skill found: damage not scored");
+  else if (skills.empty() && pets_only()) {
+    // No attack of the player's own (a pure summoner): Damage is the pets' and procs' damage per second.
+    auto extra = [](const Eval& e) { return e.extra.per_sec; };
+    out.ratio.damage = std::exp(A.ln_mean(extra) - B.ln_mean(extra));
+    out.before += "procs+pets " + fmt(B.shown().extra.per_sec) + "/s:" + B.shown().extra.inputs + "; ";
+    out.after += "procs+pets " + fmt(A.shown().extra.per_sec) + "/s:" + A.shown().extra.inputs + "; ";
+    for (const Side* x : {&B.x, &A.x})
+      for (const auto& h : x->hits) {
+        out.procs.insert(h.record);
+        out.pets = out.pets || (h.pet && !h.player_scaled);
+      }
+    one_sided(B.x.hits_unknown, A.x.hits_unknown);
+    contribute(out.contributions, out.ratio.damage, p.damage_weight, {{"procs and pets", "", A.ln_mean(extra) - B.ln_mean(extra), ""}});
+  } else if (skills.empty()) out.notes.push_back("no main damage skill found: damage not scored");
   else {
     const Side &sb = B.x, &sa = A.x;
     auto defaults = [](const Side& x) {
@@ -1913,7 +2100,10 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
       out.after += "main " + fmt(main(a0)) + "/s, procs+pets " + fmt(ea.per_sec) + "/s:" + ea.inputs + "; ";
       parts.push_back({"procs and pets", "", A.ln_mean(share) - B.ln_mean(share), ""});
       for (const Side* x : {&sb, &sa})
-        for (const auto& h : x->hits) out.procs.insert(h.record);
+        for (const auto& h : x->hits) {
+          out.procs.insert(h.record);
+          out.pets = out.pets || (h.pet && !h.player_scaled);
+        }
     } else if (extra) {
       out.notes.push_back("main skills' damage per second unknown (no attack / cast speed): procs and pets not scored");
     }

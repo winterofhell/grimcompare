@@ -54,8 +54,9 @@ conversion_warn = []
 # level and difficulty from the game database (re/EnemyByLevel.tsv; Normal: 386 at level 15, 1040 at 50,
 # 1963 at 100; Ultimate 2190 at 100).
 enemy_da_per_level = 0
-# Attacks per second of one pet (pet damage and RR). 0 = unknown: pets are listed "+? unscored". Not in
-# the database (the attack animation's length is not a record field).
+# Plain attacks per second of one pet (experimental pet model, docs/MECHANICS.md §4). 0 = estimate from the
+# pet's record: characterAttackSpeed (spells: characterSpellCastSpeed) x (1 + pet attack / cast speed bonus),
+# less the time its special attacks take.
 pet_attack_rate = 0
 # Enemies you kill per second while fighting: drives "on kill" procs. A guess; lower it for boss fights.
 kills_per_sec = 0.5
@@ -148,7 +149,7 @@ bleeding = 0
 # and Survivability compute them. So do dodge / deflect, shield block and the "reduced target's damage"
 # debuff since 0.9.0 (stages of Survivability, [survival]), and skill cooldown reduction since 0.9.6 (Damage: a
 # main skill with a cooldown is used more often, up to your attack / cast speed; timed buffs' uptime). Skill
-# energy cost reduction is not scored (no energy model). Item-only below (life leech, retaliation, pet bonus):
+# energy cost reduction is not scored (no energy model). Item-only below (life leech, retaliation, pet bonus, racial):
 # skills' parts of those are not seen.
 [other]
 run_speed = 0.5                               # per 100% run speed
@@ -166,5 +167,7 @@ disruption_resist = 0.05                      # per 100% skill disruption protec
 experience = 0.2                              # per 100% experience gained, x (1 - level / 100): 0 at max level
 retaliation = 0.02                            # per 1000 retaliation damage
 retaliation_modifier = 0.02                   # per 100% retaliation damage
-pet_bonus = { weight = 0.2, when = "pets" }   # per 100% mean bonus to pets
+pet_bonus = { weight = 0.2, when = "pets" }   # per 100% mean defensive bonus to pets (life, resists, ...)
+racial_damage = 1.0                           # per 100% more damage to all enemies: racial % x 10% per race listed
+racial_defense = 1.0                          # per 100% less damage from all enemies: racial % x 10% per race listed
 default = 0.05                                # per 100 of any other stat (gold, light radius, ...): named in Shift

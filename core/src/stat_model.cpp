@@ -9,6 +9,7 @@
 #include <tuple>
 
 #include "gdc/attribute_names.h"
+#include "gdc/classes.h"
 #include "gdc/combat_formulas.h"
 #include "gdc/db_fields.h"
 #include "gdc/sets.h"
@@ -337,7 +338,7 @@ const arz::Record& stats_record(const arz::Record& rec, const arz::Database& db)
 // 1.3.1.1) or Skill_BuffSelfDuration (overguard1) with skillActiveDuration. Toggles, auras, debuffs, attacks and
 // Skill_PassiveOn*BuffSelf are not timed buffs.
 std::optional<BuffTiming> timing(const arz::Record& stats, std::uint32_t level) {
-  if (stats.cls != "SkillBuff_Passive" && stats.cls != "Skill_BuffSelfDuration") return std::nullopt;
+  if (!classes::is_a(stats.cls, "SkillBuff_Passive") && !classes::is_a(stats.cls, "Skill_BuffSelfDuration")) return std::nullopt;
   const double duration = value_at(stats, "skillActiveDuration", level);
   if (duration <= 0) return std::nullopt;
   return BuffTiming{duration, value_at(stats, "skillCooldownTime", level)};
@@ -979,13 +980,13 @@ std::optional<Prediction> toggle_buff(const snap::Snapshot& s, const snap::Skill
 }
 
 bool self_buff(const arz::Record& r) {
-  return r.cls == "Skill_BuffSelfDuration" || r.cls == "Skill_BuffSelfShield" || r.cls == "Skill_GiveBonus" ||
-         r.cls == "Skill_PassiveOnLifeBuffSelf" || r.cls == "Skill_PassiveOnHitBuffSelf" ||
-         r.cls == "Skill_PassiveOnHitBuffShield" || r.cls == "SkillBuff_Passive";
+  return classes::is_a(r.cls, "Skill_BuffSelfDuration") || r.cls == "Skill_BuffSelfShield" || r.cls == "Skill_GiveBonus" ||
+         triggered_buff(r) || classes::is_a(r.cls, "SkillBuff_Passive");
 }
 
+// Engine subclasses included: Skill_PassiveOnCritBuffSelf (playerclass07/passive02), Skill_PassiveOnHitBuffShield.
 bool triggered_buff(const arz::Record& r) {
-  return r.cls == "Skill_PassiveOnLifeBuffSelf" || r.cls == "Skill_PassiveOnHitBuffSelf";
+  return classes::is_a(r.cls, "Skill_PassiveOnLifeBuffSelf") || classes::is_a(r.cls, "Skill_PassiveOnHitBuffSelf");
 }
 
 std::optional<BuffTiming> buff_timing(const snap::Skill& sk, const arz::Database& db) {

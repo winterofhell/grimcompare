@@ -46,7 +46,7 @@ def how(f):
     if re.match(r'(modifierSkillName|modifiedSkillName)\d+$', f):
         return 'scored', 'item skill modifier: its record added to the modified skill (Damage, sheet stats)'
     if f in ('petBonusName',):
-        return 'scored', 'Other `pet_bonus` (mean % of the pet bonus record), only with pets'
+        return 'scored', 'Damage: Class Pet damage (% damage, attack / cast speed, OA of the pet bonus record; experimental); the rest Other `pet_bonus`, only with pets'
     if f in ('itemSetName', 'setMembers'):
         return 'scored', 'set bonus at the old / new piece count (sets.cpp)'
     if re.match(r'character\w*ReqReduction$', f) or f in ('characterLevelReqReduction', 'characterGlobalReqReduction'):
@@ -59,8 +59,10 @@ def how(f):
         return 'scored', 'component / augment slot fit ("your <component> moved" / "does not fit")'
     if f == 'defensiveProtection':
         return 'scored', 'Survivability: armor per hit region (the item\'s engine armor entry, type 38)'
-    if f in ('defensiveBonusProtection', 'defensiveProtectionChance'):
-        return 'no', 'NOT VERIFIED: flat armor bonus; which engine entry it loads into is not traced (counts only if the item\'s type-38 entry holds it)'
+    if f == 'defensiveBonusProtection':
+        return 'scored', 'Survivability: armor; DefenseAttribute_BaseProtectionAbsorption::AddToAccumulator 0x204BF0 adds it to defensiveProtection in the one type-38 entry'
+    if f == 'defensiveProtectionChance':
+        return 'no', 'NOT VERIFIED: where the engine reads it is not traced (AddToAccumulator 0x204BF0 builds the armor entry from protection, bonus protection and the absorption; 1 record)'
     if f in ('offensivePhysicalMin', 'offensivePhysicalMax'):
         return 'scored', 'Damage: flat physical damage of weapon attacks; skills\' and procs\' own flat damage'
     if f == 'offensiveGlobalChance':
@@ -77,8 +79,10 @@ def how(f):
         return 'scored', 'completion bonus: moves with the component; its stats are in the item\'s engine totals'
     if re.match(r'offensiveSlow\w+DurationModifier$', f):
         return 'scored', 'Damage: +% DoT duration of that final type, from the equipped items\' records (shortcut: record values, skills\' part not seen)'
-    if f.startswith('racialBonus'):
-        return 'no', 'NOT READ: bonus vs monster races (the snapshot has no accumulator for it)'
+    if f in ('racialBonusPercentDamage', 'racialBonusPercentDefense', 'racialBonusRace'):
+        return 'scored', 'Other `racial_damage` / `racial_defense`: % x 10% of enemies per race listed (design share, no race simulation; record values)'
+    if f == 'racialBonusAbsoluteDamage':
+        return 'zero', '0 by design: flat damage vs a race (2 records; no race simulation)'
     if f not in field:
         return 'no', 'NOT READ: no engine attribute class found for this field in the TSVs'
     kind, t, cls, role = field[f]
@@ -92,7 +96,8 @@ def how(f):
             4: 'Survivability: Life', 5: 'Other `energy_regen` only through regen; Energy itself 0 by design (no energy model)',
             6: 'Other `life_regen`', 7: 'Other `energy_regen`',
             13: 'Damage: total speed added to attack / cast speed (unverified)', 14: 'Other `run_speed`',
-            15: 'Damage: attack speed of weapon skills without a cooldown', 16: 'Damage: cast speed of spells without a cooldown',
+            15: 'Damage: attack speed of attack-class skills (Player::CalculateSkillDps order) without a cooldown; their cooldown cap',
+            16: 'Damage: cast speed of cast-class skills (CalculateSkillDps order) without a cooldown; their cooldown cap',
             17: 'Damage: attack speed', 21: 'Damage: OA -> hit / crit chance', 22: 'Damage: OA %',
             23: 'Survivability: DA -> enemy hit / crit chance', 24: 'Survivability: DA %',
             25: 'Survivability: block recovery', 27: 'Survivability: dodge', 28: 'Survivability: deflect',

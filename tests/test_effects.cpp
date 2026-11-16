@@ -1,11 +1,13 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 #include "game_db.h"
 #include "gdc/effects.h"
 #include "gdc/score.h"
+#include "gdc/stat_model.h"
 #include "gdc/utility.h"
 
 using namespace gdc;
@@ -346,4 +348,85 @@ TEST_CASE("utility: \"pets\" holds only for Class Pet summons, not PetPlayerScal
   CHECK_FALSE(utility::context(s, db, "").pets);
   learn(s, 1, "records/skills/playerclass03/summon_hellhound1.dbr", 3);  // -> pet_hellhound_a03 (Pet)
   CHECK(utility::context(s, db, "").pets);
+}
+
+TEST_CASE("effects: pet skill level equations (skillLevel<n>, characterAttributeEquations)") {
+  CHECK(*effects::equation("16", 50) == 16);
+  CHECK(*effects::equation("charLevel*1", 50) == 50);          // pet_hellhound_a16 skillLevel2
+  CHECK(*effects::equation("(charLevel/25)", 50) == 2);        // skillLevel3
+  CHECK(*effects::equation("CHARLEVEL - 2 * 3", 10) == 4);     // case, precedence
+  CHECK(*effects::equation("charLevel/25+1", 50) == 3);        // the commonest shape in the database
+  CHECK(*effects::equation("((charLevel*21.3)^1.29)+35", 10) == doctest::Approx(std::pow(213.0, 1.29) + 35));
+  CHECK_FALSE(effects::equation("charLevel/0", 1));
+  CHECK_FALSE(effects::equation("2+", 1));
+  CHECK_FALSE(effects::equation("(1", 1));
+  CHECK_FALSE(effects::equation("level*2", 1));
+  CHECK_FALSE(effects::equation("", 1));
+}
+
+TEST_CASE("effects: a Class Pet without a time to live stays up; a timed player-scaled one by its rate (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  effects::Rates rates;
+  rates.char_level = 96;
+  rates.action = 2;
+  snap::Snapshot s;
+  s.level = 96;
+  // summon_hellhound1: no spawnObjectsTimeToLive, petLimit 1, cooldown 18 s.
+  learn(s, 1, "records/skills/playerclass03/summon_hellhound1.dbr", 16);
+  auto c = effects::collect(s, *db, rates, {}, {});
+  const auto hound = std::find_if(c.effects.begin(), c.effects.end(), [](const effects::Effect& e) {
+    return e.pet && e.record.ends_with("pet_hellhound_a16.dbr");  // its plain attack
+  });
+  REQUIRE(hound != c.effects.end());
+  INFO(hound->basis);
+  CHECK(hound->pets == 1);
+  CHECK(hound->per_sec > 0);
+  CHECK_FALSE(hound->player_scaled);
+  CHECK(hound->basis.find("permanent") != std::string::npos);
+  // summon_bladespirit: PetPlayerScaling, no time to live in either record: not guessed.
+  learn(s, 2, "records/skills/playerclass04/summon_bladespirit.dbr", 10);
+  c = effects::collect(s, *db, rates, {}, {});
+  for (const auto& e : c.effects)
+    if (e.pet && e.player_scaled) {
+      INFO(e.record, ": ", e.basis);
+      CHECK(e.per_sec == 0);
+    }
+}
+
+TEST_CASE("effects: buff classes by the engine's class tree (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  // bladebarrier1: Skill_BuffSelfImmobilize < Skill_BuffSelfDuration, skillActiveDuration 3, recharge 36 at 1.
+  snap::Skill barrier;
+  barrier.record = "records/skills/playerclass04/bladebarrier1.dbr";
+  barrier.level = barrier.current_level = 1;
+  const auto t = model::buff_timing(barrier, *db);
+  REQUIRE(t);
+  CHECK(t->duration == 3);
+  CHECK(t->recharge == 36);
+
+  // playerclass07/passive02: Skill_PassiveOnCritBuffSelf, the owner's crits (SkillManager::OnCriticalAttack),
+  // onHitActivationChance 100, cooldown 5 s.
+  effects::Rates rates;
+  rates.action = 2;
+  rates.crit = 0.5;
+  snap::Snapshot s;
+  learn(s, 1, "records/skills/playerclass07/passive02.dbr", 1);
+  auto c = effects::collect(s, *db, rates, {}, {});
+  const auto crit = std::find_if(c.effects.begin(), c.effects.end(),
+                                 [](const effects::Effect& e) { return e.record.ends_with("playerclass07/passive02.dbr"); });
+  REQUIRE(crit != c.effects.end());
+  INFO(crit->basis);
+  CHECK(crit->per_sec > 0);
+  CHECK(crit->per_sec <= 1 / 5.0 + 1e-9);
+
+  // blackwater3 (Skill_ProjectileModifier, -RR): counted through Blackwater, never as a skill of its own.
+  snap::Snapshot w;
+  learn(w, 1, "records/skills/playerclass02/blackwater1.dbr", 10);
+  learn(w, 2, "records/skills/playerclass02/blackwater3.dbr", 3);
+  w.skills[0].modifier_ids = {2};
+  c = effects::collect(w, *db, rates, {}, {});
+  for (const auto& r : c.reductions) CHECK_FALSE(r.record.ends_with("blackwater3.dbr"));
+  for (const auto& e : c.effects) CHECK_FALSE(e.record.ends_with("blackwater3.dbr"));
 }

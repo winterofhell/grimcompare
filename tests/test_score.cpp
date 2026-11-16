@@ -525,3 +525,45 @@ TEST_CASE("score: a shield's base damage is not weapon damage (installed game; s
   only_base.equipped[1].stats->offensive_damage = {{5, false, 58, 58}, {6, false, 58, 58}, {8, false, 58, 58}, {1, false, 100, 120}};
   CHECK(score::compare(without, only_base, skills, p, db).ratio.damage == doctest::Approx(1));
 }
+
+TEST_CASE("score: convert as the engine") {
+  std::vector<std::string> notes;
+  using M = std::map<score::DamageKey, double>;
+  auto near = [](const M& got, const M& want) {
+    for (const auto& [k, v] : want) {
+      CAPTURE(k.first);
+      CAPTURE(k.second);
+      CHECK(got.contains(k));
+      if (got.contains(k)) CHECK(got.at(k) == doctest::Approx(v));
+    }
+    double a = 0, b = 0;
+    for (const auto& [_, v] : got) a += v;
+    for (const auto& [_, v] : want) b += v;
+    CHECK(a == doctest::Approx(b));  // nothing lost or made
+  };
+  SUBCASE("Elemental in is a third each, so Fire -> X takes its fire part") {
+    near(score::convert({{{58, false}, 300}}, {}, {{6, 10, 0.5f}}, notes),
+         {{{5, false}, 100}, {{6, false}, 50}, {{10, false}, 50}, {{8, false}, 100}});
+  }
+  SUBCASE("into Elemental: a third each") {
+    near(score::convert({{{2, false}, 90}}, {}, {{2, 58, 0.3f}}, notes),
+         {{{2, false}, 63}, {{5, false}, 9}, {{6, false}, 9}, {{8, false}, 9}});
+  }
+  SUBCASE("converted damage is not converted again") {
+    near(score::convert({{{10, false}, 100}}, {}, {{10, 9, 0.5f}, {9, 7, 1.0f}}, notes),
+         {{{10, false}, 50}, {{9, false}, 50}});
+  }
+  SUBCASE("skill level first, the character's on the rest") {
+    near(score::convert({{{6, false}, 100}}, {{6, {{5, 50.0}}}}, {{5, 8, 1.0f}, {6, 8, 1.0f}}, notes),
+         {{{5, false}, 50}, {{8, false}, 50}});
+  }
+  SUBCASE("over 100% is weighed, DoT skips Chaos but keeps the weighed share") {
+    near(score::convert({{{6, false}, 100}, {{6, true}, 100}}, {}, {{6, 10, 0.6f}, {6, 9, 0.9f}}, notes),
+         {{{10, false}, 40}, {{9, false}, 60}, {{9, true}, 60}, {{6, true}, 40}});
+    CHECK_FALSE(notes.empty());
+  }
+  SUBCASE("Elemental -> X before the element's own") {
+    near(score::convert({{{6, false}, 100}}, {}, {{58, 10, 0.5f}, {6, 9, 0.5f}}, notes),
+         {{{10, false}, 50}, {{9, false}, 25}, {{6, false}, 25}});
+  }
+}

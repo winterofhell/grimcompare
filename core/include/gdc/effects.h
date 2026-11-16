@@ -10,7 +10,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gdc/arz.h"
@@ -31,7 +33,9 @@ struct Rates {
   double blocks = 0;      // Block
   double low_health = 0;
   double kills = 0;       // OnKill
-  double pet_attacks = 0; // 0 = unknown
+  double pet_attacks = 0; // preset pet_attack_rate per pet; 0 = from the pet's record (estimate)
+  double pet_attack_speed = 0, pet_cast_speed = 0;  // pet bonus %, Class Pet only
+  double char_level = 0;  // pets' charLevel (the player's level)
 };
 
 struct Effect {
@@ -50,6 +54,10 @@ struct Effect {
   Origin origin = Origin::Default;
   std::string basis;
   std::vector<std::pair<std::string, std::uint32_t>> modifiers;
+  // Pets: the pet record and its skills that hold its weapon damage (Skill_Passive with flat damage at their level),
+  // which weaponDamagePct scales; the pet record itself stands for a plain attack (100% of it).
+  std::string pet_record;
+  std::vector<std::pair<std::string, std::uint32_t>> weapon;
 };
 
 struct Reduction {
@@ -73,6 +81,18 @@ Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates&
 // PetPlayerScaling overrides all seven ContributeMisc* (0x3C8840..0x3C88B0) to Character's, so no pet bonus, and
 // Skill::CollectCombatParameters 0x499E40 swaps its caster for the owning Player.
 const arz::Record* summoned(const arz::Record& skill, std::uint32_t level, const arz::Database& db);
+std::string summoned_record(const arz::Record& skill, std::uint32_t level);  // "": not a summon
+
+// A DB equation of charLevel (pets' skillLevel<n>, bio records: "((charLevel*21.3)^1.29)+35"): numbers,
+// charLevel, + - * / ^ and parentheses. nullopt for anything else.
+std::optional<double> equation(std::string_view expr, double char_level);
+
+// A pet's skills with their levels: skillName<n> / skillLevel<n> (numbers or equations of charLevel) and, at the
+// modifier's level, the petSkillName of the summon's learned SkillSecondary_PetModifier (summon_hellhound2_petmodifier
+// -> petskill_hellhound_fireclaw, level 0 in the pet record).
+std::vector<std::pair<std::string, std::uint32_t>> pet_skills(const arz::Record& pet, double char_level,
+                                                              const std::vector<std::pair<std::string, std::uint32_t>>& modifiers,
+                                                              const arz::Database& db);
 
 inline double uptime(const Effect& e, double duration) {
   return e.maintained ? 1.0 : std::min(1.0, e.per_sec * std::max(0.0, duration));

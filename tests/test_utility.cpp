@@ -106,9 +106,20 @@ TEST_CASE("utility: pets context and pet bonus (installed game; skips if absent)
   s.skills[0].current_level = 0;
   CHECK_FALSE(utility::context(s, db, "").pets);
   // b012a_medal: petBonusName item_petbonus_medal_halion_01 (characterOffensiveAbilityModifier 5,
-  // defensiveConvert 100): mean 52.5%.
+  // defensiveConvert 100). OA is scored in pet damage, so the defensive part is the convert alone: 100%.
   s.equipped = {item(1, 3, "records/items/gearaccessories/medals/b012a_medal.dbr")};
-  CHECK(utility::values(s, db).keys.at("pet_bonus") == doctest::Approx(0.525));
+  CHECK(utility::values(s, db).keys.at("pet_bonus") == doctest::Approx(1.0));
+}
+
+TEST_CASE("utility: racial bonus is 10% of enemies per race listed (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  // d005_ring: racialBonusRace Race003, Race005; racialBonusPercentDamage 10 -> 0.1 x 2 x 0.1.
+  s.equipped = {item(1, 7, "records/items/gearaccessories/rings/d005_ring.dbr")};
+  const auto k = utility::values(s, db).keys;
+  CHECK(k.at("racial_damage") == doctest::Approx(0.02));
+  CHECK(k.at("racial_defense") == doctest::Approx(0.0));
 }
 
 TEST_CASE("utility: cooldown reduction is the character's total from schema 9; a swap moves it by the items' parts") {

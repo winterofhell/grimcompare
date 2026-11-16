@@ -29,7 +29,9 @@ constexpr Stat kStats[] = {
     {"experience", "100% experience gained, x (1 - level / max level)", 0.2, ""},
     {"retaliation", "1000 retaliation damage", 0.02, ""},
     {"retaliation_modifier", "100% retaliation damage", 0.02, ""},
-    {"pet_bonus", "100% mean pet bonus", 0.2, "pets"},
+    {"pet_bonus", "100% mean pet bonus, defensive part (pet damage is in Damage)", 0.2, "pets"},
+    {"racial_damage", "100% more damage to every enemy (racial bonus % x the listed races' share)", 1.0, ""},
+    {"racial_defense", "100% less damage from every enemy (racial bonus % x the listed races' share)", 1.0, ""},
     {"default", "100 of any stat no other key or score term reads", 0.05, ""},
 };
 
@@ -101,7 +103,19 @@ std::string label(std::string_view what, int type, std::string_view name) {
   return std::string(what) + " " + std::to_string(type) + (name.empty() ? "" : " " + std::string(name));
 }
 
-// shortcut: a pet bonus is weighed by its mean % only — revisit with a pet damage / survival model.
+// The parts score::Damage reads for a Class Pet's hits (damage %, Cunning, Spirit, speeds, OA) are left to it;
+// shortcut: the rest (life, resists, DA, regen, ...) is weighed by its mean % only — revisit with a pet survival
+// model.
+// racialBonusRace lists Race001..Race012 tags (and "Aetherial"); 10 distinct tags on items. shortcut: each listed
+// race taken as 10% of the enemies (design choice, no race table) — revisit with the enemies' characterRacialProfile.
+double racial_share(const arz::Record& r) {
+  const auto it = r.fields.find("racialBonusRace");
+  if (it == r.fields.end()) return 0;
+  std::size_t n = 0;
+  for (const auto& race : it->second.strings) n += !race.empty();
+  return std::min(1.0, 0.1 * static_cast<double>(n));
+}
+
 double pet_bonus(const arz::Record& r) {
   double sum = 0;
   int n = 0;
@@ -109,7 +123,11 @@ double pet_bonus(const arz::Record& r) {
     if (field.kind != arz::Field::Kind::Int && field.kind != arz::Field::Kind::Float) continue;
     if (field.numbers.empty() || field.numbers[0] == 0) continue;
     double scale = 1;
-    if (!fields::lookup(key, scale)) continue;
+    const fields::Target* t = fields::lookup(key, scale);
+    if (!t || t->kind == fields::Kind::Damage) continue;
+    if (t->kind == fields::Kind::Char && (t->type == 2 || t->type == 3 || t->type == 13 || t->type == 15 ||
+                                          t->type == 16 || t->type == 21 || t->type == 22))
+      continue;
     sum += field.numbers[0] * scale;
     ++n;
   }
@@ -240,7 +258,7 @@ Values item_values(const snap::Snapshot& s, const arz::Database* db) {
   });
   // shortcut: no character total for these, so skills' parts are not seen — revisit when the capture reads the
   // character's offensive accumulators.
-  double leech = 0, ret = 0, ret_mod = 0, pets = 0;
+  double leech = 0, ret = 0, ret_mod = 0, pets = 0, racial_damage = 0, racial_defense = 0;
   for (const auto& it : s.equipped) {
     if (it.stats) {
       for (const auto& d : it.stats->offensive_damage) {
@@ -253,9 +271,13 @@ Values item_values(const snap::Snapshot& s, const arz::Database* db) {
     }
     if (db)
       for (const auto& r : model::item_records(it))
-        if (const arz::Record* rec = db->record(r))
+        if (const arz::Record* rec = db->record(r)) {
           if (const std::string pb(rec->string("petBonusName")); !pb.empty())
             if (const arz::Record* b = db->record(pb)) pets += pet_bonus(*b);
+          const double share = racial_share(*rec);
+          racial_damage += rec->number("racialBonusPercentDamage") / 100 * share;
+          racial_defense += rec->number("racialBonusPercentDefense") / 100 * share;
+        }
   }
   k["life_leech"] = leech / 100;
   // Weight 0: listed only so the Shift view shows them.
@@ -264,6 +286,8 @@ Values item_values(const snap::Snapshot& s, const arz::Database* db) {
   k["retaliation"] = ret / 1000;
   k["retaliation_modifier"] = ret_mod / 100;
   k["pet_bonus"] = pets;
+  k["racial_damage"] = racial_damage;
+  k["racial_defense"] = racial_defense;
   return out;
 }
 

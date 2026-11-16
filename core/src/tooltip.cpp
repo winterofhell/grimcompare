@@ -475,7 +475,8 @@ Row other_row(const score::OtherChange& o) {
       {"life_leech", "Life leech", 100, "%"},                 {"experience", "Experience gain", 100, "%"},
       {"retaliation", "Retaliation", 1000, ""},               {"retaliation_modifier", "Retaliation damage", 100, "%"},
       {"pet_bonus", "Pet bonus", 100, "%"},                   {"knockdown_resist", "Knockdown resist", 100, "%"},
-      {"slow_resist", "Slow resist", 100, "%"}};
+      {"slow_resist", "Slow resist", 100, "%"},                {"racial_damage", "Racial damage (mean)", 100, "%"},
+      {"racial_defense", "Racial defense (mean)", 100, "%"}};
   const auto u = std::find_if(std::begin(kUnits), std::end(kUnits), [&](const Unit& x) { return x.key == o.key; });
   const std::string name = u != std::end(kUnits) ? std::string(u->name) : pretty(o.key);
   const double scale = u != std::end(kUnits) ? u->scale : 100;
@@ -886,6 +887,7 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
       out.push_back(std::move(m));
     }
     if (!sl.misfit.empty()) out.push_back({Tone::Detail, "  your " + sl.misfit + " does not fit this item"});
+    if (sl.base.pets) out.push_back({Tone::Detail, "  pet damage: experimental estimate"});
     out.insert(out.end(), sl.sets.begin(), sl.sets.end());
     if (!detail) continue;
     out.push_back({Tone::Detail, "  " + terms(sl.base)});

@@ -28,6 +28,7 @@ add_library(gdc_core STATIC
   src/effects.cpp
   src/utility.cpp
   src/enemy.cpp
+  src/classes.cpp
 )
 target_link_libraries(gdc_core PRIVATE miniz)
 target_include_directories(gdc_core PUBLIC include)

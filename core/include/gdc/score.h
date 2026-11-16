@@ -45,7 +45,7 @@ struct Settings {
   int auto_skills = 3;
   double filler_weight = 0.5;
   double enemy_da_per_level = 0;    // 0 = monster table (gdc/enemy.h)
-  double pet_attack_rate = 0;       // 0 = unknown, pet effects score 0
+  double pet_attack_rate = 0;       // 0 = estimated from the pet record (experimental, effects::pets)
   double kills_per_sec = 0.5;
   std::vector<std::pair<int, int>> conversion_warn;  // from -> to; 0 = any
   double enemy_oa_per_level = 0;    // 0 = monster table
@@ -129,6 +129,12 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db);
 
 std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db);
 
+// Damage by type after conversions as Skill::CollectCombatParameters: `skill` (from -> to -> percent) first, then
+// `global` (fractions), each weighed to 100% per source type; converted damage is not converted again; Elemental in
+// or out is a third each of Cold, Fire, Lightning (docs/MECHANICS.md §2).
+std::map<DamageKey, double> convert(const std::map<DamageKey, double>& in, const std::map<int, std::map<int, double>>& skill,
+                                    const std::vector<snap::Conversion>& global, std::vector<std::string>& notes);
+
 struct Skill {
   std::string record;
   double weight = 0;
@@ -198,6 +204,7 @@ struct Result {
   std::vector<std::string> notes;
   std::vector<Unscored> unscored;
   std::set<std::string> procs;
+  bool pets = false;  // Class Pet damage is in Damage (experimental estimate, docs/MECHANICS.md §4)
   std::vector<effects::Reduction> rr_lost, rr_gained;
   std::vector<OtherChange> other_changes;
   // Each term's ln ratio split over its parts and scaled by the term's exponent, so the parts sum to
