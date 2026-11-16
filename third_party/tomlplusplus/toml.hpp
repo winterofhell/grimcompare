@@ -1094,7 +1094,9 @@ TOML_ENABLE_WARNINGS;
 #define TOML_ASSERT(expr) assert(expr)
 #endif
 #ifdef NDEBUG
-#define TOML_ASSERT_ASSUME(expr) TOML_ASSUME(expr)
+// grimCompare patch: was TOML_ASSUME(expr). The parser asserts things malformed input can break ("[[[x", "[1 }"),
+// which made them undefined behavior in release builds; its own error paths handle those inputs.
+#define TOML_ASSERT_ASSUME(expr) static_assert(true)
 #else
 #define TOML_ASSERT_ASSUME(expr) TOML_ASSERT(expr)
 #endif
@@ -8680,7 +8682,8 @@ TOML_IMPL_NAMESPACE_START
 			case 0x05: return c == U'\u1680' || c == U'\u180E';
 			case 0x07:
 				return (U'\u2000' <= c && c <= U'\u200B') || (U'\u205F' <= c && c <= U'\u2060') || c == U'\u202F';
-			default: TOML_UNREACHABLE;
+			// grimCompare patch: was TOML_UNREACHABLE, reached by code points outside the cases above (UBSan: U+00E9).
+			default: return false;
 		}
 
 		TOML_UNREACHABLE;
@@ -8803,7 +8806,8 @@ TOML_IMPL_NAMESPACE_START
 			case 0x03: return c <= U'\uD7FF';
 			case 0x04:
 				return (U'\uF900' <= c && c <= U'\uFDCF') || (U'\uFDF0' <= c && c <= U'\uFFFD') || U'\U00010000' <= c;
-			default: TOML_UNREACHABLE;
+			// grimCompare patch: was TOML_UNREACHABLE, reached by code points outside the cases above (UBSan: U+00E9).
+			default: return false;
 		}
 
 		TOML_UNREACHABLE;
