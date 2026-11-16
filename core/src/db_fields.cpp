@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <unordered_map>
 
 namespace gdc::fields {
 namespace {
@@ -201,14 +202,18 @@ std::span<const std::pair<std::string_view, Target>> damage_modifiers() { return
 
 const Target* lookup(std::string_view field, double& scale) {
   static constexpr Target kCrit{Kind::Damage, 59, false};
-  scale = 1;
-  if (const Target* t = target(field)) return t;
-  if (const Target* t = damage_modifier(field)) return t;
-  if (field == "offensiveCritDamageModifier") {
-    scale = 0.01;
-    return &kCrit;
-  }
-  return nullptr;
+  // target() first, then damage_modifier(), then crit; hashed because every field of every skill level goes
+  // through here.
+  static const std::unordered_map<std::string_view, std::pair<const Target*, double>> index = [] {
+    std::unordered_map<std::string_view, std::pair<const Target*, double>> m;
+    for (const auto& [name, t] : kTable) m.emplace(name, std::pair{&t, 1.0});
+    for (const auto& [name, t] : kDamageMods) m.emplace(name, std::pair{&t, 1.0});
+    m.emplace("offensiveCritDamageModifier", std::pair{&kCrit, 0.01});
+    return m;
+  }();
+  const auto it = index.find(field);
+  scale = it != index.end() ? it->second.second : 1;
+  return it != index.end() ? it->second.first : nullptr;
 }
 
 std::span<const int> spread(int type, bool dot) {

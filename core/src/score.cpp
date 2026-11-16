@@ -493,15 +493,13 @@ formulas::Hit attack(const snap::Snapshot& s, const Settings& p, double crit_bon
 }
 
 std::string fmt(double v, int decimals = 0) {
-  char buf[48];
-  std::snprintf(buf, sizeof buf, "%.*f", decimals, v);
-  return buf;
+  char buf[400];  // fits %.*f of any double; to_chars rounds as printf does
+  return {buf, std::to_chars(buf, buf + sizeof buf, v, std::chars_format::fixed, decimals).ptr};
 }
 
 std::string sig(double v) {
-  char buf[48];
-  std::snprintf(buf, sizeof buf, "%.3g", v);
-  return buf;
+  char buf[48];  // as %.3g
+  return {buf, std::to_chars(buf, buf + sizeof buf, v, std::chars_format::general, 3).ptr};
 }
 
 std::string stem(const std::string& record) {
@@ -531,17 +529,28 @@ int damage_type_named(std::string_view name) {
   return 0;
 }
 
-void add_flat(const arz::Record& r, std::uint32_t level, double scale, Amounts& out) {
-  for (const auto& f : fields::flat_damage()) {
-    const double min = at_level(r, f.min, level);
-    if (min == 0) continue;
-    const double max = std::max(min, at_level(r, f.max, level));
-    double v = (min + max) / 2;
-    if (!f.duration.empty()) v *= at_level(r, f.duration, level);  // shortcut: per second x duration — unverified
-    const double chance = at_level(r, f.chance, level);
-    if (chance > 0 && chance < 100) v *= chance / 100;
-    out[{f.type, !f.duration.empty()}] += v * scale;
-  }
+// A record's flat damage at a level, in fields::flat_damage() order (a type can come twice).
+using FlatParts = std::vector<std::pair<Key, double>>;
+
+const FlatParts& flat_parts(const arz::Database& db, const arz::Record& r, std::uint32_t level) {
+  return db.derived<FlatParts>(r, level, [&] {
+    FlatParts out;
+    for (const auto& f : fields::flat_damage()) {
+      const double min = at_level(r, f.min, level);
+      if (min == 0) continue;
+      const double max = std::max(min, at_level(r, f.max, level));
+      double v = (min + max) / 2;
+      if (!f.duration.empty()) v *= at_level(r, f.duration, level);  // shortcut: per second x duration — unverified
+      const double chance = at_level(r, f.chance, level);
+      if (chance > 0 && chance < 100) v *= chance / 100;
+      out.push_back({{f.type, !f.duration.empty()}, v});
+    }
+    return out;
+  });
+}
+
+void add_flat(const arz::Database& db, const arz::Record& r, std::uint32_t level, double scale, Amounts& out) {
+  for (const auto& [k, v] : flat_parts(db, r, level)) out[k] += v * scale;
 }
 
 // ConversionAttributeAccumulator::AddAttribute 0x17D890: a new source type appends its Data, a known one adds to it.
@@ -551,14 +560,12 @@ void add_pair(Conversions& c, int from, int to, double pct) {
   it->second[to] += pct;
 }
 
-bool has_damage(const arz::Record& r, std::uint32_t level) {
-  Amounts a;
-  add_flat(r, level, 1, a);
-  return !a.empty() || at_level(r, "weaponDamagePct", level) > 0;
+bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t level) {
+  return !flat_parts(db, r, level).empty() || at_level(r, "weaponDamagePct", level) > 0;
 }
 
-void add_record(const arz::Record& r, std::uint32_t level, Raw& out) {
-  add_flat(r, level, 1, out.flat);
+void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out) {
+  add_flat(db, r, level, 1, out.flat);
   for (const auto& [field, t] : fields::damage_modifiers()) {
     const double v = at_level(r, field, level);
     if (v == 0) continue;
@@ -584,16 +591,16 @@ Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Databas
   const arz::Record* rec = db.record(sk.record);
   if (!rec) return raw;
   raw.speed = classes::speed(rec->cls);
-  if (!has_damage(*rec, sk.current_level))
+  if (!has_damage(db, *rec, sk.current_level))
     if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) rec = buff;
-  add_record(*rec, sk.current_level, raw);
+  add_record(db, *rec, sk.current_level, raw);
   for (const std::uint32_t id : sk.modifier_ids)
     for (const auto& m : s.skills)
       if (m.id == id && m.current_level > 0)
-        if (const arz::Record* mr = db.record(m.record)) add_record(*mr, m.current_level, raw);
+        if (const arz::Record* mr = db.record(m.record)) add_record(db, *mr, m.current_level, raw);
   for (const auto& m : s.item_skill_modifiers)
     if (m.skill_id == sk.id && !m.modifier_record.empty()) {
-      if (const arz::Record* mr = db.record(m.modifier_record)) add_record(*mr, 1, raw);
+      if (const arz::Record* mr = db.record(m.modifier_record)) add_record(db, *mr, 1, raw);
       else notes.push_back("item skill modifier " + stem(m.modifier_record) + " not in the database");
     }
   return raw;
@@ -671,11 +678,11 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
       continue;
     if (!skill_on(sk, *r) || model::buff_timing(sk, db)) continue;
     const arz::Record* stats = r;
-    if (!has_damage(*r, sk.current_level))
+    if (!has_damage(db, *r, sk.current_level))
       if (const arz::Record* buff = db.record(r->string("buffSkillName"));
           buff && classes::is_a(buff->cls, "SkillBuff_Passive"))  // not a SkillBuff_Debuf (auracensure1_buff.dbr)
         stats = buff;
-    add_flat(*stats, sk.current_level, 1, out);
+    add_flat(db, *stats, sk.current_level, 1, out);
   }
   for (const auto& sk : s.item_skills) {
     if (sk.current_level == 0) continue;
@@ -683,7 +690,7 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
     if (!r || r->cls != "Skill_Passive") continue;
     const bool on = (sk.passive && (!sk.passive->char_attributes.empty() || !sk.passive->defense.empty())) ||
                     !fields::weapon_gated(*r);
-    if (on) add_flat(*r, sk.current_level, 1, out);
+    if (on) add_flat(db, *r, sk.current_level, 1, out);
   }
   // Character::ContributeMiscOffensiveDamageAttributes 0x6AA80.
   for (const auto& [set, n] : sets::counts(s))
@@ -720,10 +727,17 @@ void split_elemental(Amounts& a) {
 // others keep their weighed percent); the entry is then scaled to 100 - the moved percent, so the next source type
 // that matches it (Fire after Elemental, or Elemental after Fire) works on the rest. New entries are flagged (byte
 // +0xF, 0x119E44) and never converted again, in either level.
-std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input, const Conversions& skill_pct,
-                                    const std::vector<snap::Conversion>& global, std::vector<std::string>& notes) {
+namespace {
+
+Conversions global_pairs(const std::vector<snap::Conversion>& global) {
   Conversions g;
   for (const auto& c : global) add_pair(g, c.from, c.to, c.percent * 100);
+  return g;
+}
+
+// convert() with the gear / buff conversions already paired, for callers converting many hits.
+Amounts convert_pairs(const Amounts& input, const Conversions& skill_pct, const Conversions& g,
+                      std::vector<std::string>& notes) {
   auto no_dot = [](int t) { return t == 4 || t == 10 || t == 11; };
   Amounts in = input;
   split_elemental(in);
@@ -752,6 +766,13 @@ std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input, co
   }
   split_elemental(out);
   return out;
+}
+
+}  // namespace
+
+std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input, const Conversions& skill_pct,
+                                    const std::vector<snap::Conversion>& global, std::vector<std::string>& notes) {
+  return convert_pairs(input, skill_pct, global_pairs(global), notes);
 }
 
 namespace {
@@ -837,11 +858,8 @@ double use_rate(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw) 
   return s.cast_speed;
 }
 
-SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
-                         std::vector<std::string>& notes, Amounts* parts = nullptr,
-                         const std::map<int, double>* resist = nullptr) {
-  SkillDamage out;
-  if (sk.current_level == 0) return out;
+// A main skill's damage per type after its % and the conversions (`global`: the snapshot's, paired).
+Amounts main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes) {
   Amounts amounts = raw.flat;
   if (raw.weapon_pct > 0)
     for (const auto& [k, v] : g.flat) amounts[k] += v * raw.weapon_pct / 100;
@@ -850,8 +868,19 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
     const auto it = raw.pct.find(k);
     if (it != raw.pct.end()) v *= 1 + it->second / 100;
   }
+  return convert_pairs(amounts, raw.conversion, global, notes);
+}
+
+// `converted`: main_converted() already done for this snapshot's conversions.
+SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
+                         std::vector<std::string>& notes, Amounts* parts = nullptr,
+                         const std::map<int, double>* resist = nullptr, bool explain = true,
+                         const Amounts* converted = nullptr) {
+  SkillDamage out;
+  if (sk.current_level == 0) return out;
+  const Amounts own = converted ? Amounts{} : main_converted(raw, g, global_pairs(s.conversions), notes);
   double sum = 0;
-  for (const auto& [k, v] : convert(amounts, raw.conversion, s.conversions, notes)) {
+  for (const auto& [k, v] : converted ? *converted : own) {
     const auto* m = find(s.damage_modifiers, k.first);
     const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
     double x = v * std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second));
@@ -873,13 +902,15 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
     const CooldownUses u = cooldown_uses(raw.cooldown, utility::cooldown_reduction(s), out.rate);
     out.uses = u.per_sec;
     out.value = out.per_use * u.per_sec;
-    pace = " cooldown " + fmt(raw.cooldown, 2) + " s x (1 - " + fmt(u.cdr * 100) + "%) " + fmt(u.per_sec, 2) + "/s" +
+    if (explain)
+      pace = " cooldown " + fmt(raw.cooldown, 2) + " s x (1 - " + fmt(u.cdr * 100) + "%) " + fmt(u.per_sec, 2) + "/s" +
            (u.capped ? " (speed cap)" : "");
   } else {
     const double speed = 1 + (char_modifier(s, attack_speed(raw) ? kAttackSpeed : kCastSpeed) + char_modifier(s, kTotalSpeed)) / 100;
     out.value = out.per_use * std::max(0.0, speed);
-    pace = " speed " + fmt(speed, 2);
+    if (explain) pace = " speed " + fmt(speed, 2);
   }
+  if (!explain) return out;
   if (!attack_speed(raw) && has_anim(sk))
     pace += " (anim " + std::to_string(sk.anim_frames) + "f@" + std::to_string(sk.anim_frame_rate) + " -> " +
             fmt(out.rate, 2) + "/s)";
@@ -948,7 +979,8 @@ double lookahead(const snap::Snapshot& s, const Settings& p) {
 // resists -> armor on what the physical resist left. CombatAttributeDamage_BasePhysical::ReduceDamage 0x1175F0
 // applies the resist and only collects armor; Execute 0x117260 applies the hit region's armor
 // (physicalDamageDefenseEquationDGP / DLEP). The enemy damage reduction debuff comes before all of it.
-Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, const Settings& p, const arz::Database* db) {
+Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, const Settings& p, const arz::Database* db,
+                  bool explain) {
   const model::Sheet sh = model::sheet(s);
   Survival out;
   out.life = sh.life;
@@ -1016,8 +1048,8 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   out.cc = p.cc_share * x.cc;
   std::string rr_terms;
   for (const Reduced& st : states)
-    if (!st.ahead && (st.rr != 0 || states.size() == 1)) rr_terms += " " + fmt(st.rr, 1) + " x" + fmt(st.share, 3);
-  if (ahead > 0) rr_terms += " ahead x" + fmt(ahead, 2);
+    if (explain && !st.ahead && (st.rr != 0 || states.size() == 1)) rr_terms += " " + fmt(st.rr, 1) + " x" + fmt(st.share, 3);
+  if (explain && ahead > 0) rr_terms += " ahead x" + fmt(ahead, 2);
   double per_attack = out.hit * (1 - out.avoid) * (1 - out.block) * (1 - out.reduction) * (1 - out.cc) * taken;
   // Heals cover at most 90% of the life lost per second (design choice).
   const double lost = p.incoming_hits_per_sec * enemy_hit(s, p, false) * per_attack * absorbed;
@@ -1025,7 +1057,8 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
   out.procs = 1 - absorbed * (1 - restored);
   per_attack = std::max(1e-6, per_attack * (1 - out.procs));
   out.ehp = sh.life / per_attack;
-  out.inputs = "life " + fmt(sh.life) + " da " + fmt(sh.da) + " enemy pth " + fmt(pth) + " x" + fmt(out.hit, 3) +
+  if (explain)
+    out.inputs = "life " + fmt(sh.life) + " da " + fmt(sh.da) + " enemy pth " + fmt(pth) + " x" + fmt(out.hit, 3) +
                " avoid " + fmt(out.avoid, 3) + " block " + fmt(out.block, 3) + " reduced " + fmt(out.reduction, 3) +
                (x.inputs.empty() ? "" : " cc " + fmt(out.cc, 3) + " procs " + fmt(out.procs, 3) + " (" + x.inputs + ")") +
                " armor " + fmt(sh.armor) + " abs " + fmt(abs * 100) + "% hit " + fmt(hp) + " enemy rr" + rr_terms +
@@ -1079,10 +1112,10 @@ Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, cons
     }
     if (name != "resist") out.thresholds[name] = f;
     f_all *= f;
-    terms += " " + name + " " + fmt(value) + "/" + fmt(target) + " x" + fmt(f, 3);
+    if (explain) terms += " " + name + " " + fmt(value) + "/" + fmt(target) + " x" + fmt(f, 3);
   }
   out.ehp *= f_all;
-  out.inputs += "; thresholds" + terms + " = x" + fmt(f_all, 3);
+  if (explain) out.inputs += "; thresholds" + terms + " = x" + fmt(f_all, 3);
   return out;
 }
 
@@ -1101,7 +1134,7 @@ Utility utility_of(const snap::Snapshot& s, const Settings& p, const arz::Databa
   return {utility::context(s, db, p.stage), utility::item_values(s, db)};
 }
 
-Other other(const snap::Snapshot& s, const Utility& u, const Settings& p) {
+Other other(const snap::Snapshot& s, const Utility& u, const Settings& p, bool explain) {
   const utility::Context& ctx = u.context;
   const utility::Values v = utility::values(s, u.items);
   auto weight = [&](const std::string& key) {
@@ -1117,10 +1150,10 @@ Other other(const snap::Snapshot& s, const Utility& u, const Settings& p) {
   for (const auto& [name, x] : v.unlisted) out.terms["default: " + name] = {x, wd};
   for (const auto& [name, t] : out.terms) {
     out.value += t.first * t.second;
-    if (t.first != 0) out.inputs += name + " " + sig(t.first) + "x" + sig(t.second) + " ";
+    if (explain && t.first != 0) out.inputs += name + " " + sig(t.first) + "x" + sig(t.second) + " ";
   }
   out.value = std::max(1e-6, out.value);
-  out.inputs += "= " + fmt(out.value, 3);
+  if (explain) out.inputs += "= " + fmt(out.value, 3);
   return out;
 }
 
@@ -1156,7 +1189,8 @@ PetStats pet_bonuses(const snap::Snapshot& s, const arz::Database& db) {
   PetStats out;
   auto take = [&](const arz::Record& r, std::uint32_t level) {
     if (const arz::Record* b = db.record(r.string("petBonusName")))
-      for (const auto& [k, v] : sets::bonus(*b, static_cast<int>(level)).stats) out[k] += v;
+      for (const auto& [k, v] : db.derived<sets::Bonus>(*b, level, [&] { return sets::bonus(*b, static_cast<int>(level)); }).stats)
+        out[k] += v;
   };
   for (const auto& it : s.equipped)
     for (const auto& r : model::item_records(it))
@@ -1240,7 +1274,7 @@ void pet_scaling(const snap::Snapshot& s, const Settings& p, const arz::Database
   if (!pet) return;
   Raw own;
   for (const auto& [r, l] : effects::pet_skills(*pet, s.level, {}, db))
-    if (const arz::Record* x = db.record(r); x && classes::is_a(x->cls, "Skill_Passive")) add_record(*x, l, own);
+    if (const arz::Record* x = db.record(r); x && classes::is_a(x->cls, "Skill_Passive")) add_record(db, *x, l, own);
   const arz::Record* bio = db.record(pet->string("characterAttributeEquations"));
   auto attr = [&](std::string_view field, int type) {
     const double base = bio ? effects::equation(bio->string(field), s.level).value_or(0) : 0;
@@ -1302,9 +1336,9 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
     if (!rec) continue;
     const std::uint32_t lv = std::max<std::uint32_t>(e.level, 1);
     Amounts a;
-    add_flat(*rec, lv, 1, a);
+    add_flat(db, *rec, lv, 1, a);
     if (a.empty())
-      if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) add_flat(*buff, lv, 1, a);
+      if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) add_flat(db, *buff, lv, 1, a);
     // A Skill_WPAttack_* replaces a weapon attack, so only its excess over 100% counts.
     // shortcut: the replaced attack is taken as the default attack — revisit with a weapon build.
     // A pet's weapon is its own (effects::Effect::weapon); the pet record stands for its plain attack.
@@ -1313,7 +1347,7 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
     Amounts pet_weapon;
     if (e.pet)
       for (const auto& [r, l] : e.weapon)
-        if (const arz::Record* w = db.record(r)) add_flat(*w, l, 1, pet_weapon);
+        if (const arz::Record* w = db.record(r)) add_flat(db, *w, l, 1, pet_weapon);
     if (a.empty() && (weapon_pct == 0 || (e.pet && pet_weapon.empty()))) continue;
     if (e.per_sec <= 0) {
       out.hits_unknown.emplace(e.record, e.basis);
@@ -1338,7 +1372,37 @@ struct Extra {
   std::string inputs;
 };
 
-Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, std::vector<std::string>& notes) {
+// Main skills and hits converted under one set of conversions; buff states mostly share the side's.
+struct Converted {
+  std::vector<snap::Conversion> conversions;
+  std::vector<Amounts> mains;  // per Side::mains entry, empty for one not learned
+  std::vector<Amounts> hits;   // per Side::hits entry, empty for a pet's
+};
+
+bool same(const std::vector<snap::Conversion>& a, const std::vector<snap::Conversion>& b) {
+  return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const snap::Conversion& x, const snap::Conversion& y) {
+    return x.from == y.from && x.to == y.to && x.percent == y.percent;
+  });
+}
+
+// `memo`: reused across a side's buff states. Its notes come only from the first conversion, as callers keep
+// one copy of each note; mains convert before hits, as skill_damage() runs before extra_damage().
+const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
+                               std::optional<Converted>& own, std::vector<std::string>& notes) {
+  if (memo)
+    for (const auto& c : *memo)
+      if (same(c.conversions, s.conversions)) return c;
+  Converted c{s.conversions, {}, {}};
+  const Conversions global = global_pairs(s.conversions);
+  for (const auto& m : x.mains)
+    c.mains.push_back(m.sk && m.sk->current_level != 0 ? main_converted(m.raw, x.gear, global, notes) : Amounts{});
+  for (const auto& e : x.hits) c.hits.push_back(e.pet ? Amounts{} : convert_pairs(e.flat, {}, global, notes));
+  if (!memo) return own.emplace(std::move(c));
+  memo->push_back(std::move(c));
+  return memo->back();
+}
+
+Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv) {
   Extra out;
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double hit = attack(s, p, crit_row ? crit_row->damage_modifier : 0).multiplier;
@@ -1346,13 +1410,14 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, st
     const auto r = x.resist.find(type);
     return r != x.resist.end() ? std::max(0.0, r->second) : 1.0;
   };
-  for (const auto& e : x.hits) {
+  for (std::size_t i = 0; i < x.hits.size(); ++i) {
+    const auto& e = x.hits[i];
     double per_use = 0;
     if (e.pet) {
       for (const auto& [k, v] : e.flat) per_use += v * resist(k.first);
       per_use *= e.pet_hit;
     } else {
-      for (const auto& [k, v] : convert(e.flat, {}, s.conversions, notes)) {
+      for (const auto& [k, v] : conv.hits[i]) {
         const auto* m = find(s.damage_modifiers, k.first);
         const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
         per_use += v * std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second)) * resist(k.first) *
@@ -1361,7 +1426,8 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, st
       per_use *= hit;
     }
     out.per_sec += e.per_sec * per_use;
-    out.inputs += " " + stem(e.record) + (e.pet ? " (pet) " : e.player_scaled ? " (player-scaled pet) " : " ") +
+    if (explain)
+      out.inputs += " " + stem(e.record) + (e.pet ? " (pet) " : e.player_scaled ? " (player-scaled pet) " : " ") +
                   fmt(e.per_sec, 2) + "/s x " + fmt(per_use);
   }
   return out;
@@ -1414,11 +1480,16 @@ Procs procs(const snap::Snapshot& s, const Side& x, const Settings& p, const arz
     };
     // One enemy is held once: longest kind x its chance.
     double held = 0;
+    static const auto kControlFields = [] {  // offensive<Kind>Min / Max / Chance
+      std::array<std::array<std::string, 3>, std::size(kControl)> out;
+      for (std::size_t i = 0; i < out.size(); ++i)
+        for (std::size_t j = 0; j < 3; ++j) out[i][j] = "offensive" + std::string(kControl[i]) + (j == 0 ? "Min" : j == 1 ? "Max" : "Chance");
+      return out;
+    }();
     for (const arz::Record* r : {rec, buff})
-      for (const auto kind : kControl) {
-        const std::string f = "offensive" + std::string(kind);
-        const double min = r ? at_level(*r, f + "Min", lv) : 0, chance = r ? at_level(*r, f + "Chance", lv) : 0;
-        if (min > 0) held = std::max(held, (min + std::max(min, at_level(*r, f + "Max", lv))) / 2 * (chance > 0 && chance < 100 ? chance / 100 : 1));
+      for (const auto& [fmin, fmax, fchance] : kControlFields) {
+        const double min = r ? at_level(*r, fmin, lv) : 0, chance = r ? at_level(*r, fchance, lv) : 0;
+        if (min > 0) held = std::max(held, (min + std::max(min, at_level(*r, fmax, lv))) / 2 * (chance > 0 && chance < 100 ? chance / 100 : 1));
       }
     if (held > 0 && seen("cc " + fmt(up(held), 3))) free *= 1 - up(held);
     const arz::Record* stats = buff && model::self_buff(*buff) ? buff : model::self_buff(*rec) ? rec : nullptr;
@@ -1433,7 +1504,7 @@ Procs procs(const snap::Snapshot& s, const Side& x, const Settings& p, const arz
     const double absorb = at_level(*stats, "damageAbsorption", lv);
     if (duration > 0) {
       out.buffs.push_back({e.record, u, o != p.uptime.end() ? "preset [uptime]" : fmt(duration, 1) + " s, " + e.basis,
-                           model::buff_effect(*stats, lv),
+                           db.derived<model::BuffEffect>(*stats, lv, [&] { return model::buff_effect(*stats, lv); }),
                            std::min(1.0, at_level(*stats, "damageAbsorptionPercent", lv) / 100), std::min(1.0, absorb / hit)});
     } else {
       out.restored += e.per_sec * absorb;
@@ -1468,16 +1539,23 @@ struct Eval {
   Other ot;
 };
 
+// `explain`: build the log text (Scored::shown's state only reads it).
 Eval eval(const snap::Snapshot& s, double absorbed, const Side& x, const Procs& pr, const Settings& p,
-          const arz::Database* db, std::vector<std::string>& notes) {
+          const arz::Database* db, std::vector<std::string>& notes, bool explain = true,
+          std::vector<Converted>* converted = nullptr) {
   Eval e;
   if (db) {
-    for (const auto& m : x.mains)
-      e.skills.push_back(m.sk ? skill_damage(s, *m.sk, m.raw, x.gear, p, notes, nullptr, &x.resist) : SkillDamage{});
-    e.extra = extra_damage(s, x, p, notes);
+    std::optional<Converted> own;
+    const Converted& conv = converted_for(s, x, converted, own, notes);
+    for (std::size_t k = 0; k < x.mains.size(); ++k) {
+      const auto& m = x.mains[k];
+      e.skills.push_back(m.sk ? skill_damage(s, *m.sk, m.raw, x.gear, p, notes, nullptr, &x.resist, explain, &conv.mains[k])
+                              : SkillDamage{});
+    }
+    e.extra = extra_damage(s, x, p, explain, conv);
   }
-  e.sv = survival(s, pr, absorbed, p, db);
-  e.ot = other(s, x.utility, p);
+  e.sv = survival(s, pr, absorbed, p, db, explain);
+  e.ot = other(s, x.utility, p, explain);
   return e;
 }
 
@@ -1534,17 +1612,18 @@ Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, con
   std::vector<const Buff*> open = open_buffs(learned, out.pr.buffs);
   if (open.size() > kMaxEnumerated) open.resize(kMaxEnumerated);
   for (const Buff* b : open) out.buffs += (out.buffs.empty() ? "" : ", ") + stem(b->record) + " up " + fmt(b->uptime, 3) + " (" + b->basis + ")";
+  const std::size_t n = std::size_t{1} << open.size();
+  std::vector<double> probs(n, 1.0);
+  for (std::size_t mask = 0; mask < n; ++mask)
+    for (std::size_t i = 0; i < open.size(); ++i) probs[mask] *= mask >> i & 1 ? open[i]->uptime : 1 - open[i]->uptime;
+  const std::size_t shown = static_cast<std::size_t>(std::max_element(probs.begin(), probs.end()) - probs.begin());
   snap::Snapshot work = s;
-  for (std::size_t mask = 0; mask < (std::size_t{1} << open.size()); ++mask) {
+  std::vector<Converted> converted;
+  for (std::size_t mask = 0; mask < n; ++mask) {
     std::map<std::string, double> shares;
-    double prob = 1;
-    for (std::size_t i = 0; i < open.size(); ++i) {
-      const bool on = mask >> i & 1;
-      shares[open[i]->record] = on;
-      prob *= on ? open[i]->uptime : 1 - open[i]->uptime;
-    }
+    for (std::size_t i = 0; i < open.size(); ++i) shares[open[i]->record] = mask >> i & 1;
     const double absorbed = state(s, out.pr, learned, shares, *db, work);
-    out.states.emplace_back(prob, eval(work, absorbed, out.x, out.pr, p, db, notes));
+    out.states.emplace_back(probs[mask], eval(work, absorbed, out.x, out.pr, p, db, notes, mask == shown, &converted));
   }
   return out;
 }
@@ -1574,9 +1653,15 @@ Survival mixed_survival(const Scored& sd) {
 Other mixed_other(const Scored& sd) {
   Other out = sd.shown().ot;
   out.value = std::exp(sd.ln_mean([](const Eval& e) { return e.ot.value; }));
-  for (auto& [key, v] : out.terms) {
-    auto term = [&, k = key](const Eval& e) { return e.ot.terms.contains(k) ? e.ot.terms.at(k) : std::pair{0.0, 0.0}; };
-    v = {sd.mean([&](const Eval& e) { return term(e).first; }), sd.mean([&](const Eval& e) { return term(e).second; })};
+  for (auto& [key, v] : out.terms) {  // Scored::mean of both halves, one find per state
+    double value = 0, weight = 0;
+    for (const auto& [prob, e] : sd.states) {
+      const auto it = e.ot.terms.find(key);
+      const std::pair<double, double> t = it != e.ot.terms.end() ? it->second : std::pair{0.0, 0.0};
+      value += prob * t.first;
+      weight += prob * t.second;
+    }
+    v = {value, weight};
   }
   return out;
 }
@@ -1602,12 +1687,12 @@ SkillKind skill_kind(const arz::Database& db, const std::string& record, std::ui
   const arz::Record* r = db.record(record);
   if (!r || !main_class(r->cls)) return out;
   const arz::Record* d = r;
-  if (!has_damage(*d, level)) d = db.record(r->string("buffSkillName"));
-  if (!d || !has_damage(*d, level)) return out;
+  if (!has_damage(db, *d, level)) d = db.record(r->string("buffSkillName"));
+  if (!d || !has_damage(db, *d, level)) return out;
   out.main = true;
   out.weapon = at_level(*d, "weaponDamagePct", level) > 0;
   Amounts flat;
-  add_flat(*d, level, 1, flat);
+  add_flat(db, *d, level, 1, flat);
   for (const auto& [k, v] : flat) {
     if (v <= 0) continue;
     const std::vector<int> types = k.first == kElemental ? std::vector<int>{5, 6, 8}
@@ -1637,8 +1722,8 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
       const arz::Record* r = db->record(sk.record);
       if (!r || !main_class(r->cls)) continue;
       const arz::Record* d = r;
-      if (!has_damage(*d, sk.current_level)) d = db->record(r->string("buffSkillName"));
-      if (!d || !has_damage(*d, sk.current_level)) continue;
+      if (!has_damage(*db, *d, sk.current_level)) d = db->record(r->string("buffSkillName"));
+      if (!d || !has_damage(*db, *d, sk.current_level)) continue;
       found.emplace_back(sk.level, sk.record);
     }
     std::sort(found.begin(), found.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first > b.first : a.second < b.second; });
@@ -1710,7 +1795,7 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
     // Every playerclass record of these classes has weaponDamagePct.
     if (r->cls.starts_with("Skill_WeaponPool_") || r->cls.starts_with("Skill_WPAttack_")) return kWeapon;
     if (attack_class(r->cls)) {
-      const arz::Record* d = has_damage(*r, lv) ? r : (buff && has_damage(*buff, lv) ? buff : nullptr);
+      const arz::Record* d = has_damage(db, *r, lv) ? r : (buff && has_damage(db, *buff, lv) ? buff : nullptr);
       if (d) return at_level(*d, "weaponDamagePct", lv) > 0 ? kWeapon : kAttack;
     }
     if (has_retaliation(*r, lv) || (buff && has_retaliation(*buff, lv))) return kRetaliation;
@@ -2050,7 +2135,7 @@ std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const 
     const arz::Record* r = old ? nullptr : db->record(m.modifier_record);
     if (!r) continue;
     Raw raw;
-    add_record(*r, 1, raw);
+    add_record(*db, *r, 1, raw);
     for (const auto& [from, tos] : raw.conversion)
       for (const auto& [to, pct] : tos)
         if (warned(from, to)) out.push_back({m.skill_record, from, to, pct});
@@ -2082,15 +2167,30 @@ std::string resist_label(int type) {
 
 }  // namespace
 
+struct BeforeSide {
+  const snap::Snapshot* snapshot;
+  Amounts base;
+  Scored scored;
+  std::vector<std::string> notes;
+};
+
 Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const std::vector<Skill>& skills,
-               const Settings& p, const arz::Database* db) {
+               const Settings& p, const arz::Database* db, Memo* memo) {
   Result out;
   std::vector<std::string> notes_b, notes_a;
   const Amounts base = db ? shared_base(before, after, *db) : Amounts{};
   // A prediction (model::swap) keeps the before side's capture time and live pets.
   const snap::Snapshot* captured = after.taken_at == before.taken_at ? &before : nullptr;
-  const Scored B = score_side(before, skills, p, db, base, notes_b),
-               A = score_side(after, skills, p, db, base, notes_a, captured);
+  Memo own;
+  if (!memo) memo = &own;
+  if (!*memo || (*memo)->snapshot != &before || (*memo)->base != base) {
+    auto side = std::make_shared<BeforeSide>(BeforeSide{&before, base, {}, {}});
+    side->scored = score_side(before, skills, p, db, base, side->notes);
+    *memo = std::move(side);
+  }
+  const Scored& B = (*memo)->scored;
+  notes_b = (*memo)->notes;
+  const Scored A = score_side(after, skills, p, db, base, notes_a, captured);
   const Eval &b0 = B.shown(), &a0 = A.shown();
   const Procs &pb = B.pr, &pa = A.pr;
   if (!B.buffs.empty()) out.before += "buff states (likeliest shown): " + B.buffs + "; ";

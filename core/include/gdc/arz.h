@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <map>
+#include <functional>
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace gdc::arz {
@@ -25,9 +26,33 @@ struct Field {
   std::vector<std::string> strings;
 };
 
+// A record's fields sorted by name (std::map's order), found through a hash index: a scored tooltip looks up
+// fields ~10^6 times and a tree walk's string compares were a fifth of its time.
+class Fields {
+ public:
+  using value_type = std::pair<std::string, Field>;
+  using const_iterator = std::vector<value_type>::const_iterator;
+  const_iterator begin() const { return items_.begin(); }
+  const_iterator end() const { return items_.end(); }
+  std::size_t size() const { return items_.size(); }
+  bool empty() const { return items_.empty(); }
+  const_iterator find(std::string_view key) const;
+  bool contains(std::string_view key) const { return find(key) != end(); }
+  const Field& at(std::string_view key) const;  // throws std::out_of_range
+  void insert_or_assign(std::string key, Field f);
+  void emplace(std::string key, Field f);  // keeps an existing field, as std::map
+  // Takes fields in any order; a later one of the same name wins.
+  void assign(std::vector<value_type> v);
+
+ private:
+  void reindex();
+  std::vector<value_type> items_;
+  std::vector<std::uint32_t> slots_;  // index + 1 into items_, 0 empty; size a power of two
+};
+
 struct Record {
   std::string cls;
-  std::map<std::string, Field, std::less<>> fields;
+  Fields fields;
 
   // Per-level arrays are indexed by level - 1.
   double number(std::string_view key, std::size_t i = 0, double fallback = 0) const;
@@ -68,12 +93,41 @@ class Database {
   const Record* record(std::string_view name) const;
   std::size_t files() const { return files_.size(); }
 
+  // What make() computes from `r` (a record() result) and `n` alone, kept for the database's lifetime: scoring
+  // derives the same buff and bonus stats from the same records many times per tooltip.
+  template <class T, class F>
+  const T& derived(const Record& r, std::int64_t n, F make) const {
+    static constexpr char tag = 0;  // one per T and make()
+    if (const void* v = find_derived(&tag, &r, n)) return *static_cast<const T*>(v);
+    return *static_cast<const T*>(add_derived(&tag, &r, n, std::make_shared<const T>(make())));
+  }
+
  private:
+  const void* find_derived(const void* tag, const Record* r, std::int64_t n) const;
+  // A racing computation of the same key is dropped; the first one stays.
+  const void* add_derived(const void* tag, const Record* r, std::int64_t n, std::shared_ptr<const void> v) const;
   struct Cache {
     // shortcut: spin lock instead of std::mutex, which faults on the Proton prefix's 2016 msvcp140.dll
     // (docs/BUILD.md). Held only for a map find / emplace — revisit if tooltip timings show contention.
     std::atomic_flag lock;
-    std::unordered_map<std::string, std::unique_ptr<const Record>> records;  // null: absent
+    struct Hash {
+      using is_transparent = void;
+      std::size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
+    };
+    // Found by string_view: no std::string built per lookup.
+    std::unordered_map<std::string, std::unique_ptr<const Record>, Hash, std::equal_to<>> records;  // null: absent
+    struct Key {
+      const void* tag;
+      const Record* record;
+      std::int64_t n;
+      bool operator==(const Key&) const = default;
+    };
+    struct KeyHash {
+      std::size_t operator()(const Key& k) const {
+        return std::hash<const void*>{}(k.tag) ^ std::hash<const void*>{}(k.record) * 31 ^ std::hash<std::int64_t>{}(k.n) * 131;
+      }
+    };
+    std::unordered_map<Key, std::shared_ptr<const void>, KeyHash> derived;
   };
   std::vector<File> files_;
   std::unique_ptr<Cache> cache_ = std::make_unique<Cache>();

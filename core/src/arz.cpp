@@ -1,5 +1,6 @@
 #include "gdc/arz.h"
 
+#include <algorithm>
 #include <cstring>
 #include <stdexcept>
 
@@ -79,6 +80,95 @@ std::vector<std::byte> lz4_block(std::span<const std::byte> src, std::size_t out
   }
   if (out.size() != out_size) fail("lz4: size mismatch");
   return out;
+}
+
+namespace {
+
+// Field names are short ASCII and often differ only in the middle (offensiveSlowColdDurationMin /
+// offensiveSlowFireDurationMin): length, head, middle and tail words, mixed. Far cheaper than std::hash's
+// full pass; a collision only costs a probe.
+std::size_t key_hash(std::string_view s) {
+  auto load = [&](std::size_t at) {
+    std::uint64_t v;
+    std::memcpy(&v, s.data() + at, 8);
+    return v;
+  };
+  auto mix = [](std::uint64_t h) {
+    h ^= h >> 31;
+    h *= 0x9E3779B97F4A7C15ull;
+    return h ^ (h >> 29);
+  };
+  std::uint64_t h = s.size();
+  if (s.size() >= 8) {
+    h = mix(h ^ load(0));
+    h = mix(h ^ load(s.size() / 2 - 4));
+    h = mix(h ^ load(s.size() - 8));
+  } else {
+    for (const char c : s) h = (h << 8) | static_cast<unsigned char>(c);
+    h = mix(h);
+  }
+  return static_cast<std::size_t>(mix(h));
+}
+
+}  // namespace
+
+Fields::const_iterator Fields::find(std::string_view key) const {
+  if (slots_.empty()) return end();
+  const std::size_t mask = slots_.size() - 1;
+  for (std::size_t h = key_hash(key) & mask;; h = (h + 1) & mask) {
+    const std::uint32_t i = slots_[h];
+    if (i == 0) return end();
+    if (items_[i - 1].first == key) return items_.begin() + (i - 1);
+  }
+}
+
+const Field& Fields::at(std::string_view key) const {
+  const auto it = find(key);
+  if (it == end()) throw std::out_of_range("no field " + std::string(key));
+  return it->second;
+}
+
+void Fields::insert_or_assign(std::string key, Field f) {
+  const auto it = std::lower_bound(items_.begin(), items_.end(), key, [](const value_type& x, const std::string& k) { return x.first < k; });
+  if (it != items_.end() && it->first == key) {
+    it->second = std::move(f);
+    return;
+  }
+  items_.insert(it, {std::move(key), std::move(f)});
+  reindex();
+}
+
+void Fields::emplace(std::string key, Field f) {
+  if (!contains(key)) insert_or_assign(std::move(key), std::move(f));
+}
+
+void Fields::assign(std::vector<value_type> v) {
+  std::stable_sort(v.begin(), v.end(), [](const value_type& a, const value_type& b) { return a.first < b.first; });
+  std::size_t w = 0;
+  for (std::size_t i = 0; i < v.size(); ++i) {
+    if (w > 0 && v[w - 1].first == v[i].first) {
+      v[w - 1].second = std::move(v[i].second);
+      continue;
+    }
+    if (w != i) v[w] = std::move(v[i]);
+    ++w;
+  }
+  v.resize(w);
+  items_ = std::move(v);
+  reindex();
+}
+
+void Fields::reindex() {
+  if (items_.size() >= 0x40000000) fail("record has too many fields");
+  std::size_t n = 4;
+  while (n < items_.size() * 2) n *= 2;
+  slots_.assign(items_.empty() ? 0 : n, 0);
+  for (std::size_t i = 0; i < items_.size(); ++i)
+    for (std::size_t h = key_hash(items_[i].first) & (n - 1);; h = (h + 1) & (n - 1))
+      if (slots_[h] == 0) {
+        slots_[h] = static_cast<std::uint32_t>(i + 1);
+        break;
+      }
 }
 
 double Record::number(std::string_view key, std::size_t i, double fallback) const {
@@ -170,6 +260,7 @@ std::optional<Record> File::record(std::string_view name) const {
   const auto raw = lz4_block(data_.subspan(kHeader + e.offset, e.compressed), e.decompressed);
   Record rec;
   rec.cls = e.cls;
+  std::vector<Fields::value_type> fields;
   Reader r{raw};
   while (r.p < raw.size()) {
     const auto type = r.get<std::uint16_t>(), count = r.get<std::uint16_t>();
@@ -189,8 +280,9 @@ std::optional<Record> File::record(std::string_view name) const {
         f.numbers.push_back(r.get<std::int32_t>());
       }
     }
-    rec.fields.insert_or_assign(strings_[key], std::move(f));
+    fields.emplace_back(strings_[key], std::move(f));
   }
+  rec.fields.assign(std::move(fields));
   return rec;
 }
 
@@ -220,9 +312,10 @@ struct Spin {
 }  // namespace
 
 const Record* Database::record(std::string_view name) const {
+  if (name.empty()) return nullptr;  // an absent reference field (buffSkillName, petBonusName...)
   {
     Spin l(cache_->lock);
-    if (const auto it = cache_->records.find(std::string(name)); it != cache_->records.end()) return it->second.get();
+    if (const auto it = cache_->records.find(name); it != cache_->records.end()) return it->second.get();
   }
   std::unique_ptr<const Record> rec;  // decoded outside the lock; a racing decode of the same name is dropped
   for (auto it = files_.rbegin(); it != files_.rend(); ++it)
@@ -232,6 +325,17 @@ const Record* Database::record(std::string_view name) const {
     }
   Spin l(cache_->lock);
   return cache_->records.try_emplace(std::string(name), std::move(rec)).first->second.get();
+}
+
+const void* Database::find_derived(const void* tag, const Record* r, std::int64_t n) const {
+  Spin l(cache_->lock);
+  const auto it = cache_->derived.find({tag, r, n});
+  return it != cache_->derived.end() ? it->second.get() : nullptr;
+}
+
+const void* Database::add_derived(const void* tag, const Record* r, std::int64_t n, std::shared_ptr<const void> v) const {
+  Spin l(cache_->lock);
+  return cache_->derived.try_emplace({tag, r, n}, std::move(v)).first->second.get();
 }
 
 }  // namespace gdc::arz

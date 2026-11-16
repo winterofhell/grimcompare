@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <string_view>
 #include <tuple>
 
 #include "gdc/attribute_names.h"
@@ -110,27 +111,48 @@ void merge(Hidden& h, const sets::Bonus& b) {
   for (const auto& [k, v] : b.max_resist) h.max_resist[k] += v;
 }
 
+// One record's part of Hidden, in field order, so hidden() adds exactly as a walk of the fields would.
+struct HiddenOp {
+  enum Kind { Skill, Mastery, All, Modifier, MaxResist } kind;
+  std::string key, value;
+  double v = 0;
+};
+
+const std::vector<HiddenOp>& hidden_ops(const arz::Record& rec, const arz::Database& db) {
+  return db.derived<std::vector<HiddenOp>>(rec, 0, [&] {
+    std::vector<HiddenOp> ops;
+    for (const auto& [key, field] : rec.fields) {
+      auto grant = [&](HiddenOp::Kind kind, std::string_view name_prefix, std::string_view level_prefix) {
+        if (!key.starts_with(name_prefix) || field.strings.empty() || field.strings[0].empty()) return;
+        const std::string level_key = std::string(level_prefix) + key.substr(name_prefix.size());
+        ops.push_back({kind, field.strings[0], {}, rec.number(level_key)});
+      };
+      grant(HiddenOp::Skill, "augmentSkillName", "augmentSkillLevel");
+      grant(HiddenOp::Mastery, "augmentMasteryName", "augmentMasteryLevel");
+      if (key == "augmentAllLevel") ops.push_back({HiddenOp::All, {}, {}, rec.number(key)});
+      if (key.starts_with("modifierSkillName") && !field.strings.empty() && !field.strings[0].empty()) {
+        const std::string_view target = rec.string("modifiedSkillName" + key.substr(17));
+        if (!target.empty()) ops.push_back({HiddenOp::Modifier, std::string(target), field.strings[0], 0});
+      }
+      if (key.ends_with("MaxResist") && rec.number(key) != 0) ops.push_back({HiddenOp::MaxResist, key, {}, rec.number(key)});
+    }
+    return ops;
+  });
+}
+
 Hidden hidden(const snap::Item* it, const arz::Database& db) {
   Hidden h;
   if (!it) return h;
   for (const auto& name : item_records(*it)) {
     const auto rec = db.record(name);
     if (!rec) continue;
-    for (const auto& [key, field] : rec->fields) {
-      auto grant = [&](std::map<std::string, double>& out, std::string_view name_prefix, std::string_view level_prefix) {
-        if (!key.starts_with(name_prefix) || field.strings.empty() || field.strings[0].empty()) return;
-        const std::string level_key = std::string(level_prefix) + key.substr(name_prefix.size());
-        out[field.strings[0]] += rec->number(level_key);
-      };
-      grant(h.skills, "augmentSkillName", "augmentSkillLevel");
-      grant(h.masteries, "augmentMasteryName", "augmentMasteryLevel");
-      if (key == "augmentAllLevel") h.all += rec->number(key);
-      if (key.starts_with("modifierSkillName") && !field.strings.empty() && !field.strings[0].empty()) {
-        const std::string_view target = rec->string("modifiedSkillName" + key.substr(17));
-        if (!target.empty()) h.modifiers.emplace(std::string(target), field.strings[0]);
+    for (const auto& op : hidden_ops(*rec, db)) switch (op.kind) {
+        case HiddenOp::Skill: h.skills[op.key] += op.v; break;
+        case HiddenOp::Mastery: h.masteries[op.key] += op.v; break;
+        case HiddenOp::All: h.all += op.v; break;
+        case HiddenOp::Modifier: h.modifiers.emplace(op.key, op.value); break;
+        case HiddenOp::MaxResist: h.max_resist[op.key] += op.v; break;
       }
-      if (key.ends_with("MaxResist") && rec->number(key) != 0) h.max_resist[key] += rec->number(key);
-    }
   }
   return h;
 }
@@ -143,17 +165,41 @@ double get(const std::map<std::string, double>& m, const std::string& k) {
 // SetSkillLevelAugment 0x5375B0 by record; SetMasteryAugment 0x5373D0 to the mastery and every skill whose
 // GetMasteryId (Skill+0x13C) matches; SetAllSkillAugment 0x537230 to every skill but one the caller names
 // (not traced, warned in swap()).
-double grant_delta(const snap::Skill& sk, const snap::Snapshot& s, const Hidden& before, const Hidden& after) {
-  double d = get(after.skills, sk.record) - get(before.skills, sk.record) + after.all - before.all;
-  std::set<std::string> masteries;
-  for (const auto& [m, _] : before.masteries) masteries.insert(m);
-  for (const auto& [m, _] : after.masteries) masteries.insert(m);
-  for (const auto& m : masteries) {
-    bool hit = sk.record == m;
-    for (const auto& other : s.skills)
-      hit = hit || (other.record == m && other.id != 0 && sk.mastery_id == other.id);
-    if (hit) d += get(after.masteries, m) - get(before.masteries, m);
-  }
+// Skill and mastery grants that differ between the sides; a mastery's with the ids of the snapshot's skills of
+// that record.
+struct Grants {
+  std::map<std::string, double> skills;  // after - before
+  struct Mastery {
+    std::string record;
+    std::set<std::uint32_t> ids;
+    double delta = 0;
+  };
+  std::vector<Mastery> masteries;  // record order
+};
+
+Grants grants(const snap::Snapshot& s, const Hidden& before, const Hidden& after) {
+  Grants out;
+  for (const auto* h : {&before, &after})
+    for (const auto& [k, _] : h->skills)
+      if (const double d = get(after.skills, k) - get(before.skills, k); d != 0) out.skills[k] = d;
+  std::set<std::string> records;
+  for (const auto* h : {&before, &after})
+    for (const auto& [m, _] : h->masteries) records.insert(m);
+  for (const auto& m : records)
+    if (const double d = get(after.masteries, m) - get(before.masteries, m); d != 0) {
+      out.masteries.push_back({m, {}, d});
+      for (const auto& other : s.skills)
+        if (other.id != 0 && other.record == m) out.masteries.back().ids.insert(other.id);
+    }
+  return out;
+}
+
+// Grants that differ by exactly 0 are left out: adding +0 leaves the sum as it was.
+double grant_delta(const snap::Skill& sk, const Grants& g, const Hidden& before, const Hidden& after) {
+  const auto it = g.skills.find(sk.record);
+  double d = (it != g.skills.end() ? it->second : 0.0) + after.all - before.all;
+  for (const auto& m : g.masteries)
+    if (sk.record == m.record || m.ids.contains(sk.mastery_id)) d += m.delta;
   return d;
 }
 
@@ -422,19 +468,25 @@ void apply_skill_levels(const snap::Snapshot& s, int location, const Hidden& bef
     p.warnings.push_back("all-skills grant changes: applied to every skill (the engine's one exclusion is not traced)");
   auto of = [](const std::multiset<std::pair<std::string, std::string>>& m, const std::string& skill) {
     std::multiset<std::string> out;
+    if (m.empty()) return out;
     for (auto it = m.lower_bound({skill, std::string{}}); it != m.end() && it->first == skill; ++it) out.insert(it->second);
     return out;
   };
+  std::set<std::string_view, std::less<>> modded;  // skills with a modifier on either side
+  for (const auto* m : {&before.modifiers, &before.set_modifiers, &after.modifiers, &after.set_modifiers})
+    for (const auto& [k, _] : *m) modded.insert(k);
   auto mods_of = [&](const Hidden& h, const std::string& skill) {
+    if (!modded.contains(skill)) return std::multiset<std::string>{};
     std::multiset<std::string> out = of(h.modifiers, skill);
     for (auto& r : of(h.set_modifiers, skill)) out.insert(r);
     return out;
   };
   bool assumed = false;
   std::set<const snap::Skill*> running;
+  const Grants granted = grants(s, before, after);
   for (const auto& sk : s.skills) {
     if (sk.devotion_max_level != 0) continue;
-    const double d = grant_delta(sk, s, before, after);
+    const double d = grant_delta(sk, granted, before, after);
     if (sk.level == 0) {  // GetCurrentLevel stays 0 whatever the bonus
       if (d != 0) p.unused.push_back({sk.record, sk.augmented_level, static_cast<std::uint32_t>(std::max(0.0, sk.augmented_level + d))});
       continue;

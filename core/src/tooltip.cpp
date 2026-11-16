@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cmath>
-#include <cstdio>
 #include <map>
 #include <optional>
 #include <set>
@@ -51,9 +51,8 @@ std::string num(double v, int decimals) {
   const double scale = std::pow(10.0, decimals);
   double r = std::round(v * scale) / scale;
   if (r == 0) r = 0;
-  char buf[48];
-  std::snprintf(buf, sizeof buf, "%.*f", decimals, r);
-  return buf;
+  char buf[400];
+  return {buf, std::to_chars(buf, buf + sizeof buf, r, std::chars_format::fixed, decimals).ptr};
 }
 
 std::string signed_num(double v, int decimals) {
@@ -458,9 +457,8 @@ bool sheet_key(std::string_view key) {
 }
 
 std::string sig(double v) {
-  char buf[48];
-  std::snprintf(buf, sizeof buf, "%.3g", v);
-  return buf;
+  char buf[48];  // as %.3g
+  return {buf, std::to_chars(buf, buf + sizeof buf, v, std::chars_format::general, 3).ptr};
 }
 
 // Units: fractions x 100 = %, retaliation per 1000; unlisted stats raw.
@@ -699,6 +697,8 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
   };
 
   const snap::Item cand_base = components::strip(candidate, db, notes);
+  std::optional<score::BuffView> view_s;
+  score::Memo memo_s;  // compares with s before
   std::vector<Slot> slots;
   for (const Plan& plan : plans(s, candidate, item_type, db)) {
     const int loc = plan.location;
@@ -738,8 +738,14 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
       return p;
     };
 
+    // Nothing to strip: swapping the item for itself leaves s as it is, and s's side is scored once for every slot.
+    auto bare = [](const snap::Item& it) {
+      const auto& r = it.replica;
+      return !it.relic && !it.augment &&
+             (!r || (r->relic.empty() && r->augment.empty() && r->relic_seed == 0 && r->augment_seed == 0 && r->augment_level == 0));
+    };
     std::optional<model::Prediction> stripped;
-    if (old) {
+    if (old && !bare(*old)) {
       const snap::Item old_base = components::strip(*old, db, notes);
       stripped = model::swap(s, old_base, loc, db);
       take(*stripped);
@@ -769,7 +775,7 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
       sl.sets.push_back({set.after > set.before ? Tone::Better : Tone::Worse, "  set " + name + " (scored)"});
       for (const auto& f : set.unmodeled) add_unique(unscored, "set bonus " + pretty(f));
     }
-    sl.base = score::compare(from, p1.after, skills, preset, db);
+    sl.base = score::compare(from, p1.after, skills, preset, db, stripped ? nullptr : &memo_s);
     auto valued = [&](const std::string& record) {
       return sl.base.procs.contains(record) ||
              std::any_of(sl.base.unscored.begin(), sl.base.unscored.end(), [&](const auto& u) { return u.record == record; });
@@ -809,18 +815,20 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
         std::vector<std::string> broke_notes2;
         take_off_broken(s, p2.after, loc, db, broke_notes2);
         for (auto& n : broke_notes2) add_unique(warnings, std::move(n));
-        sl.moved = score::compare(s, p2.after, skills, preset, db);
+        sl.moved = score::compare(s, p2.after, skills, preset, db, &memo_s);
         for (auto& n : sl.moved->notes) add_unique(warnings, std::move(n));
       }
     }
 
     if (detail || !preset.conversion_warn.empty()) {
       if (detail) {
-        const score::BuffView vb = score::buff_view(s, skills, preset, db), va = score::buff_view(pa.after, skills, preset, db);
+        if (!view_s) view_s = score::buff_view(s, skills, preset, db);  // the same for every location
+        const score::BuffView& vb = *view_s;
+        const score::BuffView va = score::buff_view(pa.after, skills, preset, db);
         // The sheet lines compare the items as they are, so their points come from that comparison, not from
         // base (components stripped from both).
         if ((old && (old->relic || old->augment)) || candidate.relic || candidate.augment)
-          sl.hovered = score::compare(s, pa.after, skills, preset, db);
+          sl.hovered = score::compare(s, pa.after, skills, preset, db, &memo_s);
         sl.detail = changes(vb.sheet, va.sheet, pa, labels, sl.hovered ? &*sl.hovered : &sl.base);
         sl.buffs = buff_lines(vb, va, labels, screen);
       }

@@ -3,6 +3,7 @@
 // Only ratios are reported, so terms need no absolute unit. Sources: docs/MECHANICS.md §5, defense order §9.
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -239,7 +240,12 @@ struct Result {
 // Buffs that are not always up split each side into states. Terms are computed per state and mixed
 // geometrically (ln X = sum p x ln X_state, buffs independent) so caps see real sheets and the reverse swap
 // stays exact. Only the kMaxEnumerated buffs with the largest uptime x (1 - uptime) are enumerated.
+//
+// `memo` keeps the before side for the next call with the same `before` object and weapon base (one tooltip
+// scores one snapshot against several afters); `before` must outlive it unchanged, as must skills, p and db.
+struct BeforeSide;
+using Memo = std::shared_ptr<const BeforeSide>;
 Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const std::vector<Skill>& skills,
-               const Settings& p, const arz::Database* db);
+               const Settings& p, const arz::Database* db, Memo* memo = nullptr);
 
 }  // namespace gdc::score

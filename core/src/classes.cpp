@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <unordered_map>
 #include <utility>
 
 namespace gdc::classes {
@@ -37,9 +38,19 @@ static_assert([] {
 
 bool is_a(std::string_view cls, std::string_view base) {
   if (cls == base) return true;
-  const int b = index_of(base);
+  // Hashed: scoring asks this a few thousand times per tooltip.
+  static const std::unordered_map<std::string_view, int> rows = [] {
+    std::unordered_map<std::string_view, int> m;
+    for (std::size_t i = 0; i < std::size(kParents); ++i) m.emplace(kParents[i].first, static_cast<int>(i));
+    return m;
+  }();
+  auto row = [&](std::string_view c) {
+    const auto it = rows.find(c);
+    return it != rows.end() ? it->second : -1;
+  };
+  const int b = row(base);
   if (b < 0) return false;
-  int i = index_of(cls);
+  int i = row(cls);
   for (int depth = 0; i >= 0 && depth < 32; ++depth)
     if ((i = kParentRow[i]) == b) return true;
   return false;

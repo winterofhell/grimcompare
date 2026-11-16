@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -175,4 +176,47 @@ TEST_CASE("arz: installed game database (skips if absent)") {
   CHECK(ring->string("augmentSkillName2") == "records/skills/playerclass09/summon_celestialguardian2_petmodifier.dbr");
   CHECK(db.record("records/items/gearaccessories/rings/b102e_ring.dbr")->string("augmentSkillName3") ==
         "records/skills/playerclass09/aegis1.dbr");
+}
+
+TEST_CASE("arz: Fields finds by name, keeps name order, last duplicate wins") {
+  auto num = [](double v) {
+    Field f;
+    f.kind = Field::Kind::Float;
+    f.numbers = {v};
+    return f;
+  };
+  Fields f;
+  std::vector<Fields::value_type> v;
+  for (int i = 0; i < 300; ++i) v.push_back({"field" + std::to_string(299 - i), num(i)});
+  v.push_back({"field7", num(-1)});
+  f.assign(std::move(v));
+  CHECK(f.size() == 300);
+  CHECK(f.at("field7").numbers[0] == -1);
+  CHECK(f.at("field0").numbers[0] == 299);
+  CHECK(f.find("field300") == f.end());
+  CHECK_FALSE(f.contains(""));
+  CHECK_THROWS_AS(f.at("nope"), std::out_of_range);
+  CHECK(std::is_sorted(f.begin(), f.end(), [](const auto& a, const auto& b) { return a.first < b.first; }));
+  f.emplace("field7", num(5));
+  CHECK(f.at("field7").numbers[0] == -1);
+  f.insert_or_assign("field7", num(5));
+  CHECK(f.at("field7").numbers[0] == 5);
+  f.emplace("aaa", num(1));
+  CHECK(f.begin()->first == "aaa");
+  CHECK(f.at("field299").numbers[0] == 0);
+  CHECK(f.size() == 301);
+}
+
+TEST_CASE("arz: derived values computed once per record, n and type") {
+  Database db;
+  Record a, b;
+  int made = 0;
+  auto get = [&](const Record& r, std::int64_t n) { return db.derived<int>(r, n, [&] { return ++made; }); };
+  CHECK(get(a, 1) == 1);
+  CHECK(get(a, 1) == 1);
+  CHECK(get(a, 2) == 2);
+  CHECK(get(b, 1) == 3);
+  CHECK(db.derived<double>(a, 1, [] { return 0.5; }) == 0.5);
+  CHECK(made == 3);
+  CHECK(db.record("") == nullptr);
 }

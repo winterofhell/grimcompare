@@ -4,7 +4,6 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
-#include <cstdio>
 #include <set>
 
 #include "gdc/classes.h"
@@ -37,9 +36,8 @@ std::string_view own_or_buff(const arz::Record& r, std::string_view key, const a
 }
 
 std::string fmt(double v, int decimals) {
-  char buf[48];
-  std::snprintf(buf, sizeof buf, "%.*f", decimals, v);
-  return buf;
+  char buf[400];  // fits %.*f of any double; to_chars rounds as printf does
+  return {buf, std::to_chars(buf, buf + sizeof buf, v, std::chars_format::fixed, decimals).ptr};
 }
 
 // Elemental (58) lands on Cold, Fire, Lightning.

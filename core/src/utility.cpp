@@ -188,7 +188,7 @@ Context context(const snap::Snapshot& s, const arz::Database* db, std::string st
   if (db)
     for (const auto* list : {&s.skills, &s.item_skills})
       for (const auto& k : *list)
-        if (k.current_level > 0)
+        if (k.current_level > 0 && !c.pets)
           if (const arz::Record* r = db->record(k.record))
             if (const arz::Record* pet = effects::summoned(*r, k.current_level, *db); pet && pet->cls == "Pet")
               c.pets = true;
