@@ -207,7 +207,7 @@ std::optional<Entry> pick_entry(const Ctx& c, const std::vector<Entry>& catalog,
         shown.push_back(&e);
         items.push_back({e.name, damage_words(e.damage)});
       }
-    const int b = ui::choose(tr("Pick a build (Enter on one to use it)"), items, 0,
+    const int b = ui::choose(tr("Pick a build"), items, 0,
                              [&](int k) { return panel(c, *shown[static_cast<std::size_t>(k)]); }, true);
     if (b >= 0) return *shown[static_cast<std::size_t>(b)];
   }
@@ -542,7 +542,8 @@ bool bind_existing(const Ctx& c, const Existing& e, const Who& who) {
 
 }  // namespace
 
-bool wizard(const Game& game, const std::string& folder, const fs::path& payload_dir) {
+WizardEnd wizard(const Game& game, const std::string& folder, const fs::path& payload_dir) {
+  auto end = [](bool ok) { return ok ? WizardEnd::kSaved : WizardEnd::kFailed; };
   ui::title(tr("Build preset"));
   ui::line(tr("Reading the game database..."));
   std::optional<gdc::arz::Database> db;
@@ -551,8 +552,10 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
     db = gdc::arz::Database::open_game(game.root);
     text = gdc::text::Table::open_game(game.root, "EN");
   } catch (const std::exception& e) {
-    ui::warn(fmt(tr("Could not read the game database: {}"), {e.what()}));
-    return false;
+    ui::warn(fmt(tr("Could not read the game database: {}. Check the game files in Steam (Properties -> Installed Files -> Verify) "
+                    "or GOG Galaxy, then run setup again."),
+                 {e.what()}));
+    return WizardEnd::kFailed;
   }
   const auto catalog_text = read_file(payload_dir / "catalog" / "builds.toml");
   std::string error;
@@ -561,15 +564,17 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
   Ctx c{*db, *text, gdc::Labels(&*db, &*text), game.root / u8path(folder) / "GDCompare.presets"};
 
   const auto who = pick_character(c, game);
-  if (!who) return false;
+  if (!who) return WizardEnd::kBack;
   const auto masteries = pick_masteries(c, *who);
-  if (!masteries) return false;
+  if (!masteries) return WizardEnd::kBack;
 
   for (;;) {
     std::vector<ui::Item> items;
     std::vector<int> kinds;  // 0 catalog, 1 custom, 2+ existing
     const auto existing = setup_presets(c.presets);
-    if (catalog) items.push_back({tr("Pick a build from the catalog"), tr("54 common builds, checked against the game data")}), kinds.push_back(0);
+    if (catalog)
+      items.push_back({tr("Pick a build from the catalog"), fmt(tr("{} common builds, checked against the game data"), {std::to_string(catalog->size())})}),
+          kinds.push_back(0);
     items.push_back({tr("Describe my own build"), tr("a few questions")}), kinds.push_back(1);
     for (std::size_t i = 0; i < existing.size(); ++i) {
       const auto& e = existing[i];
@@ -579,9 +584,9 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
       kinds.push_back(2 + static_cast<int>(i));
     }
     const int i = ui::choose(fmt(tr("How should GD Compare judge items for {}?"), {who_label(*who)}), items);
-    if (i < 0) return false;
+    if (i < 0) return WizardEnd::kBack;
     const int k = kinds[static_cast<std::size_t>(i)];
-    if (k >= 2) return bind_existing(c, existing[static_cast<std::size_t>(k - 2)], *who);
+    if (k >= 2) return end(bind_existing(c, existing[static_cast<std::size_t>(k - 2)], *who));
 
     std::optional<BuildAnswers> a;
     if (k == 0) {
@@ -601,7 +606,7 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
     int n = 0;
     for (const auto& p : priorities(*a, names)) ui::wrap(std::to_string(++n) + ". " + p, 2);
     for (const auto& h : a->hints) ui::wrap(h, 2);
-    if (ui::confirm(tr("\nSave this preset?"), true)) return save(c, *a, *who);
+    if (ui::confirm(tr("\nSave this preset?"), true)) return end(save(c, *a, *who));
   }
 }
 

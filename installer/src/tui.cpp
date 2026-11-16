@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+
+#include "platform.h"
 #include <cstdio>
 #include <iostream>
 
@@ -21,7 +24,9 @@ namespace setup::ui {
 
 namespace {
 
-bool g_keys = false;
+bool g_keys = false;   // arrow-key menus
+bool g_ansi = false;   // escape codes understood (bold, dim, reverse)
+bool g_color = false;  // and color wanted (no NO_COLOR)
 
 enum class K { kNone, kUp, kDown, kPageUp, kPageDown, kHome, kEnd, kEnter, kEsc, kBack, kSpace, kTab, kChar, kQuit };
 struct Key {
@@ -263,13 +268,26 @@ std::optional<std::string> read_line() {
 constexpr std::string_view kDim = "\x1b[2m", kBold = "\x1b[1m", kRev = "\x1b[7m", kOff = "\x1b[0m", kYellow = "\x1b[33m";
 
 std::string style(std::string_view code, std::string_view text) {
-  return g_keys ? std::string(code) + std::string(text) + std::string(kOff) : std::string(text);
+  const bool on = code == kYellow ? g_color : g_ansi;
+  return on ? std::string(code) + std::string(text) + std::string(kOff) : std::string(text);
 }
 
 std::string must_read_line() {
   auto s = read_line();
   if (!s) throw Cancelled();
   return *s;
+}
+
+// Heading lines, each clipped to the screen: the arrow-key menus redraw from the top, so what the user must still
+// see (the game folder above the main menu) goes in the heading.
+std::vector<std::string> heading_lines(std::string_view heading, int w) {
+  std::vector<std::string> out;
+  for (std::size_t start = 0;;) {
+    const auto nl = heading.find('\n', start);
+    out.push_back(clip(heading.substr(start, nl - start), static_cast<std::size_t>(w - 1)));
+    if (nl == std::string_view::npos) return out;
+    start = nl + 1;
+  }
 }
 
 struct Screen {
@@ -305,10 +323,12 @@ void init(bool plain) {
   g_console_in = GetConsoleMode(in_h(), &g_in_mode) != 0;
   const bool vt = GetConsoleMode(out_h(), &om) &&
                   SetConsoleMode(out_h(), om | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT);
+  g_ansi = vt;
   g_keys = !plain && g_console_in && vt;
 #else
-  const char* term = std::getenv("TERM");
-  g_keys = !plain && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) && term && std::string_view(term) != "dumb";
+  const auto term = env("TERM");
+  g_ansi = isatty(STDOUT_FILENO) && term && *term != "dumb";
+  g_keys = !plain && isatty(STDIN_FILENO) && g_ansi;
   if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &g_saved) == 0) {
     g_have_saved = true;
     std::atexit(restore);
@@ -317,6 +337,8 @@ void init(bool plain) {
     std::signal(SIGHUP, on_signal);
   }
 #endif
+  const auto no_color = env("NO_COLOR");  // no-color.org: set and not empty
+  g_color = g_ansi && !(no_color && !no_color->empty());
 }
 
 bool keys() { return g_keys; }
@@ -338,6 +360,7 @@ void out(std::string_view text) {
 }
 
 void line(std::string_view text) { out(std::string(text) + "\n"); }
+// Not wrapped: headings hold paths, which must stay whole to be copied.
 void title(std::string_view text) { line("\n" + style(kBold, text)); }
 void warn(std::string_view text) {
   for (const auto& l : wrapped(text, static_cast<std::size_t>(width() - 4))) line(style(kYellow, "! " + l));
@@ -346,9 +369,16 @@ void wrap(std::string_view text, int indent) {
   for (const auto& l : wrapped(text, static_cast<std::size_t>(width() - indent - 1))) line(std::string(static_cast<std::size_t>(indent), ' ') + l);
 }
 
+void hang(std::string_view lead, std::string_view text) {
+  const std::size_t n = cols(lead);
+  const auto lines = wrapped(text, static_cast<std::size_t>(width() - 1) - std::min<std::size_t>(n, static_cast<std::size_t>(width() / 2)));
+  for (std::size_t i = 0; i < lines.size(); ++i) line((i == 0 ? std::string(lead) : std::string(n, ' ')) + lines[i]);
+}
+
 int choose(std::string_view heading, const std::vector<Item>& items, int start, const std::function<std::string(int)>& panel,
-           bool search) {
+           bool search, bool quits) {
   if (items.empty()) return -1;
+  const std::string back = quits ? tr("quit") : tr("go back");
   if (!g_keys) {
     std::string q;
     for (;;) {
@@ -358,12 +388,13 @@ int choose(std::string_view heading, const std::vector<Item>& items, int start, 
       title(heading);
       for (std::size_t n = 0; n < shown.size(); ++n) {
         const Item& it = items[static_cast<std::size_t>(shown[n])];
-        line("  " + std::to_string(n + 1) + ") " + it.label + (it.hint.empty() ? "" : "   (" + it.hint + ")"));
+        hang("  " + std::to_string(n + 1) + ") ", it.label + (it.hint.empty() ? "" : "   (" + it.hint + ")"));
       }
-      std::string help = tr("Number");
+      const auto def = std::find(shown.begin(), shown.end(), start);
+      std::string help = def != shown.end() ? fmt(tr("Number (Enter = {})"), {std::to_string(def - shown.begin() + 1)}) : tr("Number");
       if (panel) help += tr(", ?N for details");
       if (search) help += tr(", /text to search");
-      out(help + tr(", 0 to go back: "));
+      out(help + fmt(tr(", 0 to {}: "), {back}));
       const std::string a = must_read_line();
       if (a.starts_with("/")) {
         q = a.substr(1);
@@ -380,8 +411,8 @@ int choose(std::string_view heading, const std::vector<Item>& items, int start, 
         }
       } catch (const std::exception&) {
       }
-      if (a.empty() && start >= 0 && start < static_cast<int>(items.size())) return start;
-      warn(tr("Type one of the numbers above."));
+      if (a.empty() && def != shown.end()) return start;
+      warn(fmt(tr("Type one of the numbers above, or 0 to {}."), {back}));
     }
   }
 
@@ -399,7 +430,8 @@ int choose(std::string_view heading, const std::vector<Item>& items, int start, 
     const int w = width(), h = term_height();
     const bool side = panel && w >= 100;
     const int list_w = side ? std::min(52, w / 2) : w - 1;
-    const int header = 2 + (search ? 1 : 0);
+    const auto head = heading_lines(heading, w);
+    const int header = static_cast<int>(head.size()) + 1 + (search ? 1 : 0);
     const std::vector<std::string> body = panel && !shown.empty()
                                               ? wrapped(panel(cur), static_cast<std::size_t>(side ? w - list_w - 4 : w - 3))
                                               : std::vector<std::string>{};
@@ -411,7 +443,7 @@ int choose(std::string_view heading, const std::vector<Item>& items, int start, 
     top = std::clamp(top, 0, std::max(0, static_cast<int>(shown.size()) - rows));
 
     Screen s;
-    s.add(style(kBold, clip(heading, static_cast<std::size_t>(w - 1))));
+    for (const auto& l : head) s.add(style(kBold, l));
     if (search) s.add(tr("Search: ") + q + style(kDim, "_"));
     s.add("");
     for (int r = 0; r < rows; ++r) {
@@ -439,7 +471,8 @@ int choose(std::string_view heading, const std::vector<Item>& items, int start, 
       s.add(style(kDim, std::string(static_cast<std::size_t>(std::min(w - 1, 60)), '-')));
       for (int r = 0; r + 1 < below; ++r) s.add(" " + body[static_cast<std::size_t>(r)]);
     }
-    s.add(style(kDim, tr(search ? "Up/Down move, Enter select, Esc back, type to search" : "Up/Down move, Enter select, Esc back")));
+    s.add(style(kDim, fmt(tr(search ? "Up/Down move, Enter select, Esc {}, type to search" : "Up/Down move, Enter select, Esc {}"),
+                          {quits ? tr("quit") : tr("back")})));
     s.flush();
 
     const Key k = read_key();
@@ -495,8 +528,8 @@ std::optional<std::vector<int>> choose_many(std::string_view heading, const std:
     for (;;) {
       title(heading);
       for (std::size_t i = 0; i < items.size(); ++i)
-        line("  " + std::to_string(i + 1) + ") [" + (on[i] ? "x" : " ") + "] " + items[i].label +
-             (items[i].hint.empty() ? "" : "   (" + items[i].hint + ")"));
+        hang("  " + std::to_string(i + 1) + ") [" + (on[i] ? "x" : " ") + "] ",
+             items[i].label + (items[i].hint.empty() ? "" : "   (" + items[i].hint + ")"));
       out(tr("Numbers separated by spaces (Enter keeps the marked ones, 0 to go back): "));
       const std::string a = must_read_line();
       if (a == "0") return std::nullopt;
@@ -529,12 +562,14 @@ std::optional<std::vector<int>> choose_many(std::string_view heading, const std:
   int cur = 0, top = 0;
   std::string note;
   for (;;) {
-    const int w = width(), h = term_height(), rows = std::max(3, h - 5);
+    const int w = width(), h = term_height();
+    const auto head = heading_lines(heading, w);
+    const int rows = std::max(3, h - 4 - static_cast<int>(head.size()));
     const int n = static_cast<int>(items.size());
     if (cur < top) top = cur;
     if (cur >= top + rows) top = cur - rows + 1;
     Screen s;
-    s.add(style(kBold, clip(heading, static_cast<std::size_t>(w - 1))));
+    for (const auto& l : head) s.add(style(kBold, l));
     s.add(note.empty() ? "" : style(kYellow, note));
     for (int r = 0; r < rows && top + r < n; ++r) {
       const int i = top + r;

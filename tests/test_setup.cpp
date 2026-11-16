@@ -3,17 +3,21 @@
 // with compat/; the install rules do not depend on the OS).
 #include <doctest/doctest.h>
 
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <fstream>
+#include <iostream>
 #include <set>
 #include <sstream>
 
 #include "buildpreset.h"
 #include "catalog.h"
 #include "detect.h"
+#include "tui.h"
 #include "install.h"
 #include "platform.h"
 #include "saves.h"
@@ -585,4 +589,50 @@ TEST_CASE("setup: blocked while the game runs or is not installed; payload and m
   const auto m = read_manifest(f.target);
   CHECK(m.size() == 1);
   CHECK(m.at("GDCompare.asi") == "abc");
+}
+
+namespace {
+
+// Runs f with stdin from `input` and stdout discarded (numbered menus: not a terminal), restored on a throw too.
+template <class F>
+auto with_input(const std::string& input, F f) {
+  struct Redirect {
+    std::istringstream in;
+    std::streambuf* old;
+    int saved;
+    explicit Redirect(const std::string& s) : in(s), old(std::cin.rdbuf(in.rdbuf())) {
+      std::fflush(stdout);
+      saved = dup(STDOUT_FILENO);
+      const int null = open("/dev/null", O_WRONLY);
+      dup2(null, STDOUT_FILENO);
+      close(null);
+    }
+    ~Redirect() {
+      std::fflush(stdout);
+      dup2(saved, STDOUT_FILENO);
+      close(saved);
+      std::cin.rdbuf(old);
+    }
+  } r(input);
+  return f();
+}
+
+}  // namespace
+
+TEST_CASE("setup: numbered menus take Enter for the default, 0 for back, retry on bad input") {
+  using namespace setup;
+  ui::init(true);
+  const std::vector<ui::Item> items{{"a", ""}, {"b", "hint"}, {"c", ""}};
+  CHECK(with_input("\n", [&] { return ui::choose("h", items, 2); }) == 2);
+  CHECK(with_input("0\n", [&] { return ui::choose("h", items); }) == -1);
+  CHECK(with_input("x\n9\n2\n", [&] { return ui::choose("h", items); }) == 1);
+  CHECK(with_input("/c\n1\n", [&] { return ui::choose("h", items, 0, {}, true); }) == 2);  // numbers count the matches
+  CHECK_THROWS_AS(with_input("", [&] { return ui::choose("h", items); }), ui::Cancelled);
+  CHECK(with_input("\n", [&] { return ui::confirm("q", true); }));
+  CHECK_FALSE(with_input("maybe\nn\n", [&] { return ui::confirm("q", true); }));
+  CHECK(with_input("\n", [&] { return ui::ask("p", "def"); }) == "def");
+  const auto many = with_input("1 9\n1 3\n", [&] { return ui::choose_many("h", items, {}, 2); });
+  REQUIRE(many);
+  CHECK(*many == std::vector<int>{0, 2});
+  CHECK_FALSE(with_input("0\n", [&] { return ui::choose_many("h", items, {1}); }));
 }

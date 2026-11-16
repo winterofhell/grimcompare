@@ -38,6 +38,16 @@ fs::path find_payload(const Options& o) {
   return exe.parent_path() / "payload";
 }
 
+// Under the home folder as ~/... (Linux): the full Steam path alone fills an 80-column line.
+std::string short_path(const fs::path& p) {
+  const std::string s = u8string(p);
+#ifndef _WIN32
+  const std::string h = u8string(home());
+  if (!h.empty() && h != "/" && s.starts_with(h + "/")) return "~" + s.substr(h.size());
+#endif
+  return s;
+}
+
 std::string default_folder(const fs::path& root) {
   const auto folders = run_folders(root);
   for (const auto& f : folders)
@@ -55,7 +65,9 @@ std::optional<Game> pick_game(const Options& o) {
   if (!o.game.empty()) {
     const fs::path root = game_root_of(o.game);
     if (root.empty()) {
-      ui::warn(fmt(tr("{} is not a Grim Dawn folder (no Grim Dawn.exe and database/database.arz)."), {u8string(o.game)}));
+      ui::warn(fmt(tr("{} is not a Grim Dawn folder: it has no Grim Dawn.exe and database/database.arz. Give the game's main "
+                      "folder (the one that holds Grim Dawn.exe and the x64 folder)."),
+                   {u8string(o.game)}));
       return std::nullopt;
     }
     return Game{root, "typed in"};
@@ -88,7 +100,7 @@ void print_plan(const Plan& p) {
   auto group = [](std::string_view head, const std::vector<const Step*>& v) {
     if (v.empty()) return;
     ui::line(std::string("  ") + std::string(head));
-    for (const auto* s : v) ui::line("    " + s->file + "  - " + s->reason);
+    for (const auto* s : v) ui::hang("    ", s->file + "  - " + s->reason);
   };
   group(tr("Write:"), write);
   group(tr("Remove:"), remove);
@@ -131,21 +143,21 @@ void after_install(const Game& g, const std::string& folder) {
 #ifdef _WIN32
   (void)g;
   (void)folder;
-  ui::line(tr("\nDone. Start Grim Dawn as usual and hover an item: the tooltip shows the score. Hold Shift for details."));
+  ui::wrap(tr("\nDone. Start Grim Dawn as usual and hover an item: the tooltip shows the score. Hold Shift for details."));
 #else
   ui::title(tr("One more step: tell Wine to load the ASI loader."));
   if (g.source.starts_with("Steam")) {
-    ui::line(tr("In Steam: Grim Dawn -> Properties -> Launch Options. Paste the \"set to\" line (it keeps what you have):"));
+    ui::wrap(tr("In Steam: Grim Dawn -> Properties -> Launch Options. Paste the \"set to\" line (it keeps what you have):"));
     steam_launch_options(true, g.root / u8path(folder));
-    if (folder == "compat") ui::line(tr("Then start the game with the \"Compatibility Mode\" entry (it runs compat/Grim Dawn.exe)."));
-    else ui::line(tr("Then start the game with the entry that runs x64/Grim Dawn.exe."));
+    if (folder == "compat") ui::wrap(tr("Then start the game with the \"Compatibility Mode\" entry (it runs compat/Grim Dawn.exe)."));
+    else ui::wrap(tr("Then start the game with the entry that runs x64/Grim Dawn.exe."));
   } else {
-    ui::line(tr("Add this environment variable in your launcher's settings for Grim Dawn (Heroic and Lutris both have an"));
-    ui::line(tr("\"Environment variables\" section). If WINEDLLOVERRIDES is already set, add dinput8=n,b to it with a ';'."));
+    ui::wrap(tr("Add this environment variable in your launcher's settings for Grim Dawn (Heroic and Lutris both have an "
+                "\"Environment variables\" section). If WINEDLLOVERRIDES is already set, add dinput8=n,b to it with a ';'."));
     ui::line("    WINEDLLOVERRIDES=dinput8=n,b");
     ui::line(fmt(tr("The launcher must start {}/Grim Dawn.exe."), {folder}));
   }
-  ui::line(tr("Hover an item in game: the tooltip shows the score. Hold Shift for details."));
+  ui::wrap(tr("Hover an item in game: the tooltip shows the score. Hold Shift for details."));
 #endif
 }
 
@@ -172,13 +184,14 @@ bool run_plan(Mode mode, const Game& g, const std::string& folder, const Payload
   for (const auto& d : done) ui::line("  " + d);
   if (!ok) {
     ui::warn(error);
-    ui::line(tr("Run setup again to finish or undo it."));
+    ui::wrap(tr("Check that Grim Dawn is closed, the folder is not read-only and no antivirus holds the files, then run "
+                "setup again: it finishes the install or undoes it."));
     return false;
   }
   if (mode == Mode::kInstall) {
     after_install(g, folder);
   } else {
-    ui::line(tr("\nGD Compare is removed. Your own presets and backups (GDCompare.backup) are kept."));
+    ui::wrap(tr("\nGD Compare is removed. Your own presets and backups (GDCompare.backup) are kept."));
 #ifndef _WIN32
     if (g.source.starts_with("Steam")) {
       ui::line(tr("You can take dinput8 out of the Steam launch options again:"));
@@ -237,13 +250,11 @@ int run(const Options& o) {
     ui::warn(tr("This Grim Dawn has no x64 or compat folder with Grim Dawn.exe. GD Compare needs the 64-bit game."));
     return 1;
   }
-  if (o.wizard_only) return wizard(*game, folder, payload_dir) ? 0 : 1;
+  if (o.wizard_only) return wizard(*game, folder, payload_dir) == WizardEnd::kFailed ? 1 : 0;
 
   for (;;) {
     const fs::path target = game->root / u8path(folder);
     const bool installed = !read_manifest(target).empty();
-    ui::title(fmt(tr("Grim Dawn: {} ({})"), {u8string(game->root), game->source}));
-    ui::line(fmt(tr("The mod goes into: {}/"), {folder}));
     std::vector<ui::Item> items;
     std::vector<int> actions;  // 0 install, 1 wizard, 2 uninstall, 3 folder, 4 quit
     if (payload) items.push_back({installed ? tr("Update or repair GD Compare") : tr("Install GD Compare"), ""}), actions.push_back(0);
@@ -251,14 +262,17 @@ int run(const Options& o) {
     if (installed) items.push_back({tr("Uninstall GD Compare"), ""}), actions.push_back(2);
     items.push_back({tr("Change folder"), tr("other game folder, or x64 / compat")}), actions.push_back(3);
     items.push_back({tr("Quit"), ""}), actions.push_back(4);
-    const int i = ui::choose(tr("What would you like to do?"), items);
+    const int i = ui::choose(fmt(tr("Grim Dawn: {} ({})\nThe mod goes into: {}/\n\nWhat would you like to do?"),
+                                 {short_path(game->root), game->source, folder}),
+                             items, 0, {}, false, true);
     const int a = i < 0 ? 4 : actions[static_cast<std::size_t>(i)];
     if (a == 4) return 0;
+    bool shown = true;  // results on screen: wait before the menu clears them
     if (a == 0) {
       if (run_plan(Mode::kInstall, *game, folder, &*payload) && ui::confirm(tr("\nSet up a build preset for your character now?"), true))
         wizard(*game, folder, payload_dir);
     } else if (a == 1) {
-      wizard(*game, folder, payload_dir);
+      shown = wizard(*game, folder, payload_dir) != WizardEnd::kBack;
     } else if (a == 2) {
       run_plan(Mode::kUninstall, *game, folder, nullptr);
     } else if (a == 3) {
@@ -266,17 +280,24 @@ int run(const Options& o) {
       std::vector<ui::Item> fi;
       for (const auto& f : folders) fi.push_back({f + "/", f == "compat" ? tr("Steam's Compatibility Mode entry") : tr("the 64-bit game")});
       fi.push_back({tr("Another Grim Dawn folder"), ""});
-      const int f = ui::choose(tr("Where should the mod go?"), fi);
+      const auto now = std::find(folders.begin(), folders.end(), folder);
+      const int f = ui::choose(tr("Where should the mod go?"), fi, static_cast<int>(now - folders.begin()));
       if (f < 0) continue;
       if (f < static_cast<int>(folders.size())) {
         folder = folders[static_cast<std::size_t>(f)];
+        shown = false;
       } else if (auto g = pick_game(Options{})) {
-        game = g;
-        folder = default_folder(game->root);
-        if (folder.empty()) return 1;
+        if (const std::string next = default_folder(g->root); !next.empty()) {
+          game = g, folder = next;
+          shown = false;
+        } else {
+          ui::warn(fmt(tr("{} has no x64 or compat folder with Grim Dawn.exe; staying with the folder before."), {u8string(g->root)}));
+        }
+      } else {
+        shown = false;
       }
     }
-    ui::pause();
+    if (shown) ui::pause();
   }
 }
 
@@ -305,7 +326,9 @@ int main(int argc, char** argv) {
     ui::line(tr("\nCancelled. Nothing more was changed."));
     return 130;
   } catch (const std::exception& e) {
-    ui::warn(fmt(tr("Setup stopped: {}"), {e.what()}));
+    ui::warn(fmt(tr("Setup stopped: {}. Nothing more was changed; run setup again. If it stops the same way, report this "
+                    "message."),
+                 {e.what()}));
     return 1;
   }
 }

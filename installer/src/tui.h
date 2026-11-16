@@ -1,6 +1,7 @@
 #pragma once
 // Console UI: arrow-key menus with search and a side panel on terminals that can (Linux termios + ANSI, Windows
-// console with virtual terminal sequences), numbered menus everywhere else (--plain, pipes, TERM=dumb).
+// console with virtual terminal sequences), numbered menus everywhere else (--plain, pipes, TERM=dumb). Bold and
+// yellow warnings on any terminal that takes escape codes; NO_COLOR drops the color, "! " still marks warnings.
 // Every user-facing string goes through tr() so a translation table can be added in one place.
 #include <functional>
 #include <optional>
@@ -29,15 +30,18 @@ void line(std::string_view text = "");
 void title(std::string_view text);
 void warn(std::string_view text);
 void wrap(std::string_view text, int indent = 0);
+// lead, then text wrapped with its later lines under the text's start ("  3) label (hint)").
+void hang(std::string_view lead, std::string_view text);
 
 struct Item {
   std::string label;
   std::string hint;  // dim, after the label
 };
 
-// Index into items, or -1 for back (Esc / 0). panel(i): text shown beside (or under) item i.
+// Index into items, or -1 for back (Esc / 0). Enter takes `start`. panel(i): text shown beside (or under) item i.
+// quits: back leaves setup (the main menu), and the help says so.
 int choose(std::string_view heading, const std::vector<Item>& items, int start = 0,
-           const std::function<std::string(int)>& panel = {}, bool search = false);
+           const std::function<std::string(int)>& panel = {}, bool search = false, bool quits = false);
 // Picked indexes (in item order), or nullopt for back. max = 0: no limit.
 std::optional<std::vector<int>> choose_many(std::string_view heading, const std::vector<Item>& items,
                                             const std::vector<int>& picked, int max = 0);
