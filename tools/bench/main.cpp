@@ -1,5 +1,5 @@
 // Times one tooltip block per slot that differs between two snapshots.
-// usage: gdc_bench BEFORE.json AFTER.json [--preset FILE.toml] [--n RUNS] [--print]
+// usage: gdc_bench BEFORE.json AFTER.json [--preset FILE.toml] [--n RUNS] [--print] [--plain]
 // Needs the game database. Exit: 0 ok, 2 usage or read error.
 #include <algorithm>
 #include <chrono>
@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "gdc/score.h"
 #include "gdc/text.h"
@@ -35,22 +36,32 @@ int type_for(int location) {
   return 0;
 }
 
+// One timed block in ms. Not inlined so a profiler can collect the cached runs alone
+// (valgrind --toggle-collect='*timed_block*').
+[[gnu::noinline]] double timed_block(const snap::Snapshot& before, const snap::Item& cand, int type, bool detail,
+                                     const arz::Database& db, const score::Preset& preset, std::size_t& lines) {
+  const auto t0 = std::chrono::steady_clock::now();
+  lines = tooltip::compare(before, cand, type, detail, &db, preset).size();
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   const char* files[2] = {};
   const char* preset_file = nullptr;
   int runs = 50, nfiles = 0;
-  bool print = false;
+  bool print = false, plain_only = false;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--preset") && i + 1 < argc) preset_file = argv[++i];
     else if (!std::strcmp(argv[i], "--n") && i + 1 < argc) runs = std::max(1, std::atoi(argv[++i]));
     else if (!std::strcmp(argv[i], "--print")) print = true;
+    else if (!std::strcmp(argv[i], "--plain")) plain_only = true;  // no Shift block (profiling)
     else if (argv[i][0] != '-' && nfiles < 2) files[nfiles++] = argv[i];
     else nfiles = 3;
   }
   if (nfiles != 2) {
-    std::fprintf(stderr, "usage: gdc_bench BEFORE.json AFTER.json [--preset FILE.toml] [--n RUNS] [--print]\n");
+    std::fprintf(stderr, "usage: gdc_bench BEFORE.json AFTER.json [--preset FILE.toml] [--n RUNS] [--print] [--plain]\n");
     return 2;
   }
   try {
@@ -75,22 +86,24 @@ int main(int argc, char** argv) {
       const int type = type_for(cand.location);
       if (!type) continue;
       for (const bool detail : {false, true}) {
+        if (detail && plain_only) continue;
         if (print) {
           std::printf("== %s loc %d %s\n", cand.record.c_str(), cand.location, detail ? "shift" : "plain");
           for (const auto& l : tooltip::compare(before, cand, type, detail, &db, preset, labels))
             std::printf("%s\n", l.text.c_str());
           continue;
         }
-        double sum = 0, worst = 0;
+        // The first run decodes the records the block reads (an item's first hover); the rest find them cached.
+        std::vector<double> ms;
         std::size_t lines = 0;
-        for (int i = 0; i < runs; ++i) {
-          const auto t0 = std::chrono::steady_clock::now();
-          lines = tooltip::compare(before, cand, type, detail, &db, preset).size();
-          const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-          sum += ms, worst = std::max(worst, ms);
-        }
-        std::printf("%-60s loc %2d %-5s %2zu lines  avg %7.3f ms  max %7.3f ms\n", cand.record.c_str(), cand.location,
-                    detail ? "shift" : "plain", lines, sum / runs, worst);
+        const auto t0 = std::chrono::steady_clock::now();
+        lines = tooltip::compare(before, cand, type, detail, &db, preset).size();
+        const double first = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        ms.push_back(first);
+        for (int i = 1; i < runs; ++i) ms.push_back(timed_block(before, cand, type, detail, db, preset, lines));
+        std::sort(ms.begin(), ms.end());
+        std::printf("%-52s loc %2d %-5s %2zu lines  first %7.3f ms  median %7.3f ms  max %7.3f ms\n", cand.record.c_str(),
+                    cand.location, detail ? "shift" : "plain", lines, first, ms[ms.size() / 2], ms.back());
       }
     }
   } catch (const std::exception& e) {

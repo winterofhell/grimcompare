@@ -28,6 +28,7 @@ add_executable(gdc_tests
   test_templates.cpp
   test_setup.cpp
   test_catalog.cpp
+  test_golden.cpp
 )
 target_link_libraries(gdc_tests PRIVATE gdc_core gdc_setup)
 target_include_directories(gdc_tests PRIVATE ${PROJECT_SOURCE_DIR}/third_party)
