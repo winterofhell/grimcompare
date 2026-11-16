@@ -96,12 +96,12 @@ Templates (`presets/*.toml`; all ten masteries; every weight is a design choice,
 |---|---|---|
 | `chaos-conversion-caster` | caster, Chaos ≥ 50% | `conversion_warn = ["*->*"]`, retaliation 0 |
 | `physical-melee` | melee, Physical + Internal Trauma ≥ 50% | life leech 0.6, `physical->*` warns, retaliation 0 |
-| `pet` | pet | damage exponent 0.3, other 0.5, pet bonus 2.0 when pets |
+| `pet` | pet | other 0.35, pet bonus 1.0 when pets (pet damage in Damage, experimental) |
 | `retaliation` | retaliation | retaliation 0.5, retaliation % 0.5 |
 
 `plague-garden` adds `archetype = "caster"`. Tests (`tests/test_presets.cpp`, DB-backed): each template is picked for a synthetic character. Trap skills do not count as pets. Without `modifier_ids`, a pet modifier does not count. winterpoison (level 15, store #0021) gets `plague-garden` by name (0.9.5); under another name, and winterofhell (level 96), get no template.
 
 Limitations:
 - Weapon pool skills count toward the archetype but are not main skills, so a build whose only attack is one has no main damage skill and fails `[match] damage`.
-- Pet damage is scored only next to main skills and only with `pet_attack_rate` > 0. The DB does not give that rate, so `pet` leaves it at 0: pet damage and RR show as `+? unscored`.
+- Pet damage is an experimental estimate from the pet records (docs/MECHANICS.md §4); the tooltip says so. `PetPlayerScaling` summons without a lifetime in the DB (Blade Spirit, Squall, Celestial Guardian) stay `+? unscored`.
 - No ranged template.
