@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the release zip that GitHub Releases and Nexus both ship: dist/GDCompare-<version>.zip.
-#   install.bat / install.sh       launchers
+#   install.bat / install.sh       launchers; README, CHANGELOG, licenses
 #   bin/gdcompare-setup.exe        Windows x64, static CRT
 #   bin/gdcompare-setup-linux      Linux x86-64, static
 #   payload/                       GDCompare.asi, dinput8.dll (UAL v9.7.4), dinput8.ini, presets/, catalog/
@@ -23,7 +23,7 @@ fetch_ual "${XDG_CACHE_HOME:-$HOME/.cache}/gdcompare"
 
 rm -rf "$OUT" "$OUT.zip"
 mkdir -p "$OUT/bin" "$OUT/payload/presets" "$OUT/payload/catalog"
-cp installer/launchers/install.bat installer/launchers/install.sh README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
+cp installer/launchers/install.bat installer/launchers/install.sh README.md CHANGELOG.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 cp build/setup-win/installer/gdcompare-setup.exe "$OUT/bin/"
 cp build/setup-linux/installer/gdcompare-setup "$OUT/bin/gdcompare-setup-linux"
 cp build/adapter/adapter/GDCompare.asi "$OUT/payload/"

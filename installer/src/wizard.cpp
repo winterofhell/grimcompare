@@ -573,7 +573,7 @@ WizardEnd wizard(const Game& game, const std::string& folder, const fs::path& pa
     std::vector<int> kinds;  // 0 catalog, 1 custom, 2+ existing
     const auto existing = setup_presets(c.presets);
     if (catalog)
-      items.push_back({tr("Pick a build from the catalog"), fmt(tr("{} common builds, checked against the game data"), {std::to_string(catalog->size())})}),
+      items.push_back({tr("Pick a build from the catalog"), fmt(tr("{} builds and variants, checked against the game data"), {std::to_string(catalog->size())})}),
           kinds.push_back(0);
     items.push_back({tr("Describe my own build"), tr("a few questions")}), kinds.push_back(1);
     for (std::size_t i = 0; i < existing.size(); ++i) {

@@ -21,7 +21,9 @@ Download `GDCompare-1.0.0.zip` from [GitHub Releases](https://github.com/wintero
 - **Windows**: double-click `install.bat`.
 - **Linux**: double-click `install.sh`, or run `./install.sh` in a terminal.
 
-Setup finds the game (Steam, including Flatpak, GOG, Heroic, or a folder you type in), shows what it will write and asks before writing. Nothing else needs to be installed. Run it again to update, repair, uninstall or set up a build preset. It never touches your saves or the game's own files. It refuses to run while the game is running.
+Setup finds the game (Steam, including Flatpak, GOG, Heroic, or a folder you type in), shows what it will write and asks before writing. Nothing else needs to be installed. Run it again to update, repair, uninstall or set up a build preset. It never touches your saves or the game's own files. It refuses to write while the game is running.
+
+Menus work with the arrow keys: Enter picks the highlighted entry, Esc goes back. `--plain` (or a terminal that can't do it) gives numbered menus instead, where Enter takes the default shown and 0 goes back. Set `NO_COLOR=1` for no colors. `--game <folder>` skips the search, `--wizard` goes straight to the build presets.
 
 - If a `dinput8.dll` from another mod is already there, setup explains the conflict and stops. It never overwrites that file. An existing Ultimate ASI Loader x64 is reused.
 - Files it replaces that it didn't install go to `GDCompare.backup/<date-time>/` first. A preset you edited is kept.
@@ -29,7 +31,7 @@ Setup finds the game (Steam, including Flatpak, GOG, Heroic, or a folder you typ
 
 **Steam on Linux**: setup prints the launch options to paste into Steam → Grim Dawn → Properties → Launch Options. It keeps your existing options and adds `dinput8=n,b` to `WINEDLLOVERRIDES`. Start the game with the "Compatibility Mode" entry, which runs from `compat/`. **Heroic, Lutris**: add the environment variable `WINEDLLOVERRIDES=dinput8=n,b`. **Windows**: nothing else to do.
 
-Windows support is built and unit-tested but has not been tried on a Windows PC yet. Please report how it goes.
+The Windows setup is tested end to end under Wine but has not been tried on a Windows PC yet. Please report how it goes.
 
 ### Build presets
 
@@ -37,7 +39,7 @@ Choose "Set up a build preset" in setup:
 
 1. Pick your character. Name, class and level are read from your saves; you can also type a name.
 2. Check the masteries (preselected from the save).
-3. Pick one of 54 common builds, filtered to your class, with search and a details panel. Or answer a few questions about your own build: main skills, damage type and conversion, playstyle (balanced, tanky, glass cannon), pets, retaliation, shield, and optional advanced numbers.
+3. Pick one of 54 common builds (96 with their variants), filtered to your class, with search and a details panel. Or answer a few questions about your own build: main skills, damage type and conversion, playstyle (balanced, tanky, glass cannon), pets, retaliation, shield, and optional advanced numbers.
 4. Read "Your top priorities" and save.
 
 The preset is saved as `GDCompare.presets/<character>-<build>.toml` and applies only to that character. Run setup again to change it, or to use it for another character.
@@ -76,7 +78,10 @@ Builds on Linux with `nix-shell`. The adapter is cross-compiled with clang-cl an
 nix-shell --run 'cmake --workflow --preset core'      # core library and tests
 nix-shell --run 'cmake --workflow --preset adapter'   # build/adapter/adapter/GDCompare.asi
 scripts/package.sh                                    # dist/GDCompare-<version>.zip (both setups, payload)
+tests/e2e/setup_e2e.sh                                # setup end to end: a reflink copy of the game, and Wine
 ```
+
+`setup_e2e.sh` runs the packaged setup non-interactively (answers piped into `--plain`) through install, update, repair, the wizard, back and cancel, a `dinput8.dll` conflict, uninstall and both launchers. On Linux it works on a reflink copy of the installed game in a fake home, so it needs the game on a reflink-capable filesystem (XFS, Btrfs); the Wine half uses a scratch prefix and a fake Windows Steam tree.
 
 Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.github/workflows/release.yml`).
 
@@ -91,6 +96,8 @@ Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.
 - Catalog builds score their attack skills. Summons, totems and traps are counted on top of those. A damage aura (Cold Aura Walker) is not a main skill, so its own damage is not in the score.
 - The "shield" answer only adds a note: block is always part of Survivability.
 - The mod reads at most 32 files from `GDCompare.presets/`.
+- F10 writes `GDCompare.presets/frozen-<character>.toml`, so two characters with the same name share that file.
+- Potions and other consumables are left out: their buffs never count as yours.
 
 ## License
 
