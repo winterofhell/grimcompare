@@ -315,7 +315,7 @@ TEST_CASE("setup: the catalog loads and every build gives a valid preset in ever
   const auto c = catalog();
   std::set<std::string> builds;
   for (const auto& e : c) builds.insert(e.id.substr(0, e.id.find('/')));
-  CHECK(builds.size() == 54);
+  CHECK(builds.size() == 55);
   for (const auto& e : c) {
     INFO(e.id);
     REQUIRE_FALSE(e.classes.empty());

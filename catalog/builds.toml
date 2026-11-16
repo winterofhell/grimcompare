@@ -189,6 +189,14 @@ other = { life_leech = 1.0 }
   classes = ["0407"]
   damage = ["pierce"]
   items = ""
+  [[build.variant]]
+  name = "Chaos (Witch Hunter, Rah'Zin)"
+  classes = ["0304"]
+  damage = ["chaos"]
+  sets = ["records/items/lootsets/itemset_d210.dbr"]
+  conversion = "Conduit of Night Whispers with the Shadow Strike roll: Shadow Strike Pierce and Cold to Chaos. Rah'Zin's Waistguard and Shoulderguards: Cold to Chaos 50% and 30%."
+  stats = "Chaos damage, Shadow Strike cooldown and refresh, attack speed, Offensive Ability, crit damage; life, life leech"
+  items = "Bloodlord's Blade, Sphere of Many Blades, Conduit of Night Whispers, Tainted Swampgrips"
 
 [[build]]
 id = "primal-strike"
@@ -277,7 +285,7 @@ other = { life_leech = 1.0 }
 
 [[build]]
 id = "blade-arc-fire"
-name = "Fire Blade Arc"
+name = "Blade Arc"
 category = "melee"
 classes = ["0102", "0106"]
 damage = ["fire", "burn"]
@@ -286,6 +294,33 @@ conversion = "Physical to Fire: Shar'Zul's Worldeater 45%; Sunherald's Claymore 
 stats = "Attack speed (Blade Arc is a weapon attack), Fire and Burn damage, Offensive Ability, crit damage; life leech, life regeneration"
 items = "Sunherald's Claymore, Shar'Zul's Worldeater, Thermite Mine"
 other = { life_leech = 1.0, life_regen = 0.05 }
+  [[build.variant]]
+  name = "Fire"
+  [[build.variant]]
+  name = "Vitality (Warder, Wight Death's Edge)"
+  classes = ["0106"]
+  damage = ["vitality", "vitality_decay"]
+  conversion = "Wight Death's Edge: Blade Arc Physical to Vitality, gear Physical to Vitality 15%."
+  stats = "Attack speed (Blade Arc is a weapon attack), Vitality damage, Offensive Ability, crit damage; life leech, life regeneration"
+  items = "Wight Death's Edge"
+
+[[build]]
+id = "savagery-physical"
+name = "Physical Savagery"
+category = "melee"
+classes = ["0306", "0106", "0610"]
+damage = ["physical", "internal_trauma"]
+skills = ["records/skills/playerclass06/savagery1.dbr"]
+conversion = "Gutsmasher or Troll Bonecrusher: Savagery Lightning to Physical."
+stats = "Physical damage, attack speed, Offensive Ability, crit damage; armor, physical resist, life"
+items = "Gutsmasher or Troll Bonecrusher"
+  [[build.variant]]
+  name = "Physical (Conjurer, Warder)"
+  classes = ["0306", "0106"]
+  [[build.variant]]
+  name = "Physical / Bleeding (Primalist)"
+  classes = ["0610"]
+  damage = ["physical", "internal_trauma", "bleeding"]
 
 [[build]]
 id = "werewolf"
@@ -314,6 +349,13 @@ items = "Fenris"
   sets = []
   conversion = "Blight of Ch'thon: Werewolf Pierce to Chaos. Shadowheart: Elemental and Vitality to Chaos 45%."
   items = "Shadowheart"
+  [[build.variant]]
+  name = "Pierce / Bleeding (Runekeeper, Crimson Moon)"
+  classes = ["0710"]
+  damage = ["pierce", "bleeding"]
+  sets = ["records/items/lootsets/itemset_d302.dbr"]
+  conversion = "None: Rip and Tear is Pierce and Bleeding."
+  items = "Wake of the Crimson Moon"
 
 [[build]]
 id = "retaliation-tank"
@@ -536,6 +578,13 @@ items = "Chillwhisper"
   sets = []
   conversion = "None: Drain Essence is Vitality."
   items = ""
+  [[build.variant]]
+  name = "Acid (Apostate, Radaggan's Folly)"
+  classes = ["0708"]
+  damage = ["acid", "poison"]
+  sets = ["records/items/lootsets/itemset_d121.dbr"]
+  conversion = "Radaggan's Folly: Drain Essence Vitality to Acid, Elemental to Acid 30% per piece. Rune of Kalastor counts on top."
+  items = "Radaggan's Folly, Garmir's Horn"
 
 [[build]]
 id = "flames-of-ignaffar"
