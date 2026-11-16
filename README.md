@@ -29,7 +29,7 @@ Menus work with the arrow keys: Enter picks the highlighted entry, Esc goes back
 - Files it replaces that it didn't install go to `GDCompare.backup/<date-time>/` first. A preset you edited is kept.
 - What it installed is listed in `GDCompare.installed`. Uninstall removes only those files, and only if you haven't changed them.
 
-**Steam on Linux**: setup prints the launch options to paste into Steam → Grim Dawn → Properties → Launch Options. It keeps your existing options and adds `dinput8=n,b` to `WINEDLLOVERRIDES`. Start the game with the "Compatibility Mode" entry, which runs from `compat/`. **Heroic, Lutris**: add the environment variable `WINEDLLOVERRIDES=dinput8=n,b`. **Windows**: nothing else to do.
+**Steam on Linux**: in Steam → Grim Dawn → Properties → Launch Options, put `WINEDLLOVERRIDES="dinput8=n,b" %command%` in front of what is there. If `WINEDLLOVERRIDES` is already set, add `dinput8=n,b` to it with a `;`. Start the game with the "Compatibility Mode" entry (it runs from `compat/`). **Heroic, Lutris**: add the environment variable `WINEDLLOVERRIDES=dinput8=n,b`. **Windows**: nothing else to do.
 
 The Windows setup is tested end to end under Wine but has not been tried on a Windows PC yet. Please report how it goes.
 
@@ -39,10 +39,10 @@ Choose "Set up a build preset" in setup:
 
 1. Pick your character. Name, class and level are read from your saves; you can also type a name.
 2. Check the masteries (preselected from the save).
-3. Pick one of 54 common builds (96 with their variants), filtered to your class, with search and a details panel. Or answer a few questions about your own build: main skills, damage type and conversion, playstyle (balanced, tanky, glass cannon), pets, retaliation, shield, and optional advanced numbers.
+3. Pick one of 55 common builds (102 with their variants), filtered to your class, with search and a details panel. Or answer a few questions about your own build: main skills, damage type and conversion, playstyle (balanced, tanky, glass cannon), pets, retaliation, shield, and optional advanced numbers.
 4. Read "Your top priorities" and save.
 
-The preset is saved as `GDCompare.presets/<character>-<build>.toml` and applies only to that character. Run setup again to change it, or to use it for another character.
+The preset is saved as `GDCompare.presets/<character>-<build>.toml` and applies only to that character's save (Steam account, campaign or custom game). Run setup again to change it or use it for another character.
 
 <!-- screenshot: character list -->
 <!-- screenshot: catalog with the details panel -->
@@ -66,7 +66,7 @@ For development, `scripts/deploy.sh` builds and installs into `compat/`, and `sc
 
 - Hover an item to see the score, hold Shift for details.
 - F9 saves a snapshot of your character.
-- F10 saves the current weights as your own preset.
+- F10 saves the current weights as `GDCompare.presets/frozen-<character>-<Steam account>.toml`.
 - Keys are set in `GDCompare.ini`. The log is `GDCompare.log`, both next to the `.asi`.
 - To turn the mod off, create an empty file `GDCompare.disable` next to the `.asi`, or set `GDCOMPARE_DISABLE=1`.
 
@@ -92,11 +92,9 @@ Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.
 - Pets are experimental. With pets summoned, their attack rate comes from the game's own speed and animation data; otherwise from their records.
 - Not scored: energy cost reduction, pet bonuses from buffs and set bonuses, flat racial damage. Full list in [docs/COVERAGE.md](docs/COVERAGE.md).
 - Anything the mod can't value shows as `+? unscored: <effect>` instead of a guess.
-- Build presets bind to a character by name and save folder (Steam Cloud or local, and the game's backup copy). Two Steam accounts with same-named characters on one PC, or a custom-game character named like a campaign one, still share a preset.
 - Catalog builds score their attack skills. Summons, totems and traps are counted on top of those. A damage aura (Cold Aura Walker) is not a main skill, so its own damage is not in the score.
 - The "shield" answer only adds a note: block is always part of Survivability.
 - The mod reads at most 32 files from `GDCompare.presets/`.
-- F10 writes `GDCompare.presets/frozen-<character>.toml`, so two characters with the same name share that file.
 - Potions and other consumables are left out: their buffs never count as yours.
 
 ## License

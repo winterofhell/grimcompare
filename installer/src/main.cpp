@@ -122,20 +122,13 @@ std::set<std::string> lower_names(const fs::path& folder) {
 }
 
 #ifndef _WIN32
-void steam_launch_options(bool add, const fs::path& folder) {
-  const std::set<std::string> present = lower_names(folder);
-  const auto fn = [&](const std::string& o) { return add ? merge_launch_options(o, folder.empty() ? nullptr : &present) : remove_launch_options(o); };
-  bool any = false;
+// Steam users whose launch options already load dinput8 as native.
+std::vector<std::string> steam_users_set() {
+  std::vector<std::string> out;
   for (const auto& root : steam_roots())
-    for (const auto& u : steam_users(root)) {
-      if (!u.options) continue;
-      any = true;
-      const std::string next = fn(*u.options);
-      ui::line(fmt(tr("  Steam user {}:"), {u.id}));
-      ui::line(fmt(tr("    now:    {}"), {u.options->empty() ? tr("(empty)") : *u.options}));
-      ui::line(fmt(tr("    set to: {}{}"), {next, next == *u.options ? tr("   (already right)") : ""}));
-    }
-  if (!any) ui::line(fmt(tr("  No Steam user has Grim Dawn launch options yet. Set them to:\n    {}"), {fn("")}));
+    for (const auto& u : steam_users(root))
+      if (u.options && !u.options->empty() && merge_launch_options(*u.options) == *u.options) out.push_back(u.id);
+  return out;
 }
 #endif
 
@@ -147,8 +140,10 @@ void after_install(const Game& g, const std::string& folder) {
 #else
   ui::title(tr("One more step: tell Wine to load the ASI loader."));
   if (g.source.starts_with("Steam")) {
-    ui::wrap(tr("In Steam: Grim Dawn -> Properties -> Launch Options. Paste the \"set to\" line (it keeps what you have):"));
-    steam_launch_options(true, g.root / u8path(folder));
+    ui::wrap(tr("In Steam: Grim Dawn -> Properties -> Launch Options, put this in front of what is there:"));
+    ui::line("    WINEDLLOVERRIDES=\"dinput8=n,b\" %command%");
+    ui::wrap(tr("If WINEDLLOVERRIDES is already set there, add dinput8=n,b to it with a ';' instead. Keep one %command%."));
+    for (const auto& id : steam_users_set()) ui::line(fmt(tr("Steam user {} already has it."), {id}));
     if (folder == "compat") ui::wrap(tr("Then start the game with the \"Compatibility Mode\" entry (it runs compat/Grim Dawn.exe)."));
     else ui::wrap(tr("Then start the game with the entry that runs x64/Grim Dawn.exe."));
   } else {
@@ -193,12 +188,8 @@ bool run_plan(Mode mode, const Game& g, const std::string& folder, const Payload
   } else {
     ui::wrap(tr("\nGD Compare is removed. Your own presets and backups (GDCompare.backup) are kept."));
 #ifndef _WIN32
-    if (g.source.starts_with("Steam")) {
-      ui::line(tr("You can take dinput8 out of the Steam launch options again:"));
-      steam_launch_options(false, {});
-    } else {
-      ui::line(tr("You can remove dinput8=n,b from WINEDLLOVERRIDES in your launcher."));
-    }
+    ui::line(g.source.starts_with("Steam") ? tr("You can remove dinput8=n,b from the Steam launch options.")
+                                           : tr("You can remove dinput8=n,b from WINEDLLOVERRIDES in your launcher."));
 #endif
   }
   return true;
