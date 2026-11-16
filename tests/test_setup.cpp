@@ -5,8 +5,10 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <fstream>
+#include <set>
 #include <sstream>
 
 #include "buildpreset.h"
@@ -222,12 +224,22 @@ TEST_CASE("setup: save header") {
   put(root / "main/_Bea/player.gdc", std::string(a.begin(), a.end()));
   put(root / "main/_Al/player.gdc", std::string(b.begin(), b.end()));
   put(root / "main/_broken/player.gdc", "nope");
+  put(root / "main/__Al/player.gdc", std::string(b.begin(), b.end()));  // the engine's backup folder
   const auto roots = save_roots({d.path}, {});
   REQUIRE(roots.size() == 1);
   const auto chars = find_characters(roots);
-  REQUIRE(chars.size() == 2);  // the broken one skipped
+  REQUIRE(chars.size() == 3);  // the broken one skipped
   CHECK(chars[0].header.name == "Al");
-  CHECK(chars[1].header.name == "Bea");
+  CHECK(chars[1].header.name == "Al");
+  CHECK(chars[2].header.name == "Bea");
+  CHECK(chars[2].save == "cloud/_Bea");
+  std::set<std::string> al{chars[0].save, chars[1].save};
+  CHECK(al == std::set<std::string>{"cloud/_Al", "cloud/__Al"});
+
+  const fs::path local = d.path / "Documents/My Games/Grim Dawn/save";
+  put(local / "main/_Al/player.gdc", std::string(b.begin(), b.end()));
+  const auto both = find_characters({root, local});
+  CHECK(std::count_if(both.begin(), both.end(), [](const Character& c) { return c.save == "local/_Al"; }) == 1);
 }
 
 TEST_CASE("setup: the real saves decode (local saves; skips if absent)") {
@@ -245,7 +257,7 @@ TEST_CASE("setup: the real saves decode (local saves; skips if absent)") {
 
 // ------------------------------------------------------------------ preset text and catalog
 
-TEST_CASE("setup: preset_stem, with_characters, toml_string") {
+TEST_CASE("setup: preset_stem, with_binding, toml_string") {
   CHECK(preset_stem("Blitz / Vire's Might skater") == "blitz-vire-s-might-skater");
   CHECK(preset_stem("  ") == "build");
   CHECK(preset_stem("../../x") == "x");
@@ -260,13 +272,29 @@ TEST_CASE("setup: preset_stem, with_characters, toml_string") {
   a.damage = {"physical"};
   const std::string t = preset_text(a);
   CHECK(made_by_setup(t));
-  const auto t2 = with_characters(t, {"Al", "Bea \"B\""});
+  const auto t2 = with_binding(t, {"Al", "Bea \"B\""}, {});
   REQUIRE(t2);
   std::string error;
   const auto p = gdc::score::parse(*t2, error);
   REQUIRE_MESSAGE(p, error);
   CHECK(p->match_characters == std::vector<std::string>{"Al", "Bea \"B\""});
-  CHECK_FALSE(with_characters("[preset]\nname = \"x\"\n", {"Al"}));  // not written by setup
+  CHECK(p->match_saves.empty());
+  CHECK_FALSE(with_binding("[preset]\nname = \"x\"\n", {"Al"}, {}));  // not written by setup
+
+  // A saves line is added after characters, replaced, and dropped again; the rest of the file stays.
+  const auto t3 = with_binding(t, {"Al"}, {"cloud/_Al"});
+  REQUIRE(t3);
+  auto q = gdc::score::parse(*t3, error);
+  REQUIRE_MESSAGE(q, error);
+  CHECK(q->match_saves == std::vector<std::string>{"cloud/_Al"});
+  const auto t4 = with_binding(*t3, {"Al"}, {"cloud/_Al", "local/__Al"});
+  REQUIRE(t4);
+  q = gdc::score::parse(*t4, error);
+  REQUIRE_MESSAGE(q, error);
+  CHECK(q->match_saves == std::vector<std::string>{"cloud/_Al", "local/__Al"});
+  CHECK(with_binding(*t4, {"Al"}, {}) == t);
+  a.saves = {"cloud/_Al"};
+  CHECK(preset_text(a) == *t3);
 }
 
 namespace {

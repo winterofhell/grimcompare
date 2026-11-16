@@ -18,6 +18,11 @@ import gddis  # noqa: E402
 
 # (constant(s) guarded, demangled export (exact suffix after the return type), regexes over "mnemonic op_str")
 CHECKS = [
+    ('GetCloudStorage GameEngine+0x375EA', 'GAME::GameEngine::GetCloudStorage(void) const', [r'movzx eax, byte ptr \[rcx \+ 0x375ea\]']),
+    ('kBackupFolder Player+0x4BDD', 'GAME::GameEngine::GetPlayerFolder(class GAME::Player *) const',
+     [r'movzx r10d, byte ptr \[rbx \+ 0x4bdd\]']),
+    ('save folder: cloud drops the base, backup picks "__"', 'GAME::GameEngine::GetUserSaveDataFolder(void) const',
+     [r'cmp byte ptr \[rcx \+ 0x375ea\], 0']),
     ('Character+0x5D0 attached items', 'GAME::Character::GetAttachedItems(void) const', [r'lea rax, \[rcx \+ 0x5d0\]']),
     ('kReplica 0x538', 'GAME::Item::GetItemReplicaInfo(struct GAME::ItemReplicaInfo &) const', [r'lea rdx, \[rcx \+ 0x538\]']),
     ('relic +0x1558', 'GAME::ItemEquipment::GetRelic(void) const', [r'mov rax, qword ptr \[rcx \+ 0x1558\]']),

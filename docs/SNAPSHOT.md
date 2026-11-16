@@ -40,6 +40,7 @@ All RVAs: Game.dll 1.3.1.1 (`re/Game.exports.tsv`). Labels are the entries in
 | `complete`, `errors` | see Rules |
 | `character.level` | `Character::GetCharLevel` |
 | `character.difficulty`, `difficulty_name` | `GameEngine::GetGameDifficulty`; names 0 Normal, 1 Elite, 2 Ultimate (`GameEngine::GetGameDifficultyAsPath` 0x2D85B0 / `GetDifficultyFromName` 0x2D8650) |
+| `character.save` | schema 13 (1.0.0), `gdc::snap::save_key`: `cloud/` when `GameEngine::GetCloudStorage` (optional target, GameEngine+0x375EA) is set, else `local/`, then `__` + name when Player+0x4BDD is set (the engine's backup folder) or `_` + name (`GameEngine::GetPlayerFolder`, docs/RECON.md §10). Empty when the target is not resolved. Matched by `[match] saves` (docs/PRESETS.md) |
 | `character.difficulty_ramp` | schema 11 (adapter 0.9.9), `GameEngine::GetDifficultyRamp` 0x2D85A0 (GameEngine+0x36D1C; optional target, 0 when unresolved). Above 0 monsters also get the challenge adjustment: Veteran on Normal / Elite, Ascendant on Ultimate (`docs/MECHANICS.md` §9, **unverified** in game) |
 | `character.skill_points` | `Character::GetSkillPoints` (unspent) |
 | `character.attribute_points` | `Character::GetModifierPoints` (`Character+0x1768`): unspent attribute points — `records/creatures/pc/playerlevels.dbr` grants `characterModifierPoints` per level (vs `skillModifierPoints`); level-3 fixture reads 2 |

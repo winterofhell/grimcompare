@@ -87,7 +87,7 @@ Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.
 - Pets are experimental. With pets summoned, their attack rate comes from the game's own speed and animation data; otherwise from their records.
 - Not scored: energy cost reduction, pet bonuses from buffs and set bonuses, flat racial damage. Full list in [docs/COVERAGE.md](docs/COVERAGE.md).
 - Anything the mod can't value shows as `+? unscored: <effect>` instead of a guess.
-- Build presets match characters by name. Two characters with the same name share one preset.
+- Build presets bind to a character by name and save folder (Steam Cloud or local, and the game's backup copy). Two Steam accounts with same-named characters on one PC, or a custom-game character named like a campaign one, still share a preset.
 - Catalog builds score their attack skills. Summons, totems and traps are counted on top of those. A damage aura (Cold Aura Walker) is not a main skill, so its own damage is not in the score.
 - The "shield" answer only adds a note: block is always part of Survivability.
 - The mod reads at most 32 files from `GDCompare.presets/`.

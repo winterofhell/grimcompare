@@ -101,6 +101,9 @@ constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF
 // node {next, prev, u32 pet id @0x10, u32 summoning skill id @0x14, ..., bool released @0x1C}:
 // Skill_SpawnPet::KillExtraPets 0x509890.
 constexpr std::size_t kPetList = 8, kPetNodeId = 0x10, kPetNodeSkill = 0x14, kPetNodeReleased = 0x1C, kMaxPets = 64;
+// GameEngine::GetPlayerFolder(Player*) 0x2E2FC8 (1.3.1.2): a set byte at Player+0x4BDD picks MangleBackupPlayerName
+// ("__" + name, rva 0x61815c) over ManglePlayerName ("_" + name, rva 0x6180ec) for the save folder.
+constexpr std::size_t kBackupFolder = 0x4BDD;
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
 
 struct Api {
@@ -109,6 +112,7 @@ struct Api {
   const char16_t* (*player_name)(const void*) = nullptr;
   int (*difficulty)(const void*) = nullptr;
   u32 (*difficulty_ramp)(const void*) = nullptr;  // optional: null reads as 0
+  bool (*cloud_storage)(const void*) = nullptr;   // optional: null leaves character.save empty
   void* (*om_get)() = nullptr;
   const char* (*object_name)(const void*) = nullptr;
   u32 (*object_id)(const void*) = nullptr;
@@ -611,6 +615,9 @@ void player_name(const void* player, std::string& out) {
 void sec_character(Ctx& c) {
   void* p = c.player;
   player_name(p, c.s.character_name);
+  if (g.cloud_storage && !c.s.character_name.empty())
+    c.s.save = snap::save_key(g.cloud_storage(c.engine),
+                              (rd<std::uint8_t>(p, kBackupFolder) != 0 ? "__" : "_") + c.s.character_name);
   c.s.level = g.char_level(p);
   c.s.difficulty = g.difficulty(c.engine);
   c.s.difficulty_ramp = g.difficulty_ramp ? g.difficulty_ramp(c.engine) : 0;
@@ -984,6 +991,7 @@ bool snapshot_init(const Resolve& r) {
   b(g.difficulty, "GameEngine::GetGameDifficulty");
   // A string literal would pick std::bind by ADL; the string_view picks ours.
   bind(r, g.difficulty_ramp, std::string_view{"GameEngine::GetDifficultyRamp"});
+  bind(r, g.cloud_storage, std::string_view{"GameEngine::GetCloudStorage"});
   b(g.om_get, "Singleton<ObjectManager>::Get");
   b(g.object_name, "Object::GetObjectName");
   b(g.object_id, "Object::GetObjectId");

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <cstdio>
@@ -373,6 +374,12 @@ std::optional<Preset> parse(std::string_view text, std::string& error) {
     if (k == "damage") return damage_keys(ps, v, k, p.match_damage);
     if (k == "min_share") return ps.number(v, k, 0, 1, p.match_share);
     if (k == "characters") return ps.strings(v, k, p.match_characters, "character name");
+    if (k == "saves") {
+      if (!ps.strings(v, k, p.match_saves, "save key")) return false;
+      for (const auto& s : p.match_saves)
+        if (snap::save_key_name(s).empty()) return ps.fail(v, "match.saves: \"" + s + "\" is not like \"cloud/_Name\" or \"local/_Name\"");
+      return true;
+    }
     if (k == "character") {
       const auto c = v.value<std::string>();
       return c ? (p.match_character = *c, true) : ps.fail(v, "match.character must be a string");
@@ -1742,11 +1749,33 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
   return a;
 }
 
+bool same_save_key(std::string_view a, std::string_view b) {
+  return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+           return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+         });
+}
+
+bool in_bound_save(const Preset& p, std::string_view name, std::string_view save) {
+  if (save.empty()) return true;
+  bool named = false;
+  for (const auto& k : p.match_saves) {
+    if (same_save_key(k, save)) return true;
+    named = named || snap::save_key_name(k) == name;
+  }
+  return !named;
+}
+
+bool binds(const Preset& p, std::string_view name, std::string_view save) {
+  return std::find(p.match_characters.begin(), p.match_characters.end(), name) != p.match_characters.end() &&
+         in_bound_save(p, name, save);
+}
+
 Match match(const Preset& p, const snap::Snapshot& s, const arz::Database& db, const Labels& labels) {
   Match m;
-  if (std::find(p.match_characters.begin(), p.match_characters.end(), s.character_name) != p.match_characters.end()) {
+  const bool same_save = in_bound_save(p, s.character_name, s.save);
+  if (binds(p, s.character_name, s.save)) {
     m.ok = true;
-    m.why = "[match] characters lists " + s.character_name;
+    m.why = "[match] characters lists " + s.character_name + (s.save.empty() ? "" : " (" + s.save + ")");
     return m;
   }
   if (p.masteries.empty()) {
@@ -1755,6 +1784,10 @@ Match match(const Preset& p, const snap::Snapshot& s, const arz::Database& db, c
   }
   if (!p.match_character.empty() && p.match_character != s.character_name) {
     m.why = "for character " + p.match_character;
+    return m;
+  }
+  if (!same_save) {
+    m.why = "[match] saves binds " + s.character_name + " to another save than " + s.save;
     return m;
   }
   std::string names;
@@ -1878,6 +1911,7 @@ std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Dat
   line("name", toml_string(name));
   o += "\n[match]\n";
   line("character", toml_string(s.character_name));
+  if (!s.save.empty()) line("saves", "[" + toml_string(s.save) + "]");
   o += "masteries = [\n";
   for (const auto& sk : s.skills)
     if (sk.level > 0)

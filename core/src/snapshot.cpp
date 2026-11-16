@@ -506,6 +506,7 @@ std::string to_json(const Snapshot& s, int indent) {
 
   J c = J::object();
   put(c, "name", s.character_name);
+  put(c, "save", s.save);
   put(c, "level", s.level);
   c["difficulty"] = s.difficulty;
   put(c, "difficulty_name", std::string(names::difficulty(s.difficulty)));
@@ -557,6 +558,7 @@ Snapshot from_json(std::string_view text) {
     get(j, "errors", s.errors);
     if (const auto c = j.find("character"); c != j.end()) {
       get(*c, "name", s.character_name);
+      get(*c, "save", s.save);
       get(*c, "level", s.level);
       get(*c, "difficulty", s.difficulty);
       get(*c, "difficulty_ramp", s.difficulty_ramp);
@@ -644,6 +646,20 @@ void spare_out(std::vector<T>& from, std::vector<T>& spare) {
 
 }  // namespace
 
+std::string save_key(bool cloud, std::string_view folder) {
+  return (cloud ? "cloud/" : "local/") + std::string(folder);
+}
+
+std::string save_key_name(std::string_view key) {
+  const auto slash = key.find('/');
+  if (slash == std::string_view::npos) return {};
+  std::string_view folder = key.substr(slash + 1);
+  if (folder.starts_with("__")) folder.remove_prefix(2);
+  else if (folder.starts_with('_')) folder.remove_prefix(1);
+  else return {};
+  return std::string(folder);
+}
+
 void recycle(Snapshot& s, Spares& spare) {
   spare_out(s.inventory, spare.items);
   spare_out(s.tooltip_items, spare.items);
@@ -651,7 +667,8 @@ void recycle(Snapshot& s, Spares& spare) {
   spare_out(s.item_skills, spare.skills);
   spare_out(s.skills, spare.skills);
   spare_out(s.item_skill_modifiers, spare.item_skill_modifiers);
-  std::string mv = keep(s.mod_version), gb = keep(s.game_build), at = keep(s.taken_at), name = keep(s.character_name);
+  std::string mv = keep(s.mod_version), gb = keep(s.game_build), at = keep(s.taken_at), name = keep(s.character_name),
+              save = keep(s.save);
   auto ca = keep(s.char_attributes);
   auto def = keep(s.defense);
   auto dm = keep(s.damage_modifiers);
@@ -669,6 +686,7 @@ void recycle(Snapshot& s, Spares& spare) {
   s.game_build = std::move(gb);
   s.taken_at = std::move(at);
   s.character_name = std::move(name);
+  s.save = std::move(save);
   s.char_attributes = std::move(ca);
   s.defense = std::move(def);
   s.damage_modifiers = std::move(dm);

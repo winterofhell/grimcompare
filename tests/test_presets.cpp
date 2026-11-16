@@ -221,6 +221,50 @@ TEST_CASE("presets: freeze writes the settings in use, parse reads them back (in
   snap::Snapshot other = s;
   other.character_name = "someone";
   CHECK_FALSE(score::match(*back, other, *db).ok);
+
+  // With the save known, the frozen file is for that save: the engine's backup copy of the name is not bound.
+  snap::Snapshot saved = s;
+  saved.save = snap::save_key(true, "_" + s.character_name);
+  const auto frozen = score::parse(score::freeze(*chosen, saved, *db, "frozen-winter"), error);
+  REQUIRE_MESSAGE(frozen, error);
+  CHECK(frozen->match_saves == std::vector<std::string>{saved.save});
+  CHECK(score::match(*frozen, saved, *db).ok == score::match(*chosen, s, *db).ok);
+  saved.save = snap::save_key(true, "__" + s.character_name);
+  CHECK_FALSE(score::match(*frozen, saved, *db).ok);
+  CHECK(score::match(*frozen, saved, *db).why.starts_with("[match] saves binds "));
+}
+
+TEST_CASE("presets: [match] saves tells same-named characters apart") {
+  CHECK(snap::save_key(false, "__Bob") == "local/__Bob");
+  CHECK(snap::save_key_name("cloud/__Bob") == "Bob");
+  CHECK(snap::save_key_name("local/_Bob") == "Bob");
+  CHECK(snap::save_key_name("local/Bob").empty());
+  CHECK(snap::save_key_name("_Bob").empty());
+
+  std::string error;
+  const auto p = score::parse("[match]\ncharacters = [\"Bob\", \"Al\"]\nsaves = [\"cloud/_Bob\"]\n", error);
+  REQUIRE_MESSAGE(p, error);
+  CHECK(score::binds(*p, "Bob", "cloud/_Bob"));
+  CHECK(score::binds(*p, "Bob", "CLOUD/_bob"));   // Windows folder names
+  CHECK_FALSE(score::binds(*p, "Bob", "cloud/__Bob"));  // the backup copy
+  CHECK_FALSE(score::binds(*p, "Bob", "local/_Bob"));   // another Bob in the local saves
+  CHECK(score::binds(*p, "Bob", ""));                   // save unknown: by name, as before
+  CHECK(score::binds(*p, "Al", "local/_Al"));           // no key names Al: by name
+  CHECK_FALSE(score::binds(*p, "Cy", "cloud/_Cy"));
+
+  snap::Snapshot s;
+  s.character_name = "Bob";
+  s.save = "cloud/_Bob";
+  auto m = score::match(*p, s, arz::Database{});
+  CHECK(m.ok);
+  CHECK(m.why == "[match] characters lists Bob (cloud/_Bob)");
+  s.save = "local/_Bob";
+  m = score::match(*p, s, arz::Database{});
+  CHECK_FALSE(m.ok);
+
+  CHECK_FALSE(score::parse("[match]\nsaves = [\"Bob\"]\n", error));
+  CHECK(error.find("cloud/_Name") != std::string::npos);
+  CHECK_FALSE(score::parse("[match]\nsaves = \"cloud/_Bob\"\n", error));
 }
 
 // Regression (adapter 0.7.0 scored this +2.3%): winterpoison, level 16, stage 10-35. Worn belt a02_waist001

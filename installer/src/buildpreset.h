@@ -20,6 +20,7 @@ struct BuildAnswers {
   std::string title;                    // shown in comments and the summary
   std::string source;                   // catalog id, or "custom"
   std::vector<std::string> characters;  // [match] characters
+  std::vector<std::string> saves;       // [match] saves (gdc::snap::save_key), the saves of those names it is for
   std::vector<int> masteries;
   std::vector<std::string> damage;      // [match] damage names
   std::vector<std::string> skills;      // [damage] skills (already filtered to the masteries)
@@ -46,9 +47,11 @@ std::vector<std::string> priorities(const BuildAnswers& a, const std::map<std::s
 // File stem from a build name: letters, digits, '-', '_'; others become '-'.
 std::string preset_stem(std::string_view name);
 
-// For presets this setup wrote (kSetupMark on the first line): their [match] characters line replaced.
+// For presets this setup wrote (kSetupMark on the first line): their [match] characters line replaced, and the
+// saves line after it replaced, added or dropped (no saves).
 bool made_by_setup(std::string_view text);
-std::optional<std::string> with_characters(std::string_view text, const std::vector<std::string>& characters);
+std::optional<std::string> with_binding(std::string_view text, const std::vector<std::string>& characters,
+                                        const std::vector<std::string>& saves);
 
 std::string toml_string(std::string_view s);
 

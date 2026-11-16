@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iterator>
 
+#include "gdc/snapshot.h"
 #include "platform.h"
 
 namespace setup {
@@ -141,6 +142,7 @@ std::vector<fs::path> save_roots(const std::vector<fs::path>& steam_roots, const
 std::vector<Character> find_characters(const std::vector<fs::path>& roots) {
   std::vector<Character> out;
   for (const auto& root : roots) {
+    const bool cloud = root.parent_path().filename() == "remote";
     std::error_code ec;
     for (const auto& d : fs::directory_iterator(root / "main", ec)) {
       const fs::path file = d.path() / "player.gdc";
@@ -150,7 +152,8 @@ std::vector<Character> find_characters(const std::vector<fs::path>& roots) {
       f.read(reinterpret_cast<char*>(head.data()), static_cast<std::streamsize>(head.size()));
       head.resize(static_cast<std::size_t>(f.gcount()));
       std::string error;
-      if (auto h = read_save_header(head, error)) out.push_back({std::move(*h), file});
+      if (auto h = read_save_header(head, error))
+        out.push_back({std::move(*h), file, gdc::snap::save_key(cloud, u8string(d.path().filename()))});
     }
   }
   std::sort(out.begin(), out.end(), [](const Character& a, const Character& b) {

@@ -105,6 +105,9 @@ struct Preset : Settings {
   double match_share = 0.5;
   std::string match_character;
   std::vector<std::string> match_characters;  // always match, skipping every other check
+  // Save keys (snap::save_key). A name in character / characters that one of them names matches only that save
+  // when the snapshot knows its save; names no key mentions match by name alone.
+  std::vector<std::string> match_saves;
   std::string match_archetype;
   std::vector<Stage> stages;           // file order
   std::vector<std::string> target_sets;
@@ -124,6 +127,13 @@ struct Match {
   std::string why;
 };
 Match match(const Preset& p, const snap::Snapshot& s, const arz::Database& db, const Labels& labels = {});
+
+// Save keys compare like Windows folder names (ASCII case-insensitive).
+bool same_save_key(std::string_view a, std::string_view b);
+// False when [match] saves names this character but not this save (empty save: unknown, true).
+bool in_bound_save(const Preset& p, std::string_view name, std::string_view save);
+// [match] characters lists the name and in_bound_save holds: the preset applies with no other check.
+bool binds(const Preset& p, std::string_view name, std::string_view save);
 
 // A build's own preset before a template that lists all ten masteries.
 bool tried_first(const Preset& a, const Preset& b);

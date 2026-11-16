@@ -123,6 +123,7 @@ std::string preset_text(const BuildAnswers& a) {
   std::vector<std::string> masteries;
   for (const int m : a.masteries) masteries.push_back(mastery_record(m));
   t += "\n[match]\ncharacters = " + list(a.characters) + "\n";
+  if (!a.saves.empty()) t += "saves = " + list(a.saves) + "\n";
   if (!masteries.empty()) t += "masteries = " + list(masteries) + "\n";
   t += "damage = " + list(a.damage) + "\n";
 
@@ -210,14 +211,21 @@ std::string preset_stem(std::string_view name) {
 
 bool made_by_setup(std::string_view text) { return text.starts_with(kSetupMark); }
 
-std::optional<std::string> with_characters(std::string_view text, const std::vector<std::string>& characters) {
+std::optional<std::string> with_binding(std::string_view text, const std::vector<std::string>& characters,
+                                        const std::vector<std::string>& saves) {
   if (!made_by_setup(text)) return std::nullopt;
-  const std::string_view key = "\ncharacters = ";
+  const std::string_view key = "\ncharacters = ", saves_key = "\nsaves = ";
   const auto at = text.find(key);
   if (at == std::string_view::npos) return std::nullopt;
-  const auto end = text.find('\n', at + 1);
+  auto end = text.find('\n', at + 1);
   if (end == std::string_view::npos) return std::nullopt;
-  return std::string(text.substr(0, at + key.size())) + list(characters) + std::string(text.substr(end));
+  std::string out = std::string(text.substr(0, at + key.size())) + list(characters);
+  if (text.substr(end).starts_with(saves_key)) {
+    end = text.find('\n', end + 1);
+    if (end == std::string_view::npos) return std::nullopt;
+  }
+  if (!saves.empty()) out += std::string(saves_key) + list(saves);
+  return out + std::string(text.substr(end));
 }
 
 }  // namespace setup

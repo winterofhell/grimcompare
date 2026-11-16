@@ -21,6 +21,8 @@ constexpr Target kPlanned[] = {
     // mov eax, [rcx+0x36D1C]; Monster::Monster 0x372B40 copies it to Monster+0x46C8 (the challenge adjustment level).
     {Module::Game, Kind::Call, false, "engine", "GameEngine::GetDifficultyRamp",
      "?GetDifficultyRamp@GameEngine@GAME@@QEBAIXZ"},  // 0x2d85a0
+    // movzx eax, byte [rcx+0x375EA]; GetUserSaveDataFolder (0x2E2B20 in 1.3.1.2) drops the My Games base when set.
+    {Module::Game, Kind::Call, false, "engine", "GameEngine::GetCloudStorage", "?GetCloudStorage@GameEngine@GAME@@QEBA_NXZ"},
     {Module::Game, Kind::Detour, true, "tooltip", "ItemEquipment::GetUIDisplayText",
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",

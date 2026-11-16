@@ -18,9 +18,16 @@ namespace gdc::snap {
 // 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
 // 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
 // 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown). 11: difficulty_ramp, requirements.met_at.
-// 12: Snapshot::pets (before: empty = unknown).
-inline constexpr int kSchema = 12;
+// 12: Snapshot::pets (before: empty = unknown). 13: character.save (before: empty = unknown).
+inline constexpr int kSchema = 13;
 inline constexpr int kMinSchema = 2;
+
+// The save a character lives in, as GameEngine::GetPlayerFolder (Game.dll 1.3.1.2 0x2E2D80) builds it:
+// <save root>main\\ + "_" + name (ManglePlayerName) or "__" + name (MangleBackupPlayerName), the root being Steam
+// Cloud's or My Games/Grim Dawn/save (GameEngine::GetCloudStorage). Key: "cloud/_Name" or "local/__Name".
+std::string save_key(bool cloud, std::string_view folder);
+// The character name in a save key ("cloud/__Bob" -> "Bob"); empty when it is not one.
+std::string save_key_name(std::string_view key);
 
 struct CharAttribute {
   int type = 0;
@@ -209,6 +216,9 @@ struct Snapshot {
   std::vector<std::string> errors;
 
   std::string character_name;  // UTF-8
+  // Schema 13. Which save the character is: "cloud/_Name", "local/_Name", or "__Name" for the engine's backup
+  // folder (save_key). Empty = unknown.
+  std::string save;
   std::uint32_t level = 0;
   int difficulty = -1;  // GameEngine::GetGameDifficulty (raw enum)
   // Schema 11. GameEngine::GetDifficultyRamp 0x2D85A0: above 0 every monster also gets the challenge

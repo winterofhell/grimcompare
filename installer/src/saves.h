@@ -30,6 +30,7 @@ std::vector<int> class_masteries(std::string_view class_tag);
 struct Character {
   SaveHeader header;
   std::filesystem::path file;
+  std::string save;  // gdc::snap::save_key: "cloud/_Name" for a root under Steam's .../remote/save, else "local/..."
 };
 
 // Save roots in the order tried: Steam Cloud (userdata/<id>/219990/remote/save), the Proton prefix's and the

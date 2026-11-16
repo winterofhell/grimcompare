@@ -11,6 +11,7 @@
 #include "gdc/arz.h"
 #include "gdc/labels.h"
 #include "gdc/score.h"
+#include "gdc/snapshot.h"
 #include "gdc/text.h"
 #include "platform.h"
 #include "saves.h"
@@ -91,7 +92,13 @@ struct Who {
   std::string name;
   std::vector<int> masteries;
   bool from_save = false;
+  std::string save;  // gdc::snap::save_key; empty for a typed name
 };
+
+bool is_backup(const std::string& save) { return save.find("/__") != std::string::npos; }
+
+// "winterofhell", or "winterofhell (backup copy)" for the engine's __<name> folder.
+std::string who_label(const Who& w) { return is_backup(w.save) ? fmt(tr("{} (backup copy)"), {w.name}) : w.name; }
 
 std::optional<Who> pick_character(const Ctx& c, const Game& game) {
   std::vector<fs::path> libraries;
@@ -101,10 +108,15 @@ std::optional<Who> pick_character(const Ctx& c, const Game& game) {
   libraries.push_back(game.root.parent_path().parent_path().parent_path());  // <library>/steamapps/common/Grim Dawn
   const auto chars = find_characters(save_roots(roots, libraries));
   std::vector<ui::Item> items;
+  std::map<std::string, std::set<bool>> kinds;  // name -> cloud / local seen
+  for (const auto& ch : chars) kinds[ch.header.name].insert(ch.save.starts_with("cloud/"));
   for (const auto& ch : chars) {
     const auto m = class_masteries(ch.header.class_tag);
-    items.push_back({ch.header.name, fmt(tr("{}, level {}{}"), {class_label(c, m), std::to_string(ch.header.level),
-                                                                   ch.header.hardcore ? tr(", hardcore") : ""})});
+    std::string where;
+    if (is_backup(ch.save)) where += tr(", backup copy");
+    if (kinds[ch.header.name].size() > 1) where += ch.save.starts_with("cloud/") ? tr(", Steam Cloud") : tr(", local save");
+    items.push_back({ch.header.name, fmt(tr("{}, level {}{}{}"), {class_label(c, m), std::to_string(ch.header.level),
+                                                                     ch.header.hardcore ? tr(", hardcore") : "", where})});
   }
   items.push_back({tr("Type a character name"), tr("for a character not listed")});
   int i = static_cast<int>(chars.size());
@@ -116,12 +128,12 @@ std::optional<Who> pick_character(const Ctx& c, const Game& game) {
   }
   if (i < static_cast<int>(chars.size())) {
     const auto& ch = chars[static_cast<std::size_t>(i)];
-    return Who{ch.header.name, class_masteries(ch.header.class_tag), true};
+    return Who{ch.header.name, class_masteries(ch.header.class_tag), true, ch.save};
   }
   for (;;) {
     const std::string n = ui::ask(tr("Character name, exactly as in game (empty to go back)"));
     if (n.empty()) return std::nullopt;
-    return Who{n, {}, false};
+    return Who{n, {}, false, {}};
   }
 }
 
@@ -415,8 +427,10 @@ std::optional<BuildAnswers> custom(const Ctx& c, const std::vector<int>& masteri
 struct Existing {
   fs::path file;
   std::string text;
-  std::vector<std::string> characters;
+  gdc::score::Preset preset;  // default when it does not parse: binds no one
 };
+
+bool applies(const Existing& e, const Who& w) { return gdc::score::binds(e.preset, w.name, w.save); }
 
 std::vector<Existing> setup_presets(const fs::path& dir) {
   std::vector<Existing> out;
@@ -427,18 +441,24 @@ std::vector<Existing> setup_presets(const fs::path& dir) {
     if (!text || !made_by_setup(*text)) continue;
     std::string error;
     const auto p = gdc::score::parse(*text, error);
-    out.push_back({e.path(), *text, p ? p->match_characters : std::vector<std::string>{}});
+    out.push_back({e.path(), *text, p ? *p : gdc::score::Preset{}});
   }
   std::sort(out.begin(), out.end(), [](const Existing& a, const Existing& b) { return a.file < b.file; });
   return out;
 }
 
 // One setup preset per character: the others drop it (a preset left for no one is removed, after asking).
-bool unbind_elsewhere(const Ctx& c, const std::string& character, const fs::path& keep) {
+// Dropping a save keeps the name while another listed save of that name still uses the preset.
+bool unbind_elsewhere(const Ctx& c, const Who& who, const fs::path& keep) {
+  const std::string character = who_label(who);
   for (auto& e : setup_presets(c.presets)) {
-    if (e.file == keep || std::find(e.characters.begin(), e.characters.end(), character) == e.characters.end()) continue;
-    std::vector<std::string> rest = e.characters;
-    std::erase(rest, character);
+    if (e.file == keep || !applies(e, who)) continue;
+    std::vector<std::string> saves = e.preset.match_saves, rest = e.preset.match_characters;
+    std::erase_if(saves, [&](const std::string& s) {
+      return who.save.empty() ? gdc::snap::save_key_name(s) == who.name : gdc::score::same_save_key(s, who.save);
+    });
+    if (std::none_of(saves.begin(), saves.end(), [&](const std::string& s) { return gdc::snap::save_key_name(s) == who.name; }))
+      std::erase(rest, who.name);
     std::string error;
     if (rest.empty()) {
       if (ui::confirm(fmt(tr("{} was only for {}. Delete it?"), {u8string(e.file.filename()), character}), true)) {
@@ -451,14 +471,14 @@ bool unbind_elsewhere(const Ctx& c, const std::string& character, const fs::path
       }
       continue;
     }
-    const auto next = with_characters(e.text, rest);
+    const auto next = with_binding(e.text, rest, saves);
     if (!next || !write_file(e.file, *next, error)) return ui::warn(fmt(tr("Could not update {}: {}"), {u8string(e.file), error})), false;
     ui::line(fmt(tr("{} no longer applies to {}."), {u8string(e.file.filename()), character}));
   }
   return true;
 }
 
-bool save(const Ctx& c, const BuildAnswers& a) {
+bool save(const Ctx& c, const BuildAnswers& a, const Who& who) {
   const std::string text = preset_text(a);
   std::string error;
   if (!gdc::score::parse(text, error)) {
@@ -466,7 +486,7 @@ bool save(const Ctx& c, const BuildAnswers& a) {
     return false;
   }
   // One file per character and build: "winterofhell-dw-cold-acid-3".
-  std::string stem = preset_stem(a.characters.front() + "-" + (a.source == "custom" ? a.title : a.source));
+  std::string stem = preset_stem(who.name + (is_backup(who.save) ? "-backup-" : "-") + (a.source == "custom" ? a.title : a.source));
   for (;;) {
     stem = preset_stem(ui::ask(tr("File name"), stem));
     const fs::path p = c.presets / (stem + ".toml");
@@ -476,9 +496,16 @@ bool save(const Ctx& c, const BuildAnswers& a) {
         stem += "-2";
         continue;
       }
+      std::string error_old;
+      const auto old_preset = gdc::score::parse(*old, error_old);
+      if (old_preset && !old_preset->match_characters.empty() && !gdc::score::binds(*old_preset, who.name, who.save)) {
+        ui::warn(fmt(tr("{} is in use for another character. Pick another name."), {u8string(p.filename())}));
+        stem += "-2";
+        continue;
+      }
       if (!ui::confirm(fmt(tr("{} exists. Replace it?"), {u8string(p.filename())}), true)) continue;
     }
-    if (!unbind_elsewhere(c, a.characters.front(), p)) return false;
+    if (!unbind_elsewhere(c, who, p)) return false;
     if (!write_file(p, text, error)) return ui::warn(error), false;
     ui::title(fmt(tr("Saved {}"), {u8string(p)}));
     std::size_t n = 0;
@@ -489,17 +516,26 @@ bool save(const Ctx& c, const BuildAnswers& a) {
                    {std::to_string(n), std::to_string(kAdapterMaxPresets)}));
     ui::wrap(fmt(tr("GD Compare now scores items for {} with \"{}\". The mod picks up preset changes on its own, even while "
                     "the game runs. Run setup again any time to change it or use it for another character."),
-                 {a.characters.front(), a.title}));
+                 {who_label(who), a.title}));
     return true;
   }
 }
 
-bool bind_existing(const Ctx& c, Existing e, const std::string& character) {
-  if (std::find(e.characters.begin(), e.characters.end(), character) == e.characters.end()) e.characters.push_back(character);
-  const auto next = with_characters(e.text, e.characters);
+bool bind_existing(const Ctx& c, const Existing& e, const Who& who) {
+  const std::string character = who_label(who);
+  if (applies(e, who)) {
+    if (!unbind_elsewhere(c, who, e.file)) return false;
+    ui::line(fmt(tr("{} stays in use for {}."), {u8string(e.file.filename()), character}));
+    return true;
+  }
+  auto characters = e.preset.match_characters;
+  auto saves = e.preset.match_saves;
+  if (std::find(characters.begin(), characters.end(), who.name) == characters.end()) characters.push_back(who.name);
+  if (!who.save.empty()) saves.push_back(who.save);
+  const auto next = with_binding(e.text, characters, saves);
   std::string error;
   if (!next) return ui::warn(tr("That preset's [match] section was edited by hand; bind it by editing the file.")), false;
-  if (!unbind_elsewhere(c, character, e.file) || !write_file(e.file, *next, error)) return error.empty() || (ui::warn(error), false);
+  if (!unbind_elsewhere(c, who, e.file) || !write_file(e.file, *next, error)) return error.empty() || (ui::warn(error), false);
   ui::line(fmt(tr("{} now applies to {}."), {u8string(e.file.filename()), character}));
   return true;
 }
@@ -537,15 +573,15 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
     items.push_back({tr("Describe my own build"), tr("a few questions")}), kinds.push_back(1);
     for (std::size_t i = 0; i < existing.size(); ++i) {
       const auto& e = existing[i];
-      const bool bound = std::find(e.characters.begin(), e.characters.end(), who->name) != e.characters.end();
+      const bool bound = applies(e, *who);
       items.push_back({fmt(bound ? tr("Keep {}") : tr("Use {}"), {u8string(e.file.stem())}),
-                       bound ? fmt(tr("in use for {}"), {who->name}) : tr("a preset you made before")});
+                       bound ? fmt(tr("in use for {}"), {who_label(*who)}) : tr("a preset you made before")});
       kinds.push_back(2 + static_cast<int>(i));
     }
-    const int i = ui::choose(fmt(tr("How should GD Compare judge items for {}?"), {who->name}), items);
+    const int i = ui::choose(fmt(tr("How should GD Compare judge items for {}?"), {who_label(*who)}), items);
     if (i < 0) return false;
     const int k = kinds[static_cast<std::size_t>(i)];
-    if (k >= 2) return bind_existing(c, existing[static_cast<std::size_t>(k - 2)], who->name);
+    if (k >= 2) return bind_existing(c, existing[static_cast<std::size_t>(k - 2)], *who);
 
     std::optional<BuildAnswers> a;
     if (k == 0) {
@@ -558,13 +594,14 @@ bool wizard(const Game& game, const std::string& folder, const fs::path& payload
       a = custom(c, *masteries, who->name);
       if (!a) continue;
     }
+    if (!who->save.empty()) a->saves = {who->save};
     std::map<std::string, std::string> names;
     for (const auto& s : a->skills) names[s] = skill_name(c, s);
     ui::title(fmt(tr("{} for {}: your top priorities"), {a->title, who->name}));
     int n = 0;
     for (const auto& p : priorities(*a, names)) ui::wrap(std::to_string(++n) + ". " + p, 2);
     for (const auto& h : a->hints) ui::wrap(h, 2);
-    if (ui::confirm(tr("\nSave this preset?"), true)) return save(c, *a);
+    if (ui::confirm(tr("\nSave this preset?"), true)) return save(c, *a, *who);
   }
 }
 
