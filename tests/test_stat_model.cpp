@@ -174,7 +174,8 @@ TEST_CASE("swap model: poison swap fixture (ring 5 + chest 8), Poison 25 -> 91")
   const auto p2 = model::swap(p1.after, at(after, 8), 8, game_db());
   const auto got = model::sheet(p2.after), want = model::sheet(after);
   for (const auto* p : {&p1, &p2})
-    for (const auto& w : p->warnings) CHECK_MESSAGE(w.find("assumed on") != std::string::npos, w);
+    for (const auto& w : p->warnings)
+      CHECK_MESSAGE((w.find("assumed on") != std::string::npos || (!game_db() && w.starts_with("no database"))), w);
   check_core_sheet(got, want);
   for (const auto& r : want.resists) {
     const auto* g = resist(got, r.type);
@@ -235,8 +236,11 @@ TEST_CASE("calibrate: schema-4 swaps from the auto-snapshot store pass") {
     REQUIRE(c1.warnings.size() == 1);
     CHECK(c1.warnings[0] == "skill bloodofdreeg2.dbr: modifier level change not modeled (its parent skill is captured from schema 5)");
   } else {
-    REQUIRE(c1.diffs.size() == 1);
-    CHECK(c1.diffs[0].stat == "Resist Chaos (raw)");
+    // Without the records the ring's skill grant (+2 Possession) and its damage % through skills are missing.
+    std::vector<std::string> stats;
+    for (const auto& d : c1.diffs) stats.push_back(d.stat);
+    CHECK(stats == std::vector<std::string>{"Resist Chaos (raw)", "Damage % Poison", "Damage % Poison (duration)",
+                                            "Damage % Life", "Damage % Life (duration)", "Damage % Chaos"});
   }
   const auto c2 = calibrate::check(fixture("lvl96-s4-before-chest-b002e.json"), fixture("lvl96-s4-after-chest-b002e.json"),
                                    game_db());
