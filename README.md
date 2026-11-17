@@ -14,6 +14,8 @@ Weights live in TOML presets that reload on save. `default.toml` works for any b
 
 The mod only reads game memory, never writes it. If anything fails, the normal tooltip is left alone.
 
+Unofficial fan project, not affiliated with or endorsed by Crate Entertainment. Use at your own risk.
+
 ## Install
 
 Download `GDCompare-1.0.0.zip` from [GitHub Releases](https://github.com/winterofhell/grimcompare/releases) or Nexus (the same file) and unzip it anywhere.
@@ -32,6 +34,8 @@ Menus work with the arrow keys: Enter picks the highlighted entry, Esc goes back
 **Steam on Linux**: in Steam → Grim Dawn → Properties → Launch Options, put `WINEDLLOVERRIDES="dinput8=n,b" %command%` in front of what is there. If `WINEDLLOVERRIDES` is already set, add `dinput8=n,b` to it with a `;`. Start the game with the "Compatibility Mode" entry (it runs from `compat/`). **Heroic, Lutris**: add the environment variable `WINEDLLOVERRIDES=dinput8=n,b`. **Windows**: nothing else to do.
 
 The Windows setup is tested end to end under Wine but has not been tried on a Windows PC yet. Please report how it goes.
+
+**Antivirus**: `gdcompare-setup.exe`, `GDCompare.asi` and the loader's `dinput8.dll` are not code-signed, and a DLL that loads into a game process looks like a cheat or injector to some scanners, so Windows Defender or another antivirus may flag or quarantine them. Check the zip against the `.sha256` on the Release page, then allow the files (Windows Security → Virus & threat protection → Protection history → Allow, or add the game folder as an exclusion). If you would rather not, build from source (below) or don't use the mod.
 
 ### Build presets
 
@@ -88,6 +92,8 @@ Pushing a `v*` tag builds the same zip and attaches it to the GitHub Release (`.
 ## Limitations
 
 - Checked against Grim Dawn 1.3.1.2 and 1.3.1.1 x64. On other versions it logs a warning and turns off any hook it can't find.
+- Not tested with Grimarillion or any other mod that adds classes or changes the game database. Scores and the build wizard there may be wrong or missing.
+- The block is English only, on any game language: its own text and the stat, skill, item and set names it shows come from the game's English text (`Text_EN.arc`). Line widths are measured with the game's English fonts, so a translation pack with its own fonts may wrap lines differently. Not tested with a translation.
 - The score is a model, not a fight simulation: one target, no positioning. The enemy is the median monster for your level and difficulty, the mean boss for resists.
 - Pets are experimental. With pets summoned, their attack rate comes from the game's own speed and animation data; otherwise from their records.
 - Not scored: energy cost reduction, pet bonuses from buffs and set bonuses, flat racial damage. Full list in [docs/COVERAGE.md](docs/COVERAGE.md).

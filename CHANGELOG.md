@@ -4,6 +4,9 @@
 
 First release.
 
+- Windows: beta (tested under Wine only).
+- Not tested with Grimarillion or other mods that add classes. The tooltip block is English only.
+
 ### Mod
 - Hover an item: the tooltip shows how much better or worse your character gets with it, one number from Damage, Survivability and Other. Hold Shift for the breakdown.
 - Reads your real stats from the running game (read-only) and values the swap with a stat model checked against the game database: damage types, conversion, crit, OA/DA, resists and RR, attack and cast speed, cooldowns, procs, timed buffs, sets, skill bonuses and pets (experimental).
