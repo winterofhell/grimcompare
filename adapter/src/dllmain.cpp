@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr const char* kModVersion = "1.0.0";
+constexpr const char* kModVersion = "1.0.1";
 constexpr DWORD kPollMs = 250;
 // shortcut: generous fixed waits, no source for real load times — revisit when the log shows how long modules
 // and gGameEngine actually take.

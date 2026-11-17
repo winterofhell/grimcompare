@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 (2026-11-17)
+
+- The mod is now called GrimCompare: tooltip heading, setup and the release zip (`GrimCompare-<version>.zip`). Installed file names stay `GDCompare.*`, so existing installs and presets keep working.
+- The release zip has the license texts of the bundled third-party code in `licenses/`, Ultimate ASI Loader included.
+- Windows: still beta (tested under Wine only).
+
 ## 1.0.0 (2026-11-17)
 
 First release.

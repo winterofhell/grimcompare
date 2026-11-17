@@ -23,7 +23,7 @@ using ui::tr;
 
 namespace {
 
-constexpr std::string_view kVersion = "1.0.0";
+constexpr std::string_view kVersion = "1.0.1";
 
 struct Options {
   bool plain = false, wizard_only = false;
