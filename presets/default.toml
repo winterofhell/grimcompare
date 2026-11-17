@@ -1,4 +1,4 @@
-# GD Compare score preset (score v1). Copied next to GDCompare.asi; edits apply on the next hover
+# GrimCompare score preset (score v1). Copied next to GDCompare.asi; edits apply on the next hover
 # (hot reload). A bad file keeps the last good preset and the tooltip says why.
 #
 # Every number here is a DESIGN CHOICE, not a game mechanic: none has a source. They only weigh what the

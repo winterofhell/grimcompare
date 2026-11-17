@@ -347,7 +347,7 @@ void start() {
   const auto dot = log_path.find_last_of(L'.');
   log_path = (dot == std::wstring::npos ? log_path : log_path.substr(0, dot)) + L".log";
   gdc::log::open(log_path);
-  gdc::log::printf("GD Compare %s (built %s %s) worker start, pid %lu tid %lu", kModVersion, __DATE__, __TIME__,
+  gdc::log::printf("GrimCompare %s (built %s %s) worker start, pid %lu tid %lu", kModVersion, __DATE__, __TIME__,
                    GetCurrentProcessId(), GetCurrentThreadId());
 
   MODULEINFO mi{};

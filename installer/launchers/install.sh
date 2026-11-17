@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GD Compare setup for Linux: run ./install.sh, or double-click it (it opens a terminal).
+# GrimCompare setup for Linux: run ./install.sh, or double-click it (it opens a terminal).
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 BIN=./bin/gdcompare-setup-linux
 chmod +x "$BIN" 2>/dev/null  # some unzip tools drop the executable bit

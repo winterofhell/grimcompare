@@ -1,5 +1,5 @@
 @echo off
-rem GD Compare setup for Windows: double-click this file.
+rem GrimCompare setup for Windows: double-click this file.
 setlocal
 cd /d "%~dp0"
 if not exist "bin\gdcompare-setup.exe" (

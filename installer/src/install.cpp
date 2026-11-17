@@ -201,7 +201,7 @@ Plan make_plan(Mode mode, const fs::path& target, const Payload* payload, std::o
   };
 
   if (mode == Mode::kUninstall) {
-    if (old.empty()) plan.blockers.push_back("GD Compare is not installed in " + u8string(target) + " (no " + std::string(kManifest) + ").");
+    if (old.empty()) plan.blockers.push_back("GrimCompare is not installed in " + u8string(target) + " (no " + std::string(kManifest) + ").");
     // The loader stays while other .asi plugins (added after the install) still load through it.
     bool other_asi = false;
     std::error_code dec;
@@ -246,21 +246,21 @@ Plan make_plan(Mode mode, const fs::path& target, const Payload* payload, std::o
       const LoaderInfo li = inspect_loader(at(target, name));
       if (li.ual && li.x64) {
         add(Step::Kind::kKeep, name, "your Ultimate ASI Loader " + li.version + ", reused");
-        plan.notes.push_back("Using the Ultimate ASI Loader already there (" + li.version + "). GD Compare is tested with v9.7.4; if the game "
+        plan.notes.push_back("Using the Ultimate ASI Loader already there (" + li.version + "). GrimCompare is tested with v9.7.4; if the game "
                              "fails to start, replace it with the dinput8.dll from this package.");
       } else if (li.ual) {
         plan.blockers.push_back("dinput8.dll is a 32-bit Ultimate ASI Loader; the 64-bit game cannot load it. Remove it, then run setup again.");
       } else {
         plan.blockers.push_back(
             "dinput8.dll in " + u8string(target) + " belongs to another mod" + (li.product.empty() ? "" : " (" + li.product + ")") +
-            ". GD Compare loads through Ultimate ASI Loader, which must be dinput8.dll, so the two cannot both be installed as they are. "
+            ". GrimCompare loads through Ultimate ASI Loader, which must be dinput8.dll, so the two cannot both be installed as they are. "
             "Setup will not overwrite it. If that mod can be loaded as an .asi plugin, or under another name, set it up that way and run setup again.");
       }
     } else if (name == kIni) {
       if (ini_loads_in_dllmain(at(target, name))) {
         add(Step::Kind::kKeep, name, "yours, has dontloadfromdllmain=0");
       } else {
-        plan.blockers.push_back("dinput8.ini in " + u8string(target) + " is not from GD Compare and lacks \"dontloadfromdllmain=0\" under "
+        plan.blockers.push_back("dinput8.ini in " + u8string(target) + " is not from GrimCompare and lacks \"dontloadfromdllmain=0\" under "
                                 "[globalsets]. Without it the game crashes before the main menu. Add that line (or delete the file), then "
                                 "run setup again.");
       }

@@ -32,7 +32,7 @@ void append(const std::vector<std::string>& lines) {
     SYSTEMTIME t;
     GetLocalTime(&t);
     char buf[96];
-    std::snprintf(buf, sizeof buf, "== %04u-%02u-%02u %02u:%02u:%02u session, GD Compare %s\r\n", t.wYear, t.wMonth,
+    std::snprintf(buf, sizeof buf, "== %04u-%02u-%02u %02u:%02u:%02u session, GrimCompare %s\r\n", t.wYear, t.wMonth,
                   t.wDay, t.wHour, t.wMinute, t.wSecond, g_version.c_str());
     out += buf;
     g_header = true;

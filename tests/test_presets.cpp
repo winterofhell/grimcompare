@@ -173,7 +173,7 @@ TEST_CASE("presets: the block heading names the preset and stage") {
   cand.stats = snap::ItemStats{{{4, 200, 0}}, {}, {}, {}};
   const auto lines = tooltip::compare(s, cand, 6, false, nullptr, p);
   REQUIRE(!lines.empty());
-  CHECK(lines[0].text == "GD Compare - plague-garden - stage 1-10");
+  CHECK(lines[0].text == "GrimCompare - plague-garden - stage 1-10");
 }
 
 TEST_CASE("presets: freeze writes the settings in use, parse reads them back (installed game; skips if absent)") {

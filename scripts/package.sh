@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the release zip that GitHub Releases and Nexus both ship: dist/GDCompare-<version>.zip.
+# Builds the release zip that GitHub Releases and Nexus both ship: dist/GrimCompare-<version>.zip.
 #   install.bat / install.sh       launchers; README, CHANGELOG, licenses
 #   bin/gdcompare-setup.exe        Windows x64, static CRT
 #   bin/gdcompare-setup-linux      Linux x86-64, static
@@ -13,7 +13,7 @@ if [[ -z "${IN_NIX_SHELL:-}" ]]; then exec nix-shell "$ROOT/shell.nix" --run "ba
 
 VERSION="$(sed -n 's/.*kVersion = "\(.*\)".*/\1/p' installer/src/main.cpp)"
 [[ -n "$VERSION" ]] || { echo "package: no kVersion in installer/src/main.cpp" >&2; exit 1; }
-NAME="GDCompare-$VERSION"
+NAME="GrimCompare-$VERSION"
 OUT="$ROOT/dist/$NAME"
 
 cmake --workflow --preset adapter

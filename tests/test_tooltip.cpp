@@ -222,7 +222,7 @@ TEST_CASE("tooltip: compare scores each finger and marks the better one; nothing
   const auto lines = tooltip::compare(s, cand, 6, false, nullptr, score::Preset{}, {}, &log);
   // Survival = EHP ratio = Life ratio: finger 1 1200 / 1100, finger 2 (empty) 1300 / 1100.
   const std::vector<Line> want = {
-      {Tone::Heading, "GD Compare"},
+      {Tone::Heading, "GrimCompare"},
       {Tone::Better, "vs Finger 1: +9.1% ^"},
       {Tone::Better, "vs Finger 2 (empty): +18.2% ^ (best)"},
       {Tone::Warning, "! model inaccurate (Shift: why)"},  // no database

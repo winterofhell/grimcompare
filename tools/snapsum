@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-screen summaries of GD Compare auto snapshots (gdc::store, docs/SNAPSHOT.md "Auto snapshots").
+"""One-screen summaries of GrimCompare auto snapshots (gdc::store, docs/SNAPSHOT.md "Auto snapshots").
 
 usage: snapsum [DIR] [--char NAME] [--last N] [--full SEGMENT-SEQ [-o FILE]]
   DIR    the snapshots folder (default: $GD_DIR or the Steam install, compat/snapshots) or one

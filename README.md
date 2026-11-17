@@ -1,4 +1,4 @@
-# GD Compare
+# GrimCompare
 
 Item comparison mod for Grim Dawn 1.3.1.2 (x64). Hover an item and the tooltip shows one number: how much better or worse your character gets with it. The mod reads your real stats from the running game and the game database. Hold Shift to see the breakdown.
 
@@ -18,7 +18,7 @@ Unofficial fan project, not affiliated with or endorsed by Crate Entertainment. 
 
 ## Install
 
-Download `GDCompare-1.0.0.zip` from [GitHub Releases](https://github.com/winterofhell/grimcompare/releases) or Nexus (the same file) and unzip it anywhere.
+Download `GrimCompare-1.0.0.zip` from [GitHub Releases](https://github.com/winterofhell/grimcompare/releases) or Nexus (the same file) and unzip it anywhere.
 
 - **Windows**: double-click `install.bat`.
 - **Linux**: double-click `install.sh`, or run `./install.sh` in a terminal.
@@ -81,7 +81,7 @@ Builds on Linux with `nix-shell`. The adapter is cross-compiled with clang-cl an
 ```sh
 nix-shell --run 'cmake --workflow --preset core'      # core library and tests
 nix-shell --run 'cmake --workflow --preset adapter'   # build/adapter/adapter/GDCompare.asi
-scripts/package.sh                                    # dist/GDCompare-<version>.zip (both setups, payload)
+scripts/package.sh                                    # dist/GrimCompare-<version>.zip (both setups, payload)
 tests/e2e/setup_e2e.sh                                # setup end to end: a reflink copy of the game, and Wine
 ```
 

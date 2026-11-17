@@ -518,7 +518,7 @@ bool save(const Ctx& c, const BuildAnswers& a, const Who& who) {
     if (n > kAdapterMaxPresets)
       ui::warn(fmt(tr("GDCompare.presets has {} presets; the mod reads only {} of them. Delete the ones you no longer use."),
                    {std::to_string(n), std::to_string(kAdapterMaxPresets)}));
-    ui::wrap(fmt(tr("GD Compare now scores items for {} with \"{}\". The mod picks up preset changes on its own, even while "
+    ui::wrap(fmt(tr("GrimCompare now scores items for {} with \"{}\". The mod picks up preset changes on its own, even while "
                     "the game runs. Run setup again any time to change it or use it for another character."),
                  {who_label(who), a.title}));
     return true;
@@ -587,7 +587,7 @@ WizardEnd wizard(const Game& game, const std::string& folder, const fs::path& pa
                        bound ? fmt(tr("in use for {}"), {who_label(*who)}) : tr("a preset you made before")});
       kinds.push_back(2 + static_cast<int>(i));
     }
-    const int i = ui::choose(fmt(tr("How should GD Compare judge items for {}?"), {who_label(*who)}), items);
+    const int i = ui::choose(fmt(tr("How should GrimCompare judge items for {}?"), {who_label(*who)}), items);
     if (i < 0) return WizardEnd::kBack;
     const int k = kinds[static_cast<std::size_t>(i)];
     if (k >= 2) return end(bind_existing(c, existing[static_cast<std::size_t>(k - 2)], *who));

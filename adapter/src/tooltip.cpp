@@ -136,11 +136,11 @@ u64 g_seq = 0;
 std::atomic<DWORD> g_game_tid{0};
 
 const std::u16string kOk = u"GDC ok";
-const std::u16string kOffThread = u"GD Compare: tooltip built off the game thread";
-const std::u16string kWaitingNone = u"GD Compare: waiting for a character snapshot...";
-const std::u16string kWaitingGear = u"GD Compare: waiting for a snapshot of the current gear...";
-const std::u16string kEquipped = u"GD Compare: equipped";
-const std::u16string kComputing = u"GD Compare: computing... (hover again)";
+const std::u16string kOffThread = u"GrimCompare: tooltip built off the game thread";
+const std::u16string kWaitingNone = u"GrimCompare: waiting for a character snapshot...";
+const std::u16string kWaitingGear = u"GrimCompare: waiting for a snapshot of the current gear...";
+const std::u16string kEquipped = u"GrimCompare: equipped";
+const std::u16string kComputing = u"GrimCompare: computing... (hover again)";
 
 SRWLOCK g_lock = SRWLOCK_INIT;
 CONDITION_VARIABLE g_cv = CONDITION_VARIABLE_INIT;
@@ -800,7 +800,7 @@ void poll_named() {
   }
   g_named = std::move(named);
   if (failed.empty()) g_named_error.clear();
-  else utf16("GD Compare: preset GDCompare.presets\\" + failed + " (not used)", g_named_error);
+  else utf16("GrimCompare: preset GDCompare.presets\\" + failed + " (not used)", g_named_error);
   ++g_preset_version;
 }
 
@@ -828,7 +828,7 @@ void poll_preset() {
     g_preset_error.clear();
     log::write("tooltip: preset loaded from GDCompare.preset.toml");
   } else {
-    utf16("GD Compare: preset not loaded: " + error + " (last good preset in use)", g_preset_error);
+    utf16("GrimCompare: preset not loaded: " + error + " (last good preset in use)", g_preset_error);
     log::printf("tooltip: preset GDCompare.preset.toml not loaded: %s; last good preset in use", error.c_str());
   }
   ++g_preset_version;

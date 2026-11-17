@@ -27,11 +27,11 @@ jobs:
       - name: Package
         run: bash scripts/package.sh
       - name: Check the tag matches the setup version
-        run: test -f "dist/GDCompare-${GITHUB_REF_NAME#v}.zip"
+        run: test -f "dist/GrimCompare-${GITHUB_REF_NAME#v}.zip"
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          zip="dist/GDCompare-${GITHUB_REF_NAME#v}.zip"
+          zip="dist/GrimCompare-${GITHUB_REF_NAME#v}.zip"
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes ""
           gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256" --clobber

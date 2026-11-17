@@ -6,11 +6,11 @@
 #   wine:  a fake Windows Steam tree (fake exes, reflinked database and text) in a scratch WINEPREFIX; install.bat under
 #          wine cmd and gdcompare-setup.exe. Headless: no DISPLAY, WINEDEBUG=-all.
 # usage: tests/e2e/setup_e2e.sh [linux] [wine]      (both when none given)
-# env:   DIST=dist/GDCompare-<version> (scripts/package.sh), GD_DIR=<installed game>, E2E_DIR=build/e2e
+# env:   DIST=dist/GrimCompare-<version> (scripts/package.sh), GD_DIR=<installed game>, E2E_DIR=build/e2e
 set -uo pipefail
 cd "$(dirname "$(realpath "$0")")/../.."
 ROOT="$PWD"
-DIST="$(realpath "${DIST:-$(ls -d dist/GDCompare-*/ 2>/dev/null | sort -V | tail -1)}")"
+DIST="$(realpath "${DIST:-$(ls -d dist/GrimCompare-*/ 2>/dev/null | sort -V | tail -1)}")"
 REAL_STEAM="$HOME/.local/share/Steam"
 GD_DIR="$(realpath "${GD_DIR:-$REAL_STEAM/steamapps/common/Grim Dawn}")"
 E2E_DIR="$(realpath -m "${E2E_DIR:-$ROOT/build/e2e}")"
@@ -61,13 +61,13 @@ flows() {
   if [[ -f "$TARGET/GDCompare.installed" ]]; then
     # A dev deploy (scripts/deploy.sh) is there: setup offers update, writes only what changed.
     run update 0 $'1\ny\nn\n\n5\n' "${SETUP[@]}"
-    check "offers update" has "Update or repair GD Compare"
+    check "offers update" has "Update or repair GrimCompare"
     check "files match the package" manifest_ok "$TARGET"
     run uninstall-dev 0 $'3\ny\n\n4\n' "${SETUP[@]}"
   fi
 
   run install 0 $'1\ny\nn\n\n5\n' "${SETUP[@]}"
-  check "offers install" has "Install GD Compare"
+  check "offers install" has "Install GrimCompare"
   check "plan lists the new files" has "GDCompare.asi - new"
   check "files match the package" manifest_ok "$TARGET"
   check "shows the next step" has "the tooltip shows the score"
@@ -121,7 +121,7 @@ flows() {
 
   # Through the launcher: install, then uninstall; the launcher waits for Enter at the end.
   run launcher-install 0 $'1\ny\nn\n\n5\n\n' "${LAUNCH[@]}"
-  check "launcher runs setup" has "GD Compare 1.0.0 setup"
+  check "launcher runs setup" has "GrimCompare 1.0.0 setup"
   check "files match the package" manifest_ok "$TARGET"
   run launcher-uninstall 0 $'3\ny\n\n4\n\n' "${LAUNCH[@]}"
   check "uninstalled" test ! -e "$TARGET/GDCompare.installed"

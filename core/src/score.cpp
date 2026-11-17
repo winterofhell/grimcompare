@@ -2002,7 +2002,7 @@ std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Dat
   auto line = [&](std::string_view k, const std::string& v, std::string_view note = {}) {
     o += std::string(k) + " = " + v + (note.empty() ? "" : "  # " + comment(std::string(note))) + "\n";
   };
-  o += "# Frozen by GD Compare for " + comment(s.character_name) + " (level " + std::to_string(s.level) + ") from " +
+  o += "# Frozen by GrimCompare for " + comment(s.character_name) + " (level " + std::to_string(s.level) + ") from " +
        comment(chosen.name.empty() ? "the generic preset" : chosen.name) + (st ? ", stage " + comment(st->name) : "") + ".\n";
   o += "# The settings in use at that moment, with the main skills written out. Auto uses this file for this\n";
   o += "# character only ([match] character); edit it freely, delete it to go back to Auto. Freezing again\n";

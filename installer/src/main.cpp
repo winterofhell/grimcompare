@@ -1,4 +1,4 @@
-// gdcompare-setup: installs GD Compare into the folder Grim Dawn runs from and writes build presets.
+// gdcompare-setup: installs GrimCompare into the folder Grim Dawn runs from and writes build presets.
 // usage: gdcompare-setup [--plain] [--payload DIR] [--game DIR] [--wizard]
 //        gdcompare-setup launch-options add|remove [--steam DIR] [--game-folder DIR]   (scripts/deploy.sh)
 #include <algorithm>
@@ -186,7 +186,7 @@ bool run_plan(Mode mode, const Game& g, const std::string& folder, const Payload
   if (mode == Mode::kInstall) {
     after_install(g, folder);
   } else {
-    ui::wrap(tr("\nGD Compare is removed. Your own presets and backups (GDCompare.backup) are kept."));
+    ui::wrap(tr("\nGrimCompare is removed. Your own presets and backups (GDCompare.backup) are kept."));
 #ifndef _WIN32
     ui::line(g.source.starts_with("Steam") ? tr("You can remove dinput8=n,b from the Steam launch options.")
                                            : tr("You can remove dinput8=n,b from WINEDLLOVERRIDES in your launcher."));
@@ -225,7 +225,7 @@ int launch_options_cli(int argc, char** argv) {
 }
 
 int run(const Options& o) {
-  ui::title(fmt(tr("GD Compare {} setup"), {std::string(kVersion)}));
+  ui::title(fmt(tr("GrimCompare {} setup"), {std::string(kVersion)}));
   ui::wrap(tr("Installs the item comparison mod into your Grim Dawn folder and sets up how it scores items for your build. "
               "It never touches your saves or the game's own files, and asks before it writes anything."));
 
@@ -238,7 +238,7 @@ int run(const Options& o) {
   if (!game) return 1;
   std::string folder = default_folder(game->root);
   if (folder.empty()) {
-    ui::warn(tr("This Grim Dawn has no x64 or compat folder with Grim Dawn.exe. GD Compare needs the 64-bit game."));
+    ui::warn(tr("This Grim Dawn has no x64 or compat folder with Grim Dawn.exe. GrimCompare needs the 64-bit game."));
     return 1;
   }
   if (o.wizard_only) return wizard(*game, folder, payload_dir) == WizardEnd::kFailed ? 1 : 0;
@@ -248,9 +248,9 @@ int run(const Options& o) {
     const bool installed = !read_manifest(target).empty();
     std::vector<ui::Item> items;
     std::vector<int> actions;  // 0 install, 1 wizard, 2 uninstall, 3 folder, 4 quit
-    if (payload) items.push_back({installed ? tr("Update or repair GD Compare") : tr("Install GD Compare"), ""}), actions.push_back(0);
+    if (payload) items.push_back({installed ? tr("Update or repair GrimCompare") : tr("Install GrimCompare"), ""}), actions.push_back(0);
     items.push_back({tr("Set up a build preset for a character"), tr("the build wizard")}), actions.push_back(1);
-    if (installed) items.push_back({tr("Uninstall GD Compare"), ""}), actions.push_back(2);
+    if (installed) items.push_back({tr("Uninstall GrimCompare"), ""}), actions.push_back(2);
     items.push_back({tr("Change folder"), tr("other game folder, or x64 / compat")}), actions.push_back(3);
     items.push_back({tr("Quit"), ""}), actions.push_back(4);
     const int i = ui::choose(fmt(tr("Grim Dawn: {} ({})\nThe mod goes into: {}/\n\nWhat would you like to do?"),

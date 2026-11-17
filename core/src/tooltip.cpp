@@ -867,7 +867,7 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
   if (slots.size() == 2 && std::abs(slots[0].base.percent - slots[1].base.percent) >= preset.negligible_percent)
     best = slots[0].base.percent > slots[1].base.percent ? 0 : 1;
 
-  std::string heading = "GD Compare";
+  std::string heading = "GrimCompare";
   // The game's fonts have no other dash (tooltip.h).
   if (!chosen.name.empty()) heading += " - " + chosen.name;
   if (stage) heading += " - stage " + stage->name;
