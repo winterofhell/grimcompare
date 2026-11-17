@@ -10,8 +10,11 @@ Vendored in `third_party/`, each under its own license (full text next to the so
 | [toml++](https://github.com/marzer/tomlplusplus) | 3.4.0 | MIT (`third_party/tomlplusplus/LICENSE`) | core |
 | [doctest](https://github.com/doctest/doctest) | 2.4.11 | MIT (`third_party/doctest/LICENSE.txt`) | tests |
 
-Not included in this repository: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
-(MIT, by ThirteenAG) is downloaded by `scripts/deploy.sh` at a pinned release and hash.
+[Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) v9.7.4 (MIT, by ThirteenAG,
+`adapter/ual/LICENSE`) is not in this repository: `scripts/deploy.sh` and `scripts/package.sh` download it at a
+pinned release and hash, and the release zip ships it as `payload/dinput8.dll`.
+
+The release zip has these license texts in `licenses/`.
 
 Grim Dawn is a trademark of Crate Entertainment. This project is unofficial and not affiliated with or
 endorsed by Crate Entertainment. No game files are included.

@@ -4,6 +4,7 @@
 #   bin/gdcompare-setup.exe        Windows x64, static CRT
 #   bin/gdcompare-setup-linux      Linux x86-64, static
 #   payload/                       GDCompare.asi, dinput8.dll (UAL v9.7.4), dinput8.ini, presets/, catalog/
+#   licenses/                      license texts of the third-party code in bin/ and payload/
 # Runs inside nix-shell (re-enters it if needed); needs the xwin splat (docs/BUILD.md).
 set -euo pipefail
 cd "$(dirname "$(realpath "$0")")/.."
@@ -22,7 +23,7 @@ cmake --workflow --preset setup-linux
 fetch_ual "${XDG_CACHE_HOME:-$HOME/.cache}/gdcompare"
 
 rm -rf "$OUT" "$OUT.zip"
-mkdir -p "$OUT/bin" "$OUT/payload/presets" "$OUT/payload/catalog"
+mkdir -p "$OUT/bin" "$OUT/payload/presets" "$OUT/payload/catalog" "$OUT/licenses"
 cp installer/launchers/install.bat installer/launchers/install.sh README.md CHANGELOG.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 cp build/setup-win/installer/gdcompare-setup.exe "$OUT/bin/"
 cp build/setup-linux/installer/gdcompare-setup "$OUT/bin/gdcompare-setup-linux"
@@ -31,6 +32,11 @@ cp "$UAL_DLL" "$OUT/payload/dinput8.dll"
 cp adapter/ual/dinput8.ini "$OUT/payload/"
 cp presets/*.toml "$OUT/payload/presets/"
 cp catalog/builds.toml "$OUT/payload/catalog/"
+cp adapter/ual/LICENSE "$OUT/licenses/UltimateASILoader.txt"
+cp third_party/minhook/LICENSE.txt "$OUT/licenses/MinHook.txt"
+cp third_party/miniz/LICENSE "$OUT/licenses/miniz.txt"
+cp third_party/nlohmann/LICENSE.MIT "$OUT/licenses/nlohmann-json.txt"
+cp third_party/tomlplusplus/LICENSE "$OUT/licenses/tomlplusplus.txt"
 
 # The static Linux binary runs.
 "$OUT/bin/gdcompare-setup-linux" --version
