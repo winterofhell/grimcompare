@@ -1,7 +1,5 @@
 #pragma once
-// Item stats include relic and augment; each component's own getter output is subtracted or added per row. A
-// component's flat damage is not in its own stats but in the parent's offensive_damage, so it is matched by value
-// from the component's record. Absorption rows are left alone (averaged per item, stat_model.cpp).
+// Moves each component's getter output between items (§13.10).
 #include <string>
 #include <vector>
 
@@ -13,12 +11,11 @@ namespace gdc::components {
 // An artifact keeps its own completion bonus.
 snap::Item strip(const snap::Item& it, const arz::Database* db, std::vector<std::string>& notes);
 
-// The relic's completion bonus record moves with it; its rolled stats do not (not traced).
+// Completion bonus moves with the relic; rolled stats untraced.
 snap::Item attach(const snap::Item& base, const snap::Item& donor, bool with_relic, bool with_augment,
                   const arz::Database* db, std::vector<std::string>& notes);
 
-// Type 8 is split by record class: WeaponArmor_Shield / WeaponArmor_Offhand, the only two in 1.3.1.1. Weapon
-// types are not mapped.
+// Type 8 by class: Shield or Offhand; weapons unmapped.
 bool fits(const std::string& component_record, const std::string& item_record, int item_type,
           const arz::Database& db);
 

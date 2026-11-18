@@ -9,7 +9,11 @@ add_library(gdc_setup STATIC
   src/sha256.cpp
   src/steam.cpp
   src/tui.cpp
+  src/tui_menu.cpp
+  src/tui_term.cpp
   src/wizard.cpp
+  src/wizard_custom.cpp
+  src/wizard_save.cpp
 )
 target_link_libraries(gdc_setup PUBLIC gdc_core)
 target_include_directories(gdc_setup PUBLIC src)

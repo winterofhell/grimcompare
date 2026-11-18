@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr std::uint32_t kMagic = 0x58434447;  // "GDCX"
-constexpr std::uint32_t kMaxString = 1024;    // sanity bound on name / tag length, not a game limit
+constexpr std::uint32_t kMaxString = 1024;    // sanity bound on name / tag length, not game's
 
 class Reader {
  public:

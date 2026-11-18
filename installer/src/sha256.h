@@ -1,5 +1,5 @@
 #pragma once
-// SHA-256 (FIPS 180-4) for the install manifest: the same hex digests as sha256sum, which deploy.sh writes.
+// SHA-256 (FIPS 180-4), matching sha256sum hex as deploy.sh writes.
 #include <filesystem>
 #include <optional>
 #include <span>

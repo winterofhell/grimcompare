@@ -1,6 +1,5 @@
 #pragma once
-// .arz v3 layout: re/tools/arz.py (parsed every record of 1.3.1.1 database.arz and GDX1..3). Records are LZ4
-// blocks of {u16 type, u16 count, u32 key string index, count x 4-byte values}. Never reads out of bounds.
+// .arz v3 reader (re/tools/arz.py, §13.5); never reads out of bounds.
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -26,8 +25,7 @@ struct Field {
   std::vector<std::string> strings;
 };
 
-// A record's fields sorted by name (std::map's order), found through a hash index: a scored tooltip looks up
-// fields ~10^6 times and a tree walk's string compares were a fifth of its time.
+// Fields sorted by name, hash-indexed for speed (§13.5).
 class Fields {
  public:
   using value_type = std::pair<std::string, Field>;
@@ -41,13 +39,13 @@ class Fields {
   const Field& at(std::string_view key) const;  // throws std::out_of_range
   void insert_or_assign(std::string key, Field f);
   void emplace(std::string key, Field f);  // keeps an existing field, as std::map
-  // Takes fields in any order; a later one of the same name wins.
+  // Fields in any order; a later duplicate name wins.
   void assign(std::vector<value_type> v);
 
  private:
   void reindex();
   std::vector<value_type> items_;
-  std::vector<std::uint32_t> slots_;  // index + 1 into items_, 0 empty; size a power of two
+  std::vector<std::uint32_t> slots_;  // index + 1 into items_, 0 empty; power-of-two size
 };
 
 struct Record {
@@ -62,7 +60,7 @@ struct Record {
 class File {
  public:
   explicit File(std::vector<std::byte> data);
-  // Memory-mapped so the 175 MB of databases stay file-backed, out of the game's private memory.
+  // Memory-mapped: 175 MB stays file-backed, outside game private memory.
   static File open(const std::filesystem::path& path);
 
   bool contains(std::string_view name) const { return index_.contains(std::string(name)); }
@@ -82,19 +80,17 @@ class File {
   std::unordered_map<std::string, Entry> index_;
 };
 
-// A later file replaces a record entirely. Verified: skill bonuses only in the GDX2/GDX3 copies show up in
-// augmented skill levels (docs/DATABASE.md).
+// A later file replaces a whole record (docs/DATABASE.md).
 class Database {
  public:
   void add(File f) { files_.push_back(std::move(f)); }
   static Database open_game(const std::filesystem::path& game_dir);
 
-  // Cached for the database's lifetime (a decode is ~60 us). Do not add() after a lookup.
+  // Cached for the database's lifetime; no add() after a lookup.
   const Record* record(std::string_view name) const;
   std::size_t files() const { return files_.size(); }
 
-  // What make() computes from `r` (a record() result) and `n` alone, kept for the database's lifetime: scoring
-  // derives the same buff and bonus stats from the same records many times per tooltip.
+  // make()'s result per record and name, cached: scoring repeats it.
   template <class T, class F>
   const T& derived(const Record& r, std::int64_t n, F make) const {
     static constexpr char tag = 0;  // one per T and make()
@@ -104,7 +100,7 @@ class Database {
 
  private:
   const void* find_derived(const void* tag, const Record* r, std::int64_t n) const;
-  // A racing computation of the same key is dropped; the first one stays.
+  // A racing computation of the same key is dropped.
   const void* add_derived(const void* tag, const Record* r, std::int64_t n, std::shared_ptr<const void> v) const;
   struct Cache {
     // shortcut: spin lock instead of std::mutex, which faults on the Proton prefix's 2016 msvcp140.dll

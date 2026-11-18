@@ -1,6 +1,5 @@
 #pragma once
-// Swap model on engine numbers: an item's getter output already includes relic, augment, affixes and rolls.
-// Calibrated against the level-96 swap fixtures.
+// Swap model on engine getters, calibrated on level-96 fixtures.
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -38,17 +37,15 @@ struct Sheet {
 
 std::set<std::string> item_records(const snap::Item& it);
 
-// (sum of item armor x combatRegion*Chance + waist armor) x (1 + Protection modifier / 100).
-// Inferred: matches the level-96 sheet (1408); the waist term is a fit.
+// Armor formula inferred from the level-96 sheet (§13.19).
 double armor(const snap::Snapshot& s);
 
-// CombatManager::PickRegion 0x120D90 picks one region per attack; an armor entry protects its own region, or all
-// without one (AbsorptionProtection::Execute 0x118400). Chances sum to 1.
+// Region chances, as PickRegion 0x120D90; they sum to 1.
 std::vector<std::pair<double, double>> region_armor(const snap::Snapshot& s);
 
 Sheet sheet(const snap::Snapshot& s);
 
-// gameengine.dbr armorDefensiveAbsorption (70 in 1.3.1.1). Snapshot's type-39 total first, else the database.
+// armorDefensiveAbsorption: snapshot type 39 total, else database.
 double base_absorption(const snap::Snapshot& s, const arz::Database* db);
 
 struct SetCount {
@@ -64,7 +61,7 @@ struct SkillLevel {
   std::uint32_t before = 0, after = 0;
 };
 
-// Its new level is in `after.skills`, so the score's main skills still see it.
+// Its new level is in `after.skills` for main skills.
 struct InactiveLevel {
   std::string record;
   std::string parent;
@@ -86,20 +83,19 @@ struct Prediction {
   std::vector<std::string> warnings;
   std::vector<InactiveLevel> inactive;
   std::vector<Granted> granted;
-  // GetCurrentLevel stays 0 for skills with no points, so they add nothing.
+  // Skills with no points stay level 0 and add nothing.
   std::vector<SkillLevel> unused;
 };
 
-// `db` may be null; it supplies skill / mastery grants and max-resist bonuses.
+// `db` may be null; it supplies grants and max-resist bonuses.
 Prediction swap(const snap::Snapshot& s, const snap::Item& candidate, int location, const arz::Database* db);
 
-// The snapshot does not show whether such a buff runs, so calibration uses this to tell a buff cast between
-// two snapshots from a swap error.
+// Tells a buff cast between snapshots from a swap error.
 std::optional<Prediction> toggle_buff(const snap::Snapshot& s, const snap::Skill& sk, bool on, const arz::Database& db);
 
 bool self_buff(const arz::Record& r);
 
-// Class skills only (records/skills/playerclass*): the skill list also holds consumables. Recharge 0: none.
+// Class skills only: the skill list also holds consumables.
 struct BuffTiming {
   double duration = 0, recharge = 0;
 };
@@ -108,8 +104,7 @@ std::optional<BuffTiming> buff_timing(const snap::Skill& sk, const arz::Database
 // Skill_PassiveOnLifeBuffSelf (willtolive1), Skill_PassiveOnHitBuffSelf (fightingspirit1): scored like procs.
 bool triggered_buff(const arz::Record& r);
 
-// Takes every temporary buff out of the totals so a character scores the same whether or not a buff ran at
-// capture. Needs schema 8; older snapshots come back unchanged. Idempotent.
+// Removes temporary buffs from totals; needs schema 8. Idempotent.
 snap::Snapshot expected(const snap::Snapshot& s, const arz::Database* db);
 
 using Contribution = std::map<std::tuple<fields::Kind, int, bool>, double>;
@@ -117,14 +112,14 @@ using Contribution = std::map<std::tuple<fields::Kind, int, bool>, double>;
 struct BuffEffect {
   Contribution stats;
   std::vector<snap::Conversion> conversions;
-  // Listed in the Shift view only: the snapshot's skill attribute totals are as captured.
+  // Shift view only: skill attribute totals stay as captured.
   std::map<std::string, double> unmodeled;
   bool empty() const { return stats.empty() && conversions.empty(); }
 };
 BuffEffect buff_effect(const arz::Record& stats, std::uint32_t level);
 BuffEffect buff_effect(const snap::Snapshot& s, const snap::Skill& learned, const arz::Database& db);
 
-// `out` must be a copy of `s` or a previous result for the same `s`: only totals are rewritten.
+// `out`: copy of `s` or prior result; only totals rewritten.
 void buffed(const snap::Snapshot& s, std::span<const std::pair<const BuffEffect*, double>> buffs,
             const arz::Database& db, snap::Snapshot& out);
 

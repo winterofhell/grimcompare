@@ -22,7 +22,7 @@ std::string Labels::resist(int type) const {
   if (s.empty()) return type == 9 ? "Vitality" : internal;  // tagDamageBaseVitality
   constexpr std::string_view kLong = " Resistance";
   if (s.ends_with(kLong)) s.replace(s.size() - kLong.size(), kLong.size(), " Resist");
-  // The game wrapped "Poison & Acid" in 0.9.2; "Poison/Acid" is one word.
+  // 0.9.2 wrapped "Poison & Acid"; "Poison/Acid" never wraps.
   if (const auto amp = s.find(" & "); amp != std::string::npos) s.replace(amp, 3, "/");
   return s;
 }

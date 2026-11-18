@@ -1,5 +1,5 @@
 #pragma once
-// Two snapshots that differ only in equipment, replayed through model::swap and checked against the engine.
+// Equipment-only snapshot pairs replayed through model::swap, checked against engine.
 #include <string>
 #include <vector>
 
@@ -19,11 +19,11 @@ struct Check {
   std::vector<std::string> warnings;
   std::vector<std::string> notes;
   std::vector<Diff> diffs;            // empty = pass
-  // The pair passes when one learned timed buff switching explains every diff.
+  // Passes when one learned timed buff toggling explains every diff.
   std::string buff;
 };
 
-// Tolerances: integer sheet values +-1, resists +-0.1, regen +-0.1/s, run speed +-0.1%.
+// Tolerances: integers +-1, resists and regen +-0.1, run speed +-0.1%.
 Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database* db);
 
 std::string swapped(const Check& c, const snap::Snapshot& before, const snap::Snapshot& after);

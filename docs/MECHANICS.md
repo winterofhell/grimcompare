@@ -193,3 +193,685 @@ Flat and % ability go into the ability equation as for a player; total and per-t
 - **Absorption** of a timed buff: × (1 − u × `damageAbsorptionPercent`/100) × (1 − u × min(1, `damageAbsorption` / enemy hit)). **Heals and absorb shields** (`skillLifePercent` × Life + `skillLifeBonus`; `damageAbsorption` of a buff without a duration, once per use): life per second against the life lost per second (`incoming_hits_per_sec` × enemy hit × damage taken per attack), at most 90% of it. **unverified:** flat absorption per hit vs pool, where the engine applies either (§9 stage 8), the shields' `…DamageQualifier` types (ignored).
 - Self buff = record class `Skill_BuffSelfDuration`, `Skill_BuffSelfShield`, `Skill_GiveBonus`, `Skill_PassiveOnLifeBuffSelf`, `Skill_PassiveOnHitBuffSelf`, `Skill_PassiveOnHitBuffShield`, or a `buffSkillName` record of class `SkillBuff_Passive`, and their subclasses in the engine's class tree (0.9.9: `Skill_BuffSelfImmobilize` Blade Barrier is a timed `Skill_BuffSelfDuration`; `Skill_PassiveOnCritBuffSelf` is an on-hit buff). **Audit (0.9.9, all ten masteries' buff skills against the DB):** `Skill_PassiveOnCritBuffSelf` (Inquisitor and Berserker `passive02`) is triggered by the owner's crits (**engine:** `Character::AttackTarget` → `SkillManager::OnCriticalAttack` 0x535900 → vtable +0x1F8 `IsSkillOnCritActive` 0x5021E0 → +0x1A8 `OnHitActivation`): rate = attacks × crit chance × `onHitActivationChance`. `Skill_BuffRadiusToggled` auras keep their flat damage on the `buffSkillName` record when it is a `SkillBuff_Passive` (Presence of Virtue, Aura of Conviction, Elemental Infusion, Blast Shield, Nature's Blessing, Amatok's Pact; Aura of Censure's is a `SkillBuff_Debuf`, left out). `Skill_ProjectileModifier` (Blackwater's RR) counts through its parent only, not as a skill of its own. Applies to item, set and devotion effects alike. **Low-health buffs** are up when needed: uptime = min(1, threshold / 100) × min(1, per_sec / `low_health_per_sec`) — the threshold (`lifeMonitorPercent` / the controller's `triggerParam`) is the share of a fight's danger they cover (design choice). **Shortcuts:** buff fields outside `gdc::fields` (retaliation, mana cost, racial) add nothing. A buff up at snapshot time is removed first (§6 buff normalization).
 - Parts in `top:`: `Proc crowd control`, `Proc absorb / heal`; buff stats show under the part they move. Tests: `tests/test_sanity.cpp` "granted …".
+
+## 11. Engine notes behind the code
+
+Longer explanations moved out of code comments. Code points here as "MECHANICS §11.x".
+
+### 11.1 Elemental damage (`score_conversion.cpp`)
+
+Elemental damage is a third each of Cold, Fire and Lightning: ConvertCombatAttributes 0x1199F0 makes three entries (types 5, 6, 8) at 1/3 (const 0x7A8010) for a conversion into Elemental, and ConvertDamage 0x119ED0 treats Elemental as those three types. So it is split before % bonuses and conversions apply.
+
+### 11.2 Conversion order (`score_conversion.cpp`)
+
+Skill::CollectCombatParameters 0x499E40: the skill's own conversions first (CollectLocalConversionAttributes 0x496F00: its record's pairs, then its modifiers', 0x49A3B7), then the character's (0x49A5D7: SkillManager::GetConversionAttributes, Character::GetEquipConversionAttributes, vt+0x708 — the same calls as SkillManager::CollectAvailableConversionAttributes 0x536400, which fills the snapshot in that Data order). ConversionAttributeAccumulator::Apply 0x17DB20 runs ConvertDamage once per Data, i.e. per source type in the order AddAttribute 0x17D890 first saw it; Weigh 0x17D520 only scales, never reorders. ConvertDamage 0x119ED0, for one source type: an entry matches its own type, BasePhysical matches Physical, Elemental matches Cold / Fire / Lightning; every pair takes its weighed percent of the same entry amount (a source type over 100% has every pair scaled by 100 / total); DoT is not moved into Pierce, Chaos or Aether (0x119FE0: those pairs are skipped, the others keep their weighed percent); the entry is then scaled to 100 - the moved percent, so the next source type that matches it (Fire after Elemental, or Elemental after Fire) works on the rest. New entries are flagged (byte +0xF, 0x119E44) and never converted again, in either level.
+
+### 11.3 Conversion warnings (`score_conversion.cpp`)
+
+The build's types: >= 10% of its main skills' damage (design choice). A gear conversion acts only on damage no conversion made (convert(): new entries are not converted again), so the source side is read with the gear conversions taken out, the target side with them. Unknown (no database, no main skills): every type counts.
+
+### 11.4 Weapon and flat damage (`score_damage.cpp`)
+
+- `offensiveBase<Type>Min / Max` is DamageAttributeAbsBase_*: elemental base damage that shares its type with flat damage in the item's getter output.
+- Flat damage applies to weapon attacks only (community). Passives, toggles and auras count (Skill_BuffRadiusToggled keeps its stats on the buffSkillName record: presenceofvirtue1_buff.dbr). Skill_BuffSelfDuration is a toggle subclass; with a duration it is a timed buff. A timed buff's flat damage (bloodofdreeg1_buff.dbr poison) is left out. A SkillBuff_Debuf (auracensure1_buff.dbr) is not a passive buff record.
+- Set bonus flat damage: Character::ContributeMiscOffensiveDamageAttributes 0x6AA80.
+- Design choice: weapon base damage is not compared (the game's tooltip does that), so both sides use the mean of their R Hand bases. That keeps the base identical in both directions. Dual wield's second weapon base is not modeled.
+- DoT duration: only the record value of DamageAttributeDurMod_* — no affix rolls, no skill / devotion parts, so large values overstate the ratio. Revisit when the adapter captures GetTotalDurationModifierType.
+
+### 11.5 Attribute bonus (`score_damage.cpp`)
+
+combatformulas.dbr: physical / pierce + Cunning/245, physical DoT + Cunning/215, magical + Spirit/215, magical DoT + Spirit/200; damage = base x (1 + % / 100 + this). Checked in game (lvl16-wp-lhand-* fixtures): Poison Nova 21/s x (1 + 0.93 + 198.22 / 200) = 61 x 5 s = 305 shown (§5).
+
+### 11.6 Skill pace (`score_damage.cpp`)
+
+- Design choice: cast whenever ready. Recharge x (1 - CDR) as in Skill::GetCooldownTime, capped by attack / cast speed read as uses per second (unverified; 0 = no cap).
+- Attack or cast speed by the skill's class as Player::CalculateSkillDps (classes::speed), whatever weapon damage % its modifiers add (Vile Eye on Dreeg's Evil Eye, shieldhammer1's 100%). A class outside those branches (SkillSecondary_*, unknown): attack speed with weapon damage, else cast speed (unverified).
+- Uses per second at most. Cast class with a hit animation: cast speed x frame rate / frames, as CalculateSkillDps stores in SkillAttackInfo+0x2C. The adapter captures a hit animation (schema 10) for SkillActivatedSpell / BuffSelf only. Otherwise the sheet's attack / cast speed is read as uses per second (unverified).
+- Conversion memo: reused across a side's buff states. Its notes come only from the first conversion, as callers keep one copy of each note; mains convert before hits, as skill_damage() runs before extra_damage().
+
+### 11.7 Pets and leech (`score_side.cpp`)
+
+- Pet bonuses: what GameEngine::ContributePetBonus* hands a Class Pet (effects.h): the petBonusName records of equipped items with their affixes and components (level 1) and of learned skills, devotions and item skills with points (own or buffSkillName record, at their level). Timed buffs' and set bonuses' pet bonuses are left out (sets lists them unscored).
+- A Class Pet's hit, experimental (§4): per type x (1 + (pet bonus % + the pet's own passives' %) / 100 + its attributes as combatformulas.dbr for the player), and the expected hit at its OA against the enemy DA. The pet's level is the player's; Cunning / Spirit / OA come from its characterAttributeEquations record (DB equations of charLevel) plus pet bonuses. The formulas are the player's (unverified for pets); no crit damage or DoT duration bonuses, no conversions.
+- PetPlayerScaling pets attack with the owner's combat parameters (effects::summoned), like procs.
+- Gear ADCtH only reaches skills with weapon damage, x min(weaponDamagePct / 100, 1): SkillManager::CollectAvailableOffensiveDamageAttributes 0x535FB0 adds GetEquipArmorDamageAttributes only from Skill::CollectCombatParameters 0x499E40 when weapon % > 0, and DamageAttributeAbs_LifeLeech::AddDamageToAccumulator 0x19A810 takes min(scale, 1.0). So spells get none. The skill's and its modifiers' own ADCtH count in full (unverified: Skill_Modifier passes its caller's scale).
+- A Skill_WPAttack_* replaces a weapon attack, so only its excess over 100% counts; the replaced attack is taken as the default attack. A pet's weapon is its own (effects::Effect::weapon); the pet record stands for its plain attack.
+
+### 11.8 Skill levels
+
+- `GetCurrentLevel` (0x4909C0) is `level ? min(level + augmented, cap) : 0` outside devotions. The cap is
+  SkillProfile+0x150 = max(skillUltimateLevel, skillMaxLevel) (`SkillProfile::LoadProfile` 0x545A27).
+- Grants: `SetSkillLevelAugment` (0x5375B0) by record; `SetMasteryAugment` (0x5373D0) to the mastery and every
+  skill whose `GetMasteryId` (Skill+0x13C) matches; `SetAllSkillAugment` (0x537230) to every skill but one the
+  caller names. That exclusion is not traced, so the model warns when +all skills changes.
+- The mastery bar takes no item bonus: with +1 Occultist (d016_relic) every Occultist skill rose by 1 while
+  `_classtraining_class03.dbr` stayed. Its record has no skillMaxLevel / skillUltimateLevel.
+- Skill_BuffRadius skills take their cap from the buffSkillName record, assumed to be what `GetCurrentLevel`'s
+  profile (vt+0x578) reads.
+- `AddModifierDefenseAttributes` (0x494970) adds only Skill_Modifier objects. Whether Skill_Transmuter is one is
+  not traced, so transmuters with stats are not modeled.
+- An item skill modifier adds through the skill's own collector: possession1's captured passive has attack speed
+  modifier 16, two sword1h_b013_possession.dbr at 8 each (one per dual-wielded b013 sword); possession1's own
+  record has none (auto-snapshot 2026-11-14).
+- The engine's numbers must equal record + attached modifiers. When they differ a conditional part is in play and
+  the record delta is not trusted.
+
+### 11.9 Attributes and defense totals (`stat_model_derive.cpp`)
+
+- playerlevels.dbr: lifeIncrement 20, lifeIncrementDexterity 8, lifeIncrementIntelligence 12, manaIncrement 16 per
+  8 attribute points. They apply to attribute totals, bonuses included: the poison swap fixture shows +12.1 Spirit
+  -> +18.15 Life, +24.2 Energy.
+- Absorption (type 39) is averaged over entries with a positive `GetTotalAbsorption` (`GetTotalDefenseType`
+  0x11A90E..0x11A954); other defense types sum.
+- Every armor entry carries `GameEngine::GetArmorDefensiveAbsorption`: `BaseProtectionAbsorption::LoadFromTable`
+  (0x204420) copies GameEngine+0x1328 (gameengine.dbr armorDefensiveAbsorption, `LoadFromDatabase` 0x2C8830);
+  `AddToAccumulator` (0x204BF0) builds it only for armor > 0; `GetTotalDefenseType(39)` (0x11A880) averages them.
+  So the total is that constant while any armor exists, else 0.
+
+### 11.10 Item-granted skills (`stat_model_granted.cpp`)
+
+- Removed: its captured contribution (schema 6), and its damage % from its record when on. Added: only a
+  Skill_Passive without weapon flags at a constant level. Procs, buffs, pets, weapon-gated passives and level
+  equations are reported, not scored.
+- `SkillManager::GetCharAttributes` (0x52F920) checks only the level, so a passive that captured nothing adds only
+  damage %.
+
+### 11.11 Procs, cooldowns and pets (`effects.cpp`, `effects_pets.cpp`)
+
+- Cooldown: `Skill::GetCooldownTime` 0x4917E0 skips CDR only when Skill+0x2F9 (`IsItemSkill` 0x30AD10, set by
+  `SkillManager::AddItemSkills` 0x538BC0 and buff replicas) or Skill+0x2FC (potionModifier) is set. Devotion powers
+  cast via `SkillAutoCastController::AppraiseAndExecute` 0x523440 -> `GetCooldownTime`, so they get CDR. Item and
+  set skills (`own` false) keep the DB value. Devotion powers keep cooldown and templateAutoCast on the buff record
+  (tier2_32d_skill.dbr).
+- `Skill::GetSkillModifierData` 0x49AF90 (from `GetCooldownTime` 0x4917E0, `GetPetLimit` 0x493880,
+  `GetSpawnObjectTimeToLive` 0x493660): the skill's profile plus its learned (Skill+0x140) and item (Skill+0x158)
+  modifiers', added by `SkillProfile_Modifiers` 0x54ACF0. `e.modifiers` holds both.
+- Random triggers: expected time between casts = recharge + 1 / (chance x rate).
+- skillChanceWeight is read as a percent of weapon attacks ("x% Chance to be Used").
+- On crit: `Character::AttackTarget` -> `SkillManager::OnCriticalAttack` 0x535900: every skill whose vt+0x1F8
+  (`IsSkillOnCritActive` 0x5021E0) is true gets OnHitActivation, so the owner's own crits trigger it.
+- Design choice: cast whenever ready; kept up with no cooldown or when CDR takes it all.
+- itemSkillLevelEq: a number or "itemLevel/4+1" (303 records in 1.3.1.1), rounded down, using the base item's
+  itemLevel. Checked on one item: a03_torso001b (itemLevel 11) "of Balanced Steel" shows Ring of Steel at level 3.
+- Engine subclasses count too: Skill_ProjectileModifier blackwater3 (RR) belongs to blackwater1.
+- Pet estimate (experimental, MECHANICS §4), per pet: the plain attack (attackSkillName, else the pet's weapon) at
+  characterAttackSpeed, a spell class at characterSpellCastSpeed, x (1 + pet bonus %) for Class Pet, read as uses
+  per second like the player's sheet speeds (unverified; `Character::GetAttackSpeed` 0x692E0 is type 15 x
+  (1 + type 17) for every Character). specialAttack<n>SkillName: chance / max(specialAttack<n>Delay, cooldown) per
+  second (design reading of the fields); its share of the pet's time comes off the plain attack. Other attack
+  skills with a cooldown: once per cooldown. A preset pet_attack_rate replaces the plain attack's rate.
+- Transmuters: `GetSpawnObjectTimeToLive` 0x493660: the last modifier with a non-zero vt+0x6F0 replaces the sum;
+  only `Skill_SpawnPetTransmuter` 0x509F40 has one (modSpawnObjectsTimeToLive[level - 1]), Skill_Modifier's is 0.
+  `Skill::AddModifierPetChanges` 0x494CE0: its modSpawnObjects replaces the pet, indexed by the summon's level
+  (min(level - 1, size - 1), 0x50A631; summon_blightbeast1b: max level 1, 26 entries).
+- Live pets (snapshot schema 12): the engine's own speeds, shifted by the pet bonus change since the capture
+  (`GetTotalCharModifier` is the % in them; the cap is not re-applied to the shift), and per skill the hit
+  animation, so uses per second = speed x frame rate / frames, as the engine times the player's spells (§5 "Uses
+  per second"). The pet's own weapon: its SkillManager's default skill (`GetDefaultSkillId(0)`) holds the animation.
+
+## 12. Adapter reads (`adapter/src/`)
+
+### 12.1 Snapshot layout reads (`snapshot_*.cpp`)
+
+Runs on the game thread in the `GameEngine::Update` detour. Calls only exported getters, exported accumulator
+ctors / dtors on our own buffers, item getters through vtable slots checked against the exported vftables, and the
+unexported object-id lookup found by `gdc::scan`. Layout reads and their sources:
+
+```text
+  Character+0x5D0  mem::vector<EquipManagerContainer>: Character::GetAttachedItems (0x63B90)
+  EquipManagerContainer = 12 bytes {u32 id, EquipLocations, flags}: its ctor (0x288670) and
+                   EquipManager::GetItemId (0x2847D0, stride 12, location at +4)
+  mem::vector = {T* begin, T* end, T* cap}: EquipManager::GetItemId reads begin/end at +0/+8
+  Item+0x538       ItemReplicaInfo: Item::GetItemReplicaInfo (0x3244D0)
+  ItemReplicaInfo  string/u32 offsets: ItemReplicaInfo::StreamProperties (0x585840) / ReadProperties
+  std::string      MSVC x64 layout {buf[16] | ptr, size @0x10, capacity @0x18}
+  CharAttributeAccumulator values float[58] @0, modifiers float[58] @0xE8: AddValue / GetModifier
+  CombatAttributeAccumulator vectors of CombatAttribute* @0x08/0x20/0x38/0x50: its dtor/Clear
+  CombatAttribute vtable +0x10 = GetType: CombatAttributeAccumulator::GetTotalDefenseType
+  CombatAttribute vtable +0x20 GetDamageType, +0x78 GetMinMaxValues, +0xF0 GetDuration: the
+                   CombatAttributeAbsDamage / DurDamage vftables (0x7347D8 / 0x734568); the
+                   CombatAttribute base slots are stubs (ret / return 0), so any subclass is safe
+  CombatAttributeAbsDefense +0x2C = cap bonus: its ModifyDefenseCap (vt+0xA0, 0x113AE0) adds to it,
+                   its Process (0x115370) caps at Character::GetDefenseAttributeCap() + [+0x2C]
+  SkillAttributeAccumulator float[5] at +0x08 value / +0x1C chance value / +0x30 modifier /
+                   +0x44 chance modifier: AddValue / AddChanceValue / AddModifier / AddChanceModifier
+                   (0x51F160..0x51F190); ctor clears 0x50 bytes from +8
+  ConversionAttributeAccumulator = mem::vector<Data*>; Data {u32 from; mem::vector<{u32 to, float pct}>
+                   at +8}: ConversionAttributeAccumulator::AddAttribute (0x17D890)
+  Skill+0x158      mem::vector of 0x30-byte {u32 modifier id, EquipLocations, std::string set,
+                   bool relic @0x28, bool augment @0x29}: Skill::AddToItemSkillModifiers (0x48FD30),
+                   Skill::GetItemSkillModifiers (0x48FFD0)
+  Object vtable +0 = GetClassInfo, RTTI_ClassInfo+0x10 = parent: Character::GetEquipCharAttributes
+  CombatDisplayAccumulator(bool) writes up to +0x8B: its ctor (0x11B980)
+  CombatAttributeDamage_BasePhysical: its +8 type is DamageAttribute_BasePhysical::vt+0x28 = 0
+                   (AddDamageToAccumulator 0x1A0370), for which GetMinMaxValues (0x117500) writes
+                   nothing; GetValues (vt+0x110) returns {rolled, min, max, ?, ?} (+0x20/+0x24/+0x28/+0x48/+0x2C)
+  Character+0x7A8  CombatManager PTH table (sources: §13.18)
+  CombatDisplayAccumulator vftable: 8 slots (0x6D3CF8, CombatAttributeAccumulator's follows at
+                   0x6D3D38); +0x18 GetChanceMultiplier, +0x28 SetGlobalChance writes +0x88 (0x16A40);
+                   GetChanceMultiplier (0x11BA10) reads +0x88; the dtor (0x11B9F0) rewrites the vptr
+  CombatAttributeDefense_AbsorptionProtection +0x28: read by GetTotalReduction (0x1182F0), written
+                   only by Process (0x118370), never by the ctor (0x1182A0): undefined until processed
+```
+
+### 12.2 Tooltip block (`tooltip*.cpp`)
+
+- Threads: the game thread reads items and serves cached blocks, never scores. A miss queues the item and shows
+  "computing..." until the next hover; no engine call to rebuild an open tooltip is traced. The worker thread
+  scores. Any fault or C++ exception turns the block off for the session; the game's own lines are never touched.
+- GameTextLine (ctor 0x313030): 0x40 bytes, +0 GameTextClass, +8 std::u16string, +0x28 bool, +0x30
+  GraphicsTexture*, +0x38 float. `ItemEquipment::GetUIDisplayText` passes false, null, 1.0 (0x33DF35..0x33DF44).
+- Lines are built by the exported GameTextLine ctor and moved in with the engine's push_back
+  (`gdc::scan::line_push_back_call`), so the game owns and frees them: the ctor copies our text into a
+  game-allocated buffer, push_back moves it, nothing is left to free. GameTextLineToString is unused in
+  Game.dll 1.3.1.1.
+- `Item::GenerateSearchText` 0x329370 calls `GetUIDisplayText` (vt+0x458) at +0xB8 for stash search text; that
+  caller is skipped.
+
+## 13. Notes moved from code comments
+
+Longer comments, grouped by source file. The code keeps a short pointer to each section.
+
+### 13.1 `adapter/src/dllmain.cpp`
+
+Loads under the ASI loader, identifies the build, resolves exports. Only a missing required export disables
+(docs/RECON.md §6); an unknown hash just warns.
+Safety rules (crash 2026-11-14, docs/BUILD.md "Safe-mode test"): DllMain only starts one thread; the kill switch
+(GDCompare.disable or GDCOMPARE_DISABLE=1) is checked first; log lines go straight to WriteFile so a crash
+leaves the last step; each step runs under SEH; the vectored handler only logs faults inside this module.
+
+### 13.2 `adapter/src/hooks.cpp`
+
+F10 by default: the game binds F1..F7 (keybindings.txt, DirectInput 59..65), Steam takes F12, KDE takes
+Ctrl+F1..F12 and Alt+F-keys.
+
+### 13.3 `adapter/src/snapshot_character.cpp`
+
+As for an incoming hit with no enemy reduction: ProcessDefense 0x11AB40 runs the modifiers, then each
+entry's Process applies its % and cap. ReductionInfo (0x18 bytes) and DamageScaleInfo (0 = no scaling) are zero.
+
+### 13.4 `adapter/src/snapshot_internal.h`
+
+Item slots in the Object-subobject vftable, as called by Character::GetEquipCharAttributes (*0x498),
+GetEquipOffensiveModifierAttributes (*0x4B0), GetEquipRetaliationModifierAttributes (*0x4C0),
+GetAllDefenseAttributes (*0x4C8); skill / damage / retaliation / conversion slots from the exported
+ItemEquipment vftable. ItemRelic / ItemEnchantment have stubs at 0x4A8 / 0x4B8. Checked in init.
+
+Scale 1.0, as Player::CalculateRetaliationValues 0x3CDE50 passes (const 0x7A8054);
+DamageAttributeAbsBaseElemental::AddDamageToAccumulator 0x18F530 multiplies min / max by it.
+
+Values Skill::CollectWeaponDamage writes inline (0x4991AB..0x499204): +0x84 ModifyProcs 1, +0x85 IncludeProcs 0,
++0x88 GlobalChance 0. Then GetChanceMultiplier 0x11BA10 returns chance x 0.01, so chance stats count at
+their expected value instead of a roll.
+
+AddDamageToAccumulator 0x18F530 multiplies by acc vt+0x18 (chance) and never stores the chance, so each item
+getter also runs with a patched vtable copy returning 1 (raw), 0 (excluded) and the effective chance
+(as 0x11BA45..0x11BA5B). Non-chance stats keep multiplier 1.
+
+Player::CalculateSkillDps calls vt+0x6E0 on an is-a SkillActivated (0x3E09A3) and uses the frames only for an
+is-a SkillActivatedSpell / SkillActivatedBuffSelf (0x3E0BEE..0x3E0CFD). Only objects whose slot holds the
+exported SkillActivated::GetHitCallbackPoint (0x51A310) are called.
+
+ArmorJewelry_Ring::vftable{Object} 0x6D7658 + 0x550 = GetItemType 0x2DE70; ItemEquipment's (0x76F718) =
+Item::GetItemType 0x167E0.
+
+ItemEquipment::AreRequirementsMet 0x343C30 calls vt+0x530 / 0x538 / 0x540 (Str / Dex / Int) and
+Item::AreRequirementsMet 0x326930 vt+0x528 (level); it reads the reduction CharAttributeType ids at these offsets
+(first always, the other two when non-zero).
+
+Character::GetPetPen 0x7E100 (Character+0x2050); PetPen+8 is an MSVC std::list head (PetPen::GetPetOwner 0x3C9B00),
+node {next, prev, u32 pet id @0x10, u32 summoning skill id @0x14, ..., bool released @0x1C}:
+Skill_SpawnPet::KillExtraPets 0x509890.
+
+GameEngine::GetPlayerFolder(Player*) 0x2E2FC8 (1.3.1.2): a set byte at Player+0x4BDD picks MangleBackupPlayerName
+("__" + name, rva 0x61815c) over ManglePlayerName ("_" + name, rva 0x6180ec) for the save folder.
+GetPlayerFolder(Player*) also passes Player+0x4B48: set = main\\ whatever the game mode.
+
+### 13.5 `core/include/gdc/arz.h`
+
+.arz v3 layout: re/tools/arz.py (parsed every record of 1.3.1.1 database.arz and GDX1..3). Records are LZ4
+blocks of {u16 type, u16 count, u32 key string index, count x 4-byte values}. Never reads out of bounds.
+
+A record's fields sorted by name (std::map's order), found through a hash index: a scored tooltip looks up
+fields ~10^6 times and a tree walk's string compares were a fifth of its time.
+
+### 13.6 `core/include/gdc/attribute_names.h`
+
+From Game.dll 1.3.1.1: CharAttributeType / CombatAttributeType from exported class names (re/*.tsv, checked by
+tests/test_attribute_names.cpp; 41, 47, 49 have none). SkillAttributeType: the +8 store in each
+SkillAttributeVal_* / Mod_* ctor (0x51EE70..0x51F050). GameDifficulty: GetGameDifficultyAsPath 0x2D85B0.
+EquipLocations: EquipManager::LocationToString 0x286480. Skill_Type has no string table.
+
+### 13.7 `core/include/gdc/classes.h`
+
+Player::CalculateSkillDps 0x3E06D0 picks the speed by class, in this order: SkillActivatedWeapon (0x3E0B3D),
+SkillActivatedWeaponPool (0x3E0B80) -> CalculateAttackSpeed; Skill_AttackRadiusSpin (0x3E0BB7) -> GetAttackSpeed;
+SkillActivatedSpell (0x3E0BEE), SkillActivatedBuffSelf (0x3E0C25) -> GetSpellCastSpeed. kNone: none of them.
+
+### 13.8 `core/include/gdc/code_scan.h`
+
+Character::GetEquipCharAttributes (1.3.1.1 rva 0x695E0, site +0x82):
+FF 15 <rel32>   call [rip+rel32]   ; Singleton<ObjectManager>::Get via the IAT
+48 8B C8        mov  rcx, rax
+8B D7           mov  edx, edi      ; the id
+E8 <rel32>      call <lookup>      ; rva 0x19D40
+
+ItemEquipment::GetUIDisplayText (rva 0x33DCE0) appends "tagTransmuted" with it at +kLinePushBackSite:
+48 8D 55 A7   lea  rdx, [rbp-0x59]
+48 8B CE      mov  rcx, rsi
+E8 <rel32>    call push_back         ; rva 0x1C550
+
+Checks the first 0xAC bytes (calls are rel32, so position independent). It MOVES the line in: the u16string at
++8 goes through 0x1C4C0, which takes over the heap buffer. So a line must own a buffer from the game's allocator,
+which GameTextLine's exported ctor provides.
+
+### 13.9 `core/include/gdc/combat_formulas.h`
+
+offensiveAbilityEquation:
+  (offensiveAbilityDV + (characterLevelDV * 12) + ((dexterityDV + bonusDV) * 0.5))
+    * (1 + (offensiveAbilityModifierDV / 100)) + 53
+DesignerCalculateOffensiveAbility subtracts the OA reduction (type 22) and clamps at 0. bonusDV 0 reproduces
+the sheet (2946 at level 96).
+
+probabilityToHitEquation:
+  ((((OA / ((DA / 3.5) + OA)) * 300) * 0.3) + (((((OA * 3.25) + 10000) - (DA * 3.25)) / 100) * 0.7)) - 50
+
+Character::DesignerCalculateCriticalChance (0x686D0), as a fraction:
+  max(0, (pth - pthThreshold2) / max(CombatManager+0x27C, pth))
+pth against the target's DA; the sheet's "Chance to Crit" uses the last attacked monster.
+
+One attack against a target, as CombatManager::TakeAttack (0x11D950) resolves it through
+CombatManager::CalculateDamageModifier (0x120B10), Game.dll 1.3.1.1:
+  pth = max(probabilityToHitEquation, pthMinimum)   (DesignerCalculateProbabilityToHit 0x121790)
+  x   = uniform roll x max(CombatManager+0x27C, pth);  x > pth: miss (only possible below 100)
+  pth <= pthThreshold1: damage x normalPTHEquation (probabilityToHitDV/70, combatformulas.dbr)
+  else damage x pthDamageModifier of the highest threshold k in 2..6 with x > pthThreshold_k (1 below
+  threshold 2). So pth past the last threshold only adds top-tier crits.
+  A modifier above 1 gets the attacker's crit damage bonus added (TakeAttack 0x11ECBD: xmm10 > 1.0 ->
+  += ParametersCombat+0xA0), i.e. the bonus is added to every crit tier.
+No thresholds (tests): no tiers, multiplier = chance.
+
+records/game/playerresourcebehavior.dbr, per second (elapsedTime = 1):
+  lifeRegenEquation (lifeRegen + ((physique-50)/25)) * elapsedTime
+  manaRegenEquation (((manaRegen*((intelligence/384)+1))+((intelligence-50)/100))+6.5) * elapsedTime
+lifeRegen / manaRegen = types 6 / 7 total (includes %). CharacterBio::GetLife/ManaRegenValue (0x8B020 /
+0x8B080) write into CharacterBio, so the adapter does not call them.
+
+### 13.10 `core/include/gdc/components.h`
+
+Item stats include relic and augment; each component's own getter output is subtracted or added per row. A
+component's flat damage is not in its own stats but in the parent's offensive_damage, so it is matched by value
+from the component's record. Absorption rows are left alone (averaged per item, stat_model.cpp).
+
+### 13.11 `core/include/gdc/db_fields.h`
+
+defensive*: DefenseAttributeAbs_* / AbsMod_* +0x50 load field (re/DefenseAttributeFields.tsv). character*: the
++0x40 string (re/CharAttributeType.tsv); CharAttributeMod_LifeMultiplier is not a plain % and left out.
+tests/test_db_fields.cpp checks the table against the TSVs.
+
+The engine spreads 58 / 60 over single types in damage_modifiers (fixture b002e_torso: +29% all damage shows on
+every type and as row 60); spread() does the same.
+
+Crit damage is a percent in records and a fraction in row 59 (witchfire2.dbr 22 -> 23 moved the row 0.36 ->
+0.37), so `scale` converts.
+
+### 13.12 `core/include/gdc/effects.h`
+
+Every effect has uses per second and an uptime in [0, 1] tagged with its origin (MECHANICS §1, §4).
+DB sources (ERRATA §0, re/CombatAttributeType.tsv):
+RR type 1: defensive<Type> < 0 on a debuff record (debufSkill > 0 or SkillBuff_Debuf), duration skillActiveDuration
+RR type 2 / 3: offensive{Total,Physical,Elemental}ResistanceReduction{Percent,Absolute}Min (32..37), duration
+the field's DurationMin
+procs: templateAutoCast / itemSkillAutoController -> chanceToRun, triggerType, triggerParam; passives:
+lifeMonitorPercent, onHitActivationChance, skillChanceWeight (Skill_WPAttack_*)
+pets: spawnObjects, petLimit, spawnObjectsTimeToLive (+ modifiers'; a transmuter's modSpawnObjectsTimeToLive /
+modSpawnObjects), the pet's attackSkillName and skillName<n>; live pets' speeds and animations (Snapshot::pets)
+
+Pets: the pet record and its skills that hold its weapon damage (Skill_Passive with flat damage at their level),
+which weaponDamagePct scales; the pet record itself stands for a plain attack (100% of it).
+
+Pet: Pet::ContributeMisc* (0x3C7C10..) add GameEngine::ContributePetBonus*, so pet bonuses apply.
+PetPlayerScaling overrides all seven ContributeMisc* (0x3C8840..0x3C88B0) to Character's, so no pet bonus, and
+Skill::CollectCombatParameters 0x499E40 swaps its caster for the owning Player.
+
+A DB equation of charLevel (pets' skillLevel<n>, bio records: "((charLevel*21.3)^1.29)+35"): numbers,
+charLevel, + - * / ^ and parentheses. nullopt for anything else.
+
+A pet's skills with their levels: skillName<n> / skillLevel<n> (numbers or equations of charLevel) and, at the
+modifier's level, the petSkillName of the summon's learned SkillSecondary_PetModifier (summon_hellhound2_petmodifier
+-> petskill_hellhound_fireclaw, level 0 in the pet record).
+
+Type 1 adds value x uptime; types 2 and 3 are highest-only, each source active with probability
+u_k x prod over stronger (1 - u_j), sources independent (MECHANICS §4). Order 1 -> 2 -> 3; type 2 only while the
+resist is above 0 (MECHANICS §1).
+
+### 13.13 `core/include/gdc/enemy.h`
+
+Median Common / Champion / Hero monster per level and difficulty (1.3.1.1 + GDX1..3), from
+re/EnemyByLevel.tsv, re/EnemyResistByDifficulty.tsv, re/PlayerResistByDifficulty.tsv and re/EnemyRaces.tsv
+(re/tools/enemy_table.py, docs/MECHANICS.md §8, §9).
+
+Normal, Normal Veteran, Elite, Elite Veteran, Ultimate, Ascendant: the game difficulty x 2, + 1 while the
+difficulty ramp is above 0 (GameEngine::GetChallengeAdjustment 0x2F1C20 applied on top).
+
+Share of the table's monsters a racial bonus listing `races` (racialBonusRace) applies to: those whose
+characterRacialProfile shares any tag with it, case-insensitively (ItemEquipment::ContributeRacialBonusDamage
+0x33FC00 adds each entry once on a match, 0x592080 / 0x591FE0). The table holds every record at every level and
+no difficulty pak sets a race, so the share is the same at every level and difficulty.
+
+What gameengine.dbr playerAttributePak takes off the player's resist (CombatAttributeType) at that difficulty.
+Already in the snapshot's totals; used for what the next difficulty takes off on top.
+
+### 13.14 `core/include/gdc/font.h`
+
+StyleManager::LoadStyle 0x1C4400: as is at scale 1, else ceil(points x scale), at least 8
+(lowResMinimumFontSize default).
+
+GameTextString's measure (Game.dll 0x317470) on GraphicsFont2::GetStyle(size, 0) (Engine.dll 0xB0830 -> 0xAE660:
+nearest size, first on a tie), per glyph (0x317820): x += previous "after" (not for a space after a non-space),
+then the bearing (x >= 0), then floor(advance x scale + 0.5). No kerning in these fonts. Outside
+U+0020..007E: glyph U+0000.
+
+### 13.15 `core/include/gdc/requirements.h`
+
+Game.dll 1.3.1.1:
+Item::AreRequirementsMet 0x326930: level (Character+0x1760) >= E(level req, type 54 LevelReqReduction).
+ItemEquipment::AreRequirementsMet 0x343C30: also Physique / Cunning / Spirit >= E(req, sum of the item's three
+reduction types (first always, others when non-zero) + type 53 GlobalReqReduction when > 0).
+E(r, x) = trunc(r - r * x * 0.01 + 0.5) in float (0.01 at 0x7A7FC8, 0.5 at 0x7A8024). A requirement of 0 always passes.
+
+### 13.16 `core/include/gdc/score.h`
+
+score = Damage^a x Survivability^b x Other^c; change % = (after / before - 1) x 100.
+Only ratios are reported, so terms need no absolute unit. Sources: docs/MECHANICS.md §5, defense order §9.
+
+A record as main_skills' auto mode sees it: main = an attack-class or weapon-pool skill with damage at `level`;
+weapon = weaponDamagePct > 0 (it deals the weapon's damage); types = the damage its own record (or its
+buffSkillName record) deals, before conversions (Elemental as Cold, Fire and Lightning, Physical base as Physical).
+
+The 9 base resists share one threshold term (geometric mean of their factors) raised to this: 1 = together
+they count like one other threshold, 9 = each resist counts like one.
+
+recast_buffs: uptime = min(1, duration / (recharge x (1 - CDR))); else [uptime] from the record.
+live_buffs: take each buff as the snapshot caught it.
+
+Enemy resistance reduction on the 9 base resists. Empty = the monster table's (gdc/enemy.h): its rr for
+its rr_share of the incoming damage, bosses' boss_rr for boss_share x boss_rr_share. A number is always on.
+
+On Normal and Elite: score the base resists also under the next difficulty's extra penalty, for a share
+that ramps from 0 to 1 over the last levels before that difficulty (score.cpp lookahead()).
+
+Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz + GDX1..3, unchanged 1.3.1.1 -> 1.3.1.2);
+enemy::resist adds the difficulty's share.
+
+Save keys (snap::save_key). A name in character / characters that one of them names matches only that save
+when the snapshot knows its save; names no key mentions match by name alone.
+
+Pet summons are Skill_SpawnPet / Skill_TargetedSpawnPet whose spawnObjects has Class Pet; the
+PetPlayerScaling ones (mines, totems, seals, Wind Devils) are not pets. Modifiers count for their parent.
+Thresholds in archetype() are design choices.
+
+Damage by type after conversions as Skill::CollectCombatParameters: `skill` first, then `global` (fractions, in
+snapshot order), each weighed to 100% per source type and run source type by source type in first-seen order;
+converted damage is not converted again; Elemental in or out is a third each of Cold, Fire, Lightning
+(docs/MECHANICS.md §2).
+
+Smooth threshold, no step: ln f = above x u - (below - above) x width x ln(1 + e^(-u / width)),
+u = value / target - 1.
+
+File name (no extension) F10 writes for this character: "frozen-winterofhell-928303920" (Steam account),
+"-local", plus "-custom" / "-backup"; the name alone when the save is unknown. ASCII only.
+
+Each term's ln ratio split over its parts and scaled by the term's exponent, so the parts sum to
+ln(1 + percent / 100) x 100.
+
+Buffs that are not always up split each side into states. Terms are computed per state and mixed
+geometrically (ln X = sum p x ln X_state, buffs independent) so caps see real sheets and the reverse swap
+stays exact. Only the kMaxEnumerated buffs with the largest uptime x (1 - uptime) are enumerated.
+
+`memo` keeps the before side for the next call with the same `before` object and weapon base (one tooltip
+scores one snapshot against several afters); `before` must outlive it unchanged, as must skills, p and db.
+
+### 13.17 `core/include/gdc/sets.h`
+
+The engine adds set bonuses outside the items: Character::ContributeMisc*Attributes (0x6A6B0 char, 0x6A980
+defense, 0x6AA80 damage, 0x6ABB0 modifiers, 0x6AEE0 conversions) walk the set map (Character+0x1FD0) with
+n = GetNumberOfItemsInSet (0x6A4C0) and index every field at min(n - 1, size - 1); n = 0 adds nothing
+(CharAttributeMod::AddToAccumulator 0xCCA80). So item getters never contain set bonuses.
+ItemSet::SkillModifierInstall (0x34B660 -> 0x34FB00) adds modifiers only while
+itemSkillModifierControl[min(n - 1, size - 1)] >= 1 (always when empty).
+
+### 13.18 `core/include/gdc/snapshot.h`
+
+2: devotion_current_level_sum (was devotion_points_spent), pth.
+3: chance-based item stats carry their chance and 100% values (Damage::chance/raw_*, CombatTotals::proc);
+   item AbsorptionProtection reduction no longer written. Schema 2 still reads (no chance data).
+4: Skill::passive, character.name. Schemas 2..3 still read (passive absent).
+5: Skill::modifier_ids. Schemas 2..4 still read (modifier links unknown; check `schema` before use).
+6: Snapshot::item_skills, Skill::item_id. Schemas 2..5 still read (granted skills unknown).
+7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
+8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
+10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown). 11: difficulty_ramp, requirements.met_at.
+12: Snapshot::pets (before: empty = unknown). 13: character.save (before: empty = unknown).
+14: character.save with the Steam account and main / user folder (a schema 13 key reads as unknown).
+
+The save a character lives in, as GameEngine::GetPlayerFolder (Game.dll 1.3.1.2 0x2E2D80) builds it:
+<save root> + "main\\" (campaign) or "user\\" (custom game) + "_" + name (ManglePlayerName) or "__" + name
+(MangleBackupPlayerName). The root is Steam Cloud's userdata/<account>/219990/remote/save when
+GameEngine::GetCloudStorage is set, else My Games/Grim Dawn/save. Keys: "cloud/928303920/main/_Name",
+"local/user/__Name". steam_account 0 = the local root.
+
+Schema 11. What that call ran against: Character level, GameEngine difficulty and the Physique / Cunning /
+Spirit totals. `met` stands only for a snapshot in the same state (requirements::engine_met).
+
+Schema 8. Character::IsSkillBuffActive 0x67DD0 looks up the SkillManager buff map (+0x100), filled and
+erased by CreateRemoveSkillBuff 0x53A990 by the name it is given: the record or its buff record.
+
+Read at Character+0x7A8 = CombatManager+0x278 (CombatManager at Character+0x530:
+BasePhysical::GetTotalDamage 0x117560; DesignerCalculateCriticalChance 0x686D0 reads +0x7AC / +0x7B8).
+Field order: CombatManager::LoadRecord 0x11D10E..0x11D265 (combatformulas.dbr). +0x27C is not in the record;
+the ctor 0x11BC3C sets it to 100.0.
+
+Schema 12. A pet in the player's PetPen (Character::GetPetPen 0x7E100: Character+0x2050, an MSVC std::list at +8
+as PetPen::GetPetOwner 0x3C9B00 walks it). Node +0x10 pet id, +0x14 the summoning skill's id, +0x1C released:
+Skill_SpawnPet::KillExtraPets 0x509890 counts nodes with +0x1C == 0 and +0x14 == its id, releases +0x10 and sets
++0x1C. Released nodes are skipped.
+
+Schema 11. GameEngine::GetDifficultyRamp 0x2D85A0: above 0 every monster also gets the challenge
+adjustment (Monster::ContributeGameBalanceCharAttributes 0x37B710); on Ultimate that is Ascendant.
+
+SkillManager::GetNumDevotionPointsSpent 0x534D40 sums GetCurrentLevel over skills with Skill+0x4A0 != 0, so
+celestial powers count their level. Points actually spent = sum of `level` over devotion skills.
+
+Schema 9. SkillManager::CollectAvailableSkillAttributes 0x535BE0: equipped items (vt+0x4A0 via
+GetEquipSkillAttributes 0x69910), the character's vt+0x6D8 / +0x718 / +0x750, and GetSkillAttributes 0x52FA90
+(active learned skills, buffs, item skills). Engine total: SkillAttributeAccumulator::GetValue 0x51F1A0 =
+value + |value| x modifier x 0.01.
+
+SkillManager::GetItemSkillList 0x531730 (+0x258). GetCharAttributes 0x52F920 / GetDefenseAttributes 0x530C10 /
+GetOffensiveModifierAttributes 0x52FDA0 add each one's collectors while GetCurrentLevel != 0, so `passive` is
+exactly what one adds. Schema 6.
+
+### 13.19 `core/include/gdc/stat_model.h`
+
+(sum of item armor x combatRegion*Chance + waist armor) x (1 + Protection modifier / 100).
+Inferred: matches the level-96 sheet (1408); the waist term is a fit.
+
+CombatManager::PickRegion 0x120D90 picks one region per attack; an armor entry protects its own region, or all
+without one (AbsorptionProtection::Execute 0x118400). Chances sum to 1.
+
+### 13.20 `core/include/gdc/store.h`
+
+One chain per segment per character: a full baseline, then RFC 7386 merge patches between keyed snapshots.
+Files: <root>/<character>/<segment>-<seq>-<full|delta>.json.gz; names sort in time order (docs/SNAPSHOT.md).
+
+Arrays keyed by identity so a patch touches only what changed. Keyed entries are in key order, so the engine's
+list order is lost. A missing or repeated key leaves the array as is.
+
+### 13.21 `core/include/gdc/tooltip.h`
+
+ASCII only: every English font (Fonts.arc *.fnt; GraphicsFont2::Initialize 0xAFC90) has exactly
+U+0020..007E per style, so "->" and " - " instead of arrows and dashes. Layout examples: tests/test_tooltip.cpp.
+
+EquipmentCtrl::ValidateItemType 0x288D30: location -> required type. Type 8 (shield / off-hand) -> L Hand;
+type 9 (weapon) -> R Hand and L Hand.
+
+GraphicsFont2::ProcessCharacter (Engine.dll 0xB0C00) reads pairs: "^" + letter is a colour, "^" + anything
+else draws neither, "&" + B / I / S sets the style. "^^" and "&&" draw one, so both are doubled. "{" and "}"
+are never drawn and become "(" and ")".
+
+Item tooltip (Grim Dawn.exe provider 0x1EE9F0, layout 0x236020, mode 1) is as wide as a sample in the default
+style (jura 16, StyleManager::LoadStyle): "The quick brown fox jumped over the lazy dog The quick" at >= 1600 px,
+else "The quick brown fox jumped over the lazy". GrayStats1 has no indent (gameengine.dbr).
+
+### 13.22 `core/include/gdc/utility.h`
+
+Other = 1 + sum of weight x value + default x sum of unlisted stats (MECHANICS §5). Unlisted stats count at
+`default` per 100 and are always named, never dropped.
+
+### 13.23 `core/src/arz.cpp`
+
+Field names are short ASCII and often differ only in the middle (offensiveSlowColdDurationMin /
+offensiveSlowFireDurationMin): length, head, middle and tail words, mixed. Far cheaper than std::hash's
+full pass; a collision only costs a probe.
+
+### 13.24 `core/src/enemy.cpp`
+
+re/EnemyByLevel.tsv: level, oa, da, hit, hit_physical, rr, rr_share, crit_damage, boss_rr, boss_rr_share; one
+block per difficulty.
+
+### 13.25 `core/src/hook_targets.cpp`
+
+mov eax, [rcx+0x36D1C]; Monster::Monster 0x372B40 copies it to Monster+0x46C8 (the challenge adjustment level).
+
+movzx eax, byte [rcx+0x375EA]; GetUserSaveDataFolder (0x2E2B20 in 1.3.1.2) drops the My Games base when set.
+
+lea rax, [rcx+0x430] / mov eax, [rcx+0x1CC]: GetPlayerFolder (0x2E2D80 in 1.3.1.2) picks main\\ for mode 1, else user\\.
+
+GameTextLineToString (0x316EB0) is never referenced in Game.dll 1.3.1.1, so it is not a draw hook.
+GenerateSearchText calls GetUIDisplayText (call at +0xB8) for stash search: the detours skip that caller.
+
+As the item rollover (Grim Dawn.exe 0x1EE9F0) and GameTextString (0x316CE0) read them. GetWidth is
+`mov eax, [rcx+0x64]; ret`, folded with GridRegion::GetHeightInCells, so call only.
+
+Slots 0x408 / 0x438, checked against Skill_Passive's; Skill_BuffSelfToggled's overrides sit at the same
+slots (0x707B80 / 0x707BB0, vftable 0x707778).
+
+Buff map (SkillManager+0x100) is keyed by record name: SkillServices_Character::CreateUpdateSkillBuff 0x5586F0
+passes SkillBuffTransfer+0 after SkillManager::FindSkillId. GetBuffSkillName = Skill+0x40.
+
+Live pets (snapshot schema 12): the player's PetPen, each pet checked is-a Character, its SkillManager's
+default skill, GetHitCallbackPoint on its skills that are-a SkillActivated (CalculateSkillDps 0x3E09A3's check).
+
+### 13.26 `core/src/stat_model_effects.cpp`
+
+SkillBuff_Passive (buffSkillName of Skill_BuffRadius / SkillSecondary_BuffSelfDuration / Skill_BuffOther in
+1.3.1.1) or Skill_BuffSelfDuration (overguard1) with skillActiveDuration. Toggles, auras, debuffs, attacks and
+Skill_PassiveOn*BuffSelf are not timed buffs.
+
+Added through the skill's own collector: possession1's captured passive has AttackSpeed modifier 16 = two
+sword1h_b013_possession.dbr (characterAttackSpeedModifier 8, one per dual-wielded b013 sword); its own record
+has none (auto-snapshot 2026-11-14).
+
+### 13.27 `core/src/stat_model_internal.h`
+
+SetSkillLevelAugment 0x5375B0 by record; SetMasteryAugment 0x5373D0 to the mastery and every skill whose
+GetMasteryId (Skill+0x13C) matches; SetAllSkillAugment 0x537230 to every skill but one the caller names
+(not traced, warned in swap()).
+Skill and mastery grants that differ between the sides; a mastery's with the ids of the snapshot's skills of
+that record.
+
+### 13.28 `core/src/text.cpp`
+
+Header {char[4] "ARC\0", u32 version 3, files, parts, part table size, string table size, table offset};
+parts {u32 offset, compressed, decompressed}; 44-byte entries {u32 type, offset, compressed, decompressed, ?;
+u64 filetime; u32 parts, first part, name length, name offset}. Type 1 with equal sizes is stored whole, else LZ4.
+
+### 13.29 `core/src/utility.cpp`
+
+Read elsewhere or by a key here. Char 8 ManaLimitReserve is left out (more is worse). Defense 17..19 copy 16:
+defensiveTotalSpeedResistance shows as 24 on all four types (fixture lvl15-wp-after-feet-dreeg-on), so slow resist
+is the slow_resist key alone.
+
+### 13.30 `installer/src/buildpreset.h`
+
+A build preset as the wizard writes it: GDCompare.presets/<name>.toml with [match] characters = [...], so it applies
+to those characters at every level (score::match skips the mastery and damage checks for them; docs/PRESETS.md).
+[match] damage stays: conversion_warn uses it to flag gear that converts into another type.
+
+### 13.31 `installer/src/catalog.h`
+
+Class or mastery name from Text_EN ("tagSkillClassName0306" / "tagSkillClassName03"), gender forms joined:
+"[ms]Sorcerer[fs]Sorceress" -> "Sorcerer / Sorceress". Falls back to the code.
+
+### 13.32 `installer/src/detect.cpp`
+
+Heroic's GOG install list, installed.json: {"installed": [{"install_path": ...}, ...]}. The layout is not
+documented; any object with an install_path is tried and checked on disk.
+
+### 13.33 `installer/src/detect.h`
+
+Where Grim Dawn is installed. Every candidate is checked on disk (Grim Dawn.exe in the root, x64/ or compat/,
+plus database/database.arz), so a wrong guess from a registry key or launcher file is dropped, never used.
+
+Steam roots that exist: Linux ~/.local/share/Steam, ~/.steam/steam, Flatpak ~/.var/app/com.valvesoftware.Steam;
+Windows HKCU Software\Valve\Steam SteamPath, HKLM WOW6432Node Valve\Steam InstallPath, Program Files (x86)\Steam.
+
+### 13.34 `installer/src/install.cpp`
+
+UTF-16LE text after `key` in a version resource String block: key, NULs to 4-byte alignment, value, NUL.
+
+### 13.35 `installer/src/install.h`
+
+Install / update / repair / uninstall in the folder the game runs from (x64/ or compat/). The plan is made first
+and shown; nothing is written while it has a blocker. Rules:
+- A file is ours when GDCompare.installed (TSV name \t sha256, the same file scripts/deploy.sh writes) lists it
+  with its current hash, or it is byte-identical to the shipped one.
+- dinput8.dll and dinput8.ini that are not ours are never overwritten: an Ultimate ASI Loader there is reused,
+  anything else is a conflict to resolve by hand.
+- GDCompare.* files that are not ours (a manual install, an edited preset) are backed up to
+  GDCompare.backup/<time>/ before they are replaced; an edited preset that still parses is kept.
+- Saves and game files are never touched; only the names below are written or removed.
+
+### 13.36 `installer/src/platform.h`
+
+Grim Dawn.exe running: Linux /proc (wine names the process after the exe; its cmdline starts with a Windows path),
+Windows Toolhelp32. nullopt: could not tell.
+
+### 13.37 `installer/src/saves.h`
+
+Characters from the save folder, read-only: the header of each save/main|user/<folder>/player.gdc.
+
+.gdc header (decoded from three local saves 2026-11-16; names, classes and levels match the characters in game):
+key = first u32 ^ 0x55555555; table[i] = k = rotr(k, 1) x 39916801 (mod 2^32) for i = 0..255, k starting at key.
+Each later read: value = raw ^ key (low byte for a u8), then key ^= table[b] for every raw byte b.
+Fields: magic u32 0x58434447 ("GDCX"), version u32 (2), name (u32 count + count x (u8, u8) UTF-16LE), sex u8,
+class tag (u32 count + bytes, "tagSkillClassName0306" or "" before the first mastery), level u32, hardcore u8,
+and from version 2 an expansion u8. Nothing past the header is read.
+
+Save roots in the order tried: Steam Cloud (userdata/<id>/219990/remote/save), the Proton prefix's and the
+Windows Documents folder's My Games/Grim Dawn/save. One entry per save folder; unreadable saves are skipped.
+
+### 13.38 `installer/src/steam.h`
+
+Steam's text KeyValues files (libraryfolders.vdf, localconfig.vdf, appmanifest_*.acf) and Grim Dawn's launch
+options with `dinput8=n,b` merged into WINEDLLOVERRIDES (Wine loads the ASI loader's dinput8.dll only then).
+deploy.sh and uninstall.sh print them through `gdcompare-setup launch-options`. Never writes Steam files: Steam rewrites them while it runs.
+
+present: lower-case file names in the game folder; given, DXVK_HDR is dropped unless a renodx*.addon64 is there
+(RenoDX HDR). Every other variable and override (dxgi for a DLSS / ReShade mod) is kept as is.
+
+### 13.39 `installer/src/tui.h`
+
+Console UI: arrow-key menus with search and a side panel on terminals that can (Linux termios + ANSI, Windows
+console with virtual terminal sequences), numbered menus everywhere else (--plain, pipes, TERM=dumb). Bold and
+yellow warnings on any terminal that takes escape codes; NO_COLOR drops the color, "! " still marks warnings.
+Every user-facing string goes through tr() so a translation table can be added in one place.
+
+Index into items, or -1 for back (Esc / 0). Enter takes `start`. panel(i): text shown beside (or under) item i.
+quits: back leaves setup (the main menu), and the help says so.
+
+### 13.40 `installer/src/wizard_save.cpp`
+
+One setup preset per character: the others drop it (a preset left for no one is removed, after asking).
+Dropping a save keeps the name while another listed save of that name still uses the preset.

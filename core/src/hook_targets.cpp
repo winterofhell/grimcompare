@@ -6,7 +6,7 @@
 namespace gdc::targets {
 namespace {
 
-// Required: missing disables the mod. Optional: logged only. Trailing RVAs are 1.3.1.1 reference, never used.
+// Missing required disables the mod; trailing RVAs are reference only.
 constexpr Target kPlanned[] = {
     {Module::Engine, Kind::Call, false, "version", "Engine::GetVersion",
      "?GetVersion@Engine@GAME@@SAPEBDXZ"},  // 0x79cd0
@@ -18,31 +18,29 @@ constexpr Target kPlanned[] = {
     {Module::Game, Kind::Call, true, "engine", "Player::GetPlayerName", "?GetPlayerName@Player@GAME@@QEBAPEBGXZ"},  // 0x3d3100
     {Module::Game, Kind::Call, true, "engine", "GameEngine::GetGameDifficulty",
      "?GetGameDifficulty@GameEngine@GAME@@QEBA?AW4GameDifficulty@2@XZ"},  // 0x2d8490
-    // mov eax, [rcx+0x36D1C]; Monster::Monster 0x372B40 copies it to Monster+0x46C8 (the challenge adjustment level).
+    // Monster::Monster 0x372B40 copies it to +0x46C8 (§13.25).
     {Module::Game, Kind::Call, false, "engine", "GameEngine::GetDifficultyRamp",
      "?GetDifficultyRamp@GameEngine@GAME@@QEBAIXZ"},  // 0x2d85a0
-    // movzx eax, byte [rcx+0x375EA]; GetUserSaveDataFolder (0x2E2B20 in 1.3.1.2) drops the My Games base when set.
+    // GetUserSaveDataFolder 0x2E2B20 (1.3.1.2) drops My Games when set.
     {Module::Game, Kind::Call, false, "engine", "GameEngine::GetCloudStorage", "?GetCloudStorage@GameEngine@GAME@@QEBA_NXZ"},
-    // lea rax, [rcx+0x430] / mov eax, [rcx+0x1CC]: GetPlayerFolder (0x2E2D80 in 1.3.1.2) picks main\\ for mode 1, else user\\.
+    // GetPlayerFolder 0x2E2D80 (1.3.1.2): mode 1 main\\, else user\\.
     {Module::Engine, Kind::Call, false, "engine", "Engine::GetGameInfo", "?GetGameInfo@Engine@GAME@@QEAAPEAVGameInfo@2@XZ"},  // 0x77b60
     {Module::Engine, Kind::Call, false, "engine", "GameInfo::GetMode", "?GetMode@GameInfo@GAME@@QEBAIXZ"},  // 0x8ed00
     {Module::Game, Kind::Detour, true, "tooltip", "ItemEquipment::GetUIDisplayText",
      "?GetUIDisplayText@ItemEquipment@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x33dce0
     {Module::Game, Kind::Detour, true, "tooltip", "ItemArtifact::GetUIDisplayText",
      "?GetUIDisplayText@ItemArtifact@GAME@@UEBAXPEBVCharacter@2@AEAV?$vector@UGameTextLine@GAME@@@mem@@_N@Z"},  // 0x32a570
-    // GameTextLineToString (0x316EB0) is never referenced in Game.dll 1.3.1.1, so it is not a draw hook.
-    // GenerateSearchText calls GetUIDisplayText (call at +0xB8) for stash search: the detours skip that caller.
+    // GameTextLineToString is unused; stash search calls are skipped (§13.25).
     {Module::Game, Kind::Call, false, "tooltip", "Item::GenerateSearchText", "?GenerateSearchText@Item@GAME@@QEAAXXZ"},  // 0x329370
     {Module::Game, Kind::Call, false, "tooltip", "GameTextLine::GameTextLine(u16string)",
      "??0GameTextLine@GAME@@QEAA@W4GameTextClass@1@AEBV?$basic_string@GU?$char_traits@G@std@@V?$allocator@G@2@@std@@_NPEBVGraphicsTexture@1@M@Z"},  // 0x313030
-    // Slot 0x550 of the Object-subobject vftable; each class's slot is a folded `mov eax, imm; ret` stub.
+    // Object-subobject vftable slot 0x550: a folded `mov eax, imm; ret`.
     {Module::Game, Kind::Call, false, "tooltip", "Item::GetItemType", "?GetItemType@Item@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x167e0
     {Module::Game, Kind::Call, false, "tooltip", "ArmorJewelry_Ring::GetItemType",
      "?GetItemType@ArmorJewelry_Ring@GAME@@UEBA?BW4Item_Type@2@XZ"},  // 0x2de70
     {Module::Game, Kind::Data, false, "tooltip", "ArmorJewelry_Ring::vftable{Object}",
      "??_7ArmorJewelry_Ring@GAME@@6BObject@1@@"},  // 0x6d7658
-    // As the item rollover (Grim Dawn.exe 0x1EE9F0) and GameTextString (0x316CE0) read them. GetWidth is
-    // `mov eax, [rcx+0x64]; ret`, folded with GridRegion::GetHeightInCells, so call only.
+    // Screen getters the rollover uses; GetWidth is folded, call only.
     {Module::Engine, Kind::Data, false, "tooltip", "gEngine", "?gEngine@GAME@@3PEAVEngine@1@EA"},  // 0x42c418
     {Module::Engine, Kind::Call, false, "tooltip", "Engine::GetGraphicsEngine",
      "?GetGraphicsEngine@Engine@GAME@@QEBAPEAVGraphicsEngine@2@XZ"},  // 0x77820
@@ -140,7 +138,7 @@ constexpr Target kPlanned[] = {
      "??0CombatDisplayAccumulator@GAME@@QEAA@_N@Z"},  // 0x11b980
     {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::~CombatDisplayAccumulator()",
      "??1CombatDisplayAccumulator@GAME@@UEAA@XZ"},  // 0x11b9f0
-    // Copied (8 slots, up to CombatAttributeAccumulator::vftable 0x6d3d38) with slot 0x18 replaced.
+    // Copied 8 slots up to 0x6d3d38, slot 0x18 replaced.
     {Module::Game, Kind::Data, true, "accumulator", "CombatDisplayAccumulator::vftable",
      "??_7CombatDisplayAccumulator@GAME@@6B@"},  // 0x6d3cf8
     {Module::Game, Kind::Call, true, "accumulator", "CombatDisplayAccumulator::GetChanceMultiplier",
@@ -295,8 +293,7 @@ constexpr Target kPlanned[] = {
      "?ProcessDefense@CombatAttributeAccumulator@GAME@@QEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x11ab40
     {Module::Game, Kind::Call, true, "accumulator", "CombatAttributeAbsDefense::Process",
      "?Process@CombatAttributeAbsDefense@GAME@@UEAAXAEBVCharacter@2@AEBUReductionInfo@2@AEBUDamageScaleInfo@2@M@Z"},  // 0x115370
-    // Slots 0x408 / 0x438, checked against Skill_Passive's; Skill_BuffSelfToggled's overrides sit at the same
-    // slots (0x707B80 / 0x707BB0, vftable 0x707778).
+    // Slots 0x408 / 0x438, checked against Skill_Passive's (§13.25).
     {Module::Game, Kind::Data, true, "skills", "Skill_Passive::vftable", "??_7Skill_Passive@GAME@@6B@"},  // 0x711ba0
     {Module::Game, Kind::Call, true, "skills", "Skill_Passive::CollectPassiveCharAttributes",
      "?CollectPassiveCharAttributes@Skill_Passive@GAME@@UEBAXAEAVCharAttributeAccumulator@2@@Z"},  // 0x5011d0
@@ -336,8 +333,7 @@ constexpr Target kPlanned[] = {
      "?GetMasteryId@Skill@GAME@@QEBA?BIXZ"},  // 0x31e1e0
     {Module::Game, Kind::Call, true, "skills", "Skill::GetSkillType",
      "?GetSkillType@Skill@GAME@@QEBA?AW4Skill_Type@12@XZ"},  // 0x426730
-    // Buff map (SkillManager+0x100) is keyed by record name: SkillServices_Character::CreateUpdateSkillBuff 0x5586F0
-    // passes SkillBuffTransfer+0 after SkillManager::FindSkillId. GetBuffSkillName = Skill+0x40.
+    // Buff map keyed by record name; GetBuffSkillName = Skill+0x40 (§13.25).
     {Module::Game, Kind::Call, true, "skills", "Character::IsSkillBuffActive",
      "?IsSkillBuffActive@Character@GAME@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z"},  // 0x67dd0
     {Module::Game, Kind::Call, true, "skills", "Skill::GetBuffSkillName",
@@ -349,8 +345,7 @@ constexpr Target kPlanned[] = {
      "?classInfo@SkillActivatedBuffSelf@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5c060
     {Module::Game, Kind::Call, true, "skills", "SkillActivated::GetHitCallbackPoint",
      "?GetHitCallbackPoint@SkillActivated@GAME@@UEAA_NAEAVCharacter@2@AEAVName@2@AEAI2@Z"},  // 0x51a310
-    // Live pets (snapshot schema 12): the player's PetPen, each pet checked is-a Character, its SkillManager's
-    // default skill, GetHitCallbackPoint on its skills that are-a SkillActivated (CalculateSkillDps 0x3E09A3's check).
+    // Live pets (schema 12): PetPen, default skill, hit animations.
     {Module::Game, Kind::Call, false, "pets", "Character::GetPetPen", "?GetPetPen@Character@GAME@@QEBAAEBVPetPen@2@XZ"},  // 0x7e100
     {Module::Game, Kind::Data, false, "pets", "Character::classInfo",
      "?classInfo@Character@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5cba0

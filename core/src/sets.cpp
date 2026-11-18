@@ -39,9 +39,10 @@ std::map<std::string, int> counts(const snap::Snapshot& s) {
   return out;
 }
 
-Bonus bonus(const arz::Record& set, int n) {
-  Bonus b;
-  if (n <= 0) return b;
+namespace {
+
+// Numeric fields to stats, plus skill and mastery grants.
+void stats_and_grants(const arz::Record& set, int n, Bonus& b) {
   for (const auto& [key, field] : set.fields) {
     if (numeric(field)) {
       const double v = at(field, n);
@@ -64,32 +65,28 @@ Bonus bonus(const arz::Record& set, int n) {
     grant(b.skills, "augmentSkillName", "augmentSkillLevel");
     grant(b.masteries, "augmentMasteryName", "augmentMasteryLevel");
   }
-  b.all = at(set, "augmentAllLevel", n);
+}
 
+void skill_modifiers(const arz::Record& set, int n, Bonus& b) {
   const auto control = set.fields.find("itemSkillModifierControl");
-  if (control == set.fields.end() || control->second.numbers.empty() || at(control->second, n) >= 1)
-    for (const auto& [key, field] : set.fields) {
-      if (!key.starts_with("modifierSkillName") || field.strings.empty() || field.strings[0].empty()) continue;
-      const std::string_view target = set.string("modifiedSkillName" + key.substr(17));
-      if (!target.empty()) b.modifiers.emplace(std::string(target), field.strings[0]);
-    }
-
-  if (const auto skill = set.string("itemSkillName"); !skill.empty()) {
-    const double level = at(set, "itemSkillLevel", n);
-    if (level > 0) {
-      b.granted_skill = std::string(skill);
-      b.granted_level = level;
-    }
+  if (control != set.fields.end() && !control->second.numbers.empty() && !(at(control->second, n) >= 1)) return;
+  for (const auto& [key, field] : set.fields) {
+    if (!key.starts_with("modifierSkillName") || field.strings.empty() || field.strings[0].empty()) continue;
+    const std::string_view target = set.string("modifiedSkillName" + key.substr(17));
+    if (!target.empty()) b.modifiers.emplace(std::string(target), field.strings[0]);
   }
-  if (!set.string("petBonusName").empty()) b.unmodeled.push_back("petBonusName");
+}
 
+void conversions(const arz::Record& set, int n, Bonus& b) {
   for (const auto& [in, out, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
                                      std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
     const int from = damage_type_named(set.string(in)), to = damage_type_named(set.string(out));
     const double v = at(set, pct, n);
     if (from && to && v > 0) b.conversions.push_back({from, to, static_cast<float>(v / 100)});
   }
+}
 
+void flat_damage(const arz::Record& set, int n, Bonus& b) {
   for (const auto& f : fields::flat_damage()) {
     const double min = at(set, f.min, n);
     if (min == 0) continue;
@@ -109,6 +106,26 @@ Bonus bonus(const arz::Record& set, int n) {
     d.max = static_cast<float>(max * scale);
     b.flat.push_back(d);
   }
+}
+
+}  // namespace
+
+Bonus bonus(const arz::Record& set, int n) {
+  Bonus b;
+  if (n <= 0) return b;
+  stats_and_grants(set, n, b);
+  b.all = at(set, "augmentAllLevel", n);
+  skill_modifiers(set, n, b);
+  if (const auto skill = set.string("itemSkillName"); !skill.empty()) {
+    const double level = at(set, "itemSkillLevel", n);
+    if (level > 0) {
+      b.granted_skill = std::string(skill);
+      b.granted_level = level;
+    }
+  }
+  if (!set.string("petBonusName").empty()) b.unmodeled.push_back("petBonusName");
+  conversions(set, n, b);
+  flat_damage(set, n, b);
   return b;
 }
 

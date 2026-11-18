@@ -1,8 +1,4 @@
-// Replays equipment changes from the auto-snapshot store through the swap model and checks them against the
-// engine. Normal play produces calibration data.
-// usage: gdc_calibrate [DIR] [--char NAME] [--verbose] [--preset FILE.toml]
-// gdc_calibrate --pair BEFORE.json AFTER.json [--preset FILE.toml]
-// Exit: 0 all pass, 1 a pair fails, 2 usage or read error.
+// Replays stored swaps; exit 0 pass, 1 fail, 2 error.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>

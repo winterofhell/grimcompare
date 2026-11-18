@@ -1,10 +1,5 @@
 #pragma once
-// The engine adds set bonuses outside the items: Character::ContributeMisc*Attributes (0x6A6B0 char, 0x6A980
-// defense, 0x6AA80 damage, 0x6ABB0 modifiers, 0x6AEE0 conversions) walk the set map (Character+0x1FD0) with
-// n = GetNumberOfItemsInSet (0x6A4C0) and index every field at min(n - 1, size - 1); n = 0 adds nothing
-// (CharAttributeMod::AddToAccumulator 0xCCA80). So item getters never contain set bonuses.
-// ItemSet::SkillModifierInstall (0x34B660 -> 0x34FB00) adds modifiers only while
-// itemSkillModifierControl[min(n - 1, size - 1)] >= 1 (always when empty).
+// Set bonuses, added outside item getters (§13.17).
 #include <map>
 #include <set>
 #include <string>

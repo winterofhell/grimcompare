@@ -1,6 +1,5 @@
 #pragma once
-// Written by the adapter, read by core. Every number comes from an engine getter (docs/SNAPSHOT.md),
-// nothing is recomputed. Zero / empty fields are omitted from the JSON.
+// Adapter writes, core reads; engine getter values (docs/SNAPSHOT.md).
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -9,27 +8,13 @@
 
 namespace gdc::snap {
 
-// 2: devotion_current_level_sum (was devotion_points_spent), pth.
-// 3: chance-based item stats carry their chance and 100% values (Damage::chance/raw_*, CombatTotals::proc);
-//    item AbsorptionProtection reduction no longer written. Schema 2 still reads (no chance data).
-// 4: Skill::passive, character.name. Schemas 2..3 still read (passive absent).
-// 5: Skill::modifier_ids. Schemas 2..4 still read (modifier links unknown; check `schema` before use).
-// 6: Snapshot::item_skills, Skill::item_id. Schemas 2..5 still read (granted skills unknown).
-// 7: Item::requirements. Schemas 2..6 still read (requirements unknown: not checked).
-// 8: Skill::buff_active. 9: Snapshot::skill_attributes (before: empty = unknown, check `schema`).
-// 10: Skill::anim_frames / anim_frame_rate (before: 0 = unknown). 11: difficulty_ramp, requirements.met_at.
-// 12: Snapshot::pets (before: empty = unknown). 13: character.save (before: empty = unknown).
-// 14: character.save with the Steam account and main / user folder (a schema 13 key reads as unknown).
+// Schema history: docs/SNAPSHOT.md `schema` row and MECHANICS §13.18.
 inline constexpr int kSchema = 14;
 inline constexpr int kMinSchema = 2;
 
-// The save a character lives in, as GameEngine::GetPlayerFolder (Game.dll 1.3.1.2 0x2E2D80) builds it:
-// <save root> + "main\\" (campaign) or "user\\" (custom game) + "_" + name (ManglePlayerName) or "__" + name
-// (MangleBackupPlayerName). The root is Steam Cloud's userdata/<account>/219990/remote/save when
-// GameEngine::GetCloudStorage is set, else My Games/Grim Dawn/save. Keys: "cloud/928303920/main/_Name",
-// "local/user/__Name". steam_account 0 = the local root.
+// Save key, as GameEngine::GetPlayerFolder builds it (§13.18).
 std::string save_key(std::uint32_t steam_account, bool custom, std::string_view folder);
-// The character name in a save key ("cloud/1/main/__Bob" -> "Bob"); empty when it is not a key.
+// Name in a save key ("cloud/1/main/__Bob" -> "Bob"); empty otherwise.
 std::string save_key_name(std::string_view key);
 
 struct CharAttribute {
@@ -43,7 +28,7 @@ struct CharContribution {
   float value = 0, modifier = 0;
 };
 
-// `chance` is exact for one chance stat per type; with several, their raw-weighted mean.
+// `chance` exact for one chance stat; several: raw-weighted mean.
 struct Proc {
   float chance = 0;
   float defense = 0, defense_modifier = 0, reduction = 0, damage_modifier = 0, dot_modifier = 0;
@@ -56,12 +41,11 @@ struct CombatTotals {
   float reduction = 0;         // GetTotalReduction
   float damage_modifier = 0;   // GetTotalDamageModifierType(..., DamageType 1 = direct)
   float dot_modifier = 0;      // GetTotalDamageModifierType(..., DamageType 2 = duration)
-  // Defense only: after ProcessDefense with no enemy reduction, plus the cap bonus at
-  // CombatAttributeAbsDefense +0x2C.
+  // Defense only: after ProcessDefense, plus the +0x2C cap bonus.
   float processed = 0;
   float cap_bonus = 0;
   bool capped = false;  // processed by CombatAttributeAbsDefense::Process
-  // Item stats only: the chance-based part at 100%; the fields above are expected values.
+  // Item stats only: the chance part at 100%.
   std::optional<Proc> proc;
 };
 
@@ -70,7 +54,7 @@ struct Damage {
   bool dot = false;    // GetDamageType() == 2 (CombatAttributeDurDamage*)
   float min = 0, max = 0;  // GetMinMaxValues
   float duration = 0;      // GetDuration (dot only)
-  // Chance entries: min / max above are raw x chance / 100, as the engine computes them.
+  // Chance entries: min / max = raw x chance / 100.
   float chance = 0, raw_min = 0, raw_max = 0;
 };
 
@@ -85,8 +69,7 @@ struct Conversion {
   float percent = 0;
 };
 
-// Read in place at Item+0x538. Field names from ItemReplicaInfo::StreamProperties, else GD Stash's file
-// order matched to WriteProperties (docs/RECON.md §8).
+// Item+0x538 replica fields (docs/RECON.md §8).
 struct Replica {
   std::string base, prefix, suffix, modifier, transmute, relic, relic_bonus, augment, ascendant,
       ascendant2h;
@@ -110,16 +93,14 @@ struct Component {
   std::optional<ItemStats> stats;
 };
 
-// As ItemEquipment::AreRequirementsMet 0x343C30 reads them. Each raw value is the max of item, relic and
-// augment (GetIntelligenceRequirement 0x343BD0). Formula: gdc/requirements.h.
+// As AreRequirementsMet 0x343C30 reads; max over item and components.
 struct Requirements {
   std::uint32_t level = 0;                        // vt+0x528 GetLevelRequirement
   std::uint32_t attribute[3] = {};                // vt+0x530 / 0x538 / 0x540: Physique, Cunning, Spirit
   int reductions[3][3] = {};                      // Physique +0xDF8/+0xDEC/+0xE04, Cunning +0xDFC/+0xDF0/+0xE08,
                                                   // Spirit +0xE00/+0xDF4/+0xE0C
   std::optional<bool> met;                        // ItemEquipment::AreRequirementsMet(player) when read
-  // Schema 11. What that call ran against: Character level, GameEngine difficulty and the Physique / Cunning /
-  // Spirit totals. `met` stands only for a snapshot in the same state (requirements::engine_met).
+  // Schema 11: the state that call ran against (§13.18).
   struct MetAt {
     std::uint32_t level = 0;
     int difficulty = -1;
@@ -150,18 +131,15 @@ struct Skill {
   std::uint32_t devotion_level = 0;      // GetDevotionLevel: celestial power level
   std::uint32_t devotion_max_level = 0;  // GetDevotionMaxLevel
   std::uint32_t mastery_id = 0;          // GetMasteryId: object id of the mastery skill
-  // Its own CollectPassiveCharAttributes (vt+0x408) / CollectPassiveDefenseAttributes (vt+0x438) now.
-  // Absent before schema 4.
+  // Own passive collectors' output now (vt+0x408 / +0x438). Schema 4.
   std::optional<ItemStats> passive;
-  // Skill::AddModifierDefenseAttributes 0x494970 walks these, then the item modifiers at +0x158. Schema 5.
+  // Learned modifiers, as AddModifierDefenseAttributes 0x494970 walks. Schema 5.
   std::vector<std::uint32_t> modifier_ids;
   // Skill::GetItemSkillItemId 0x31D500 (Skill+0x350).
   std::uint32_t item_id = 0;
-  // Schema 8. Character::IsSkillBuffActive 0x67DD0 looks up the SkillManager buff map (+0x100), filled and
-  // erased by CreateRemoveSkillBuff 0x53A990 by the name it is given: the record or its buff record.
+  // Schema 8: Character::IsSkillBuffActive 0x67DD0 on record or buff name.
   std::optional<bool> buff_active;
-  // Schema 10, SkillActivated only: SkillActivated::GetHitCallbackPoint 0x51A310 = GraphicsAnim::GetLength /
-  // GetFrameRate of the skill's hit animation for this character. 0 = not SkillActivated, no animation or older.
+  // Schema 10: hit animation via GetHitCallbackPoint 0x51A310; 0 = unknown.
   std::uint32_t anim_frames = 0;
   std::int32_t anim_frame_rate = 0;
 };
@@ -177,10 +155,7 @@ struct ItemSkillModifier {
   std::optional<ItemStats> stats;  // Skill_Modifier::CollectModifier*
 };
 
-// Read at Character+0x7A8 = CombatManager+0x278 (CombatManager at Character+0x530:
-// BasePhysical::GetTotalDamage 0x117560; DesignerCalculateCriticalChance 0x686D0 reads +0x7AC / +0x7B8).
-// Field order: CombatManager::LoadRecord 0x11D10E..0x11D265 (combatformulas.dbr). +0x27C is not in the record;
-// the ctor 0x11BC3C sets it to 100.0.
+// Character+0x7A8 PTH table, combatformulas.dbr order (§13.18).
 struct PthTable {
   float minimum = 0;               // pthMinimum (+0x278)
   float crit_divisor_min = 0;      // +0x27C
@@ -188,23 +163,19 @@ struct PthTable {
   float damage_modifier[6] = {};   // pthDamageModifier1..6 (+0x284, stride 8)
 };
 
-// Schema 12. A pet in the player's PetPen (Character::GetPetPen 0x7E100: Character+0x2050, an MSVC std::list at +8
-// as PetPen::GetPetOwner 0x3C9B00 walks it). Node +0x10 pet id, +0x14 the summoning skill's id, +0x1C released:
-// Skill_SpawnPet::KillExtraPets 0x509890 counts nodes with +0x1C == 0 and +0x14 == its id, releases +0x10 and sets
-// +0x1C. Released nodes are skipped.
+// Schema 12: a live pet from the player's PetPen (§13.18).
 struct PetSkill {
   std::uint32_t id = 0;
   std::string record;
   std::uint32_t current_level = 0;
-  // SkillActivated::GetHitCallbackPoint 0x51A310 called with the pet, as for the player's skills. 0 = none.
+  // GetHitCallbackPoint 0x51A310 called with the pet; 0 = none.
   std::uint32_t anim_frames = 0;
   std::int32_t anim_frame_rate = 0;
 };
 struct Pet {
   std::uint32_t id = 0, skill_id = 0;
   std::string record;
-  // Character::GetAttackSpeed 0x692E0 / GetSpellCastSpeed 0x693A0 on the pet (pet bonuses, caps and slows in),
-  // and its GetTotalCharModifier 15 / 16, the % those speeds carry.
+  // Pet's GetAttackSpeed / GetSpellCastSpeed, and modifiers 15 / 16.
   float attack_speed = 0, cast_speed = 0, attack_speed_modifier = 0, cast_speed_modifier = 0;
   std::uint32_t default_skill_id = 0;  // SkillManager::GetDefaultSkillId(0) 0x52EC10 of the pet's SkillManager
   std::vector<PetSkill> skills;        // SkillManager::GetSkillList of the pet
@@ -219,17 +190,14 @@ struct Snapshot {
   std::vector<std::string> errors;
 
   std::string character_name;  // UTF-8
-  // Schema 14 (save_key): "cloud/<Steam account>/main/_Name", "local/user/_Name", "__Name" for the engine's
-  // backup folder. Empty = unknown.
+  // Schema 14 save key (save_key); empty = unknown.
   std::string save;
   std::uint32_t level = 0;
   int difficulty = -1;  // GameEngine::GetGameDifficulty (raw enum)
-  // Schema 11. GameEngine::GetDifficultyRamp 0x2D85A0: above 0 every monster also gets the challenge
-  // adjustment (Monster::ContributeGameBalanceCharAttributes 0x37B710); on Ultimate that is Ascendant.
+  // Schema 11: GetDifficultyRamp 0x2D85A0; above 0 adds challenge adjustment.
   std::uint32_t difficulty_ramp = 0;
   std::uint32_t skill_points = 0, attribute_points = 0, devotion_points = 0, devotion_points_total = 0;
-  // SkillManager::GetNumDevotionPointsSpent 0x534D40 sums GetCurrentLevel over skills with Skill+0x4A0 != 0, so
-  // celestial powers count their level. Points actually spent = sum of `level` over devotion skills.
+  // GetNumDevotionPointsSpent 0x534D40: celestial powers count their level.
   std::uint32_t devotion_current_level_sum = 0;
   float life_max = 0, mana_max = 0, attack_speed = 0, cast_speed = 0;
   float run_speed = 0, run_speed_uncapped = 0;  // Character::GetRunSpeed(false / true)
@@ -240,19 +208,14 @@ struct Snapshot {
   std::vector<CombatTotals> defense;           // Character::GetAllDefenseAttributes
   std::vector<CombatTotals> damage_modifiers;  // SkillManager::CollectAvailableOffensiveModifierAttributes
   std::vector<Conversion> conversions;         // SkillManager::CollectAvailableConversionAttributes
-  // Schema 9. SkillManager::CollectAvailableSkillAttributes 0x535BE0: equipped items (vt+0x4A0 via
-  // GetEquipSkillAttributes 0x69910), the character's vt+0x6D8 / +0x718 / +0x750, and GetSkillAttributes 0x52FA90
-  // (active learned skills, buffs, item skills). Engine total: SkillAttributeAccumulator::GetValue 0x51F1A0 =
-  // value + |value| x modifier x 0.01.
+  // Schema 9: CollectAvailableSkillAttributes 0x535BE0 totals (§13.18).
   std::vector<SkillAttribute> skill_attributes;
   std::vector<Skill> skills;
   std::vector<ItemSkillModifier> item_skill_modifiers;
-  // SkillManager::GetItemSkillList 0x531730 (+0x258). GetCharAttributes 0x52F920 / GetDefenseAttributes 0x530C10 /
-  // GetOffensiveModifierAttributes 0x52FDA0 add each one's collectors while GetCurrentLevel != 0, so `passive` is
-  // exactly what one adds. Schema 6.
+  // Schema 6: GetItemSkillList 0x531730; `passive` is what each adds.
   std::vector<Skill> item_skills;
   std::vector<Item> equipped;
-  // A hovered item plus the equipped items the game shows next to it, in call order.
+  // Hovered item plus the equipped items shown beside it.
   std::vector<Item> tooltip_items;
   std::uint32_t tooltip_age_ms = 0;
   std::vector<Item> inventory;
@@ -263,8 +226,7 @@ std::string to_json(const Snapshot& s, int indent = 2);
 // Throws std::runtime_error on malformed input or an unsupported schema.
 Snapshot from_json(std::string_view text);
 
-// Adapter: fewer allocations in the game-thread capture. reuse() hands back spares in the order recycle()
-// saw them.
+// Adapter: fewer allocations; reuse() returns spares in recycle() order.
 struct Spares {
   std::vector<Skill> skills;
   std::vector<Item> items;

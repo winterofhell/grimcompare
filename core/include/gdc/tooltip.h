@@ -1,6 +1,5 @@
 #pragma once
-// ASCII only: every English font (Fonts.arc *.fnt; GraphicsFont2::Initialize 0xAFC90) has exactly
-// U+0020..007E per style, so "->" and " - " instead of arrows and dashes. Layout examples: tests/test_tooltip.cpp.
+// ASCII only: game fonts have just U+0020..007E (§13.21).
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -21,8 +20,7 @@ struct Line {
   bool operator==(const Line&) const = default;
 };
 
-// EquipmentCtrl::ValidateItemType 0x288D30: location -> required type. Type 8 (shield / off-hand) -> L Hand;
-// type 9 (weapon) -> R Hand and L Hand.
+// Slot -> item type, as ValidateItemType 0x288D30 (§13.21).
 std::vector<int> locations_for(int item_type);
 
 Line change(double percent, double negligible);
@@ -30,9 +28,7 @@ Line change(double percent, double negligible);
 std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after, const model::Prediction& p,
                           const Labels& labels = {}, const score::Result* scored = nullptr);
 
-// GraphicsFont2::ProcessCharacter (Engine.dll 0xB0C00) reads pairs: "^" + letter is a colour, "^" + anything
-// else draws neither, "&" + B / I / S sets the style. "^^" and "&&" draw one, so both are doubled. "{" and "}"
-// are never drawn and become "(" and ")".
+// Escapes ^ & { } as ProcessCharacter would draw them (§13.21).
 std::string escape(std::string_view text);
 
 // GraphicsEngine::GetUIScaleFactor and GetWidth, read at run time.
@@ -42,11 +38,9 @@ struct Screen {
   bool operator==(const Screen&) const = default;
 };
 
-// Item tooltip (Grim Dawn.exe provider 0x1EE9F0, layout 0x236020, mode 1) is as wide as a sample in the default
-// style (jura 16, StyleManager::LoadStyle): "The quick brown fox jumped over the lazy dog The quick" at >= 1600 px,
-// else "The quick brown fox jumped over the lazy". GrayStats1 has no indent (gameengine.dbr).
+// Tooltip width from a sample sentence in jura 16 (§13.21).
 bool fits(const Screen& screen, std::string_view line);
-// Breaks only between items; an item too wide for a line gets its own.
+// Breaks only between items; overlong items get their own line.
 std::vector<std::string> pack(const std::string& head, const std::string& indent, const std::vector<std::string>& items,
                               const Screen& screen);
 
@@ -60,7 +54,7 @@ struct Scored {
   std::optional<double> itself, moved;
 };
 
-// Empty when the item is not equippable or already equipped. Both sides come from model::expected(s).
+// Empty when not equippable or equipped; sides from model::expected.
 std::vector<Line> compare(const snap::Snapshot& s, const snap::Item& candidate, int item_type, bool detail,
                           const arz::Database* db, const score::Preset& preset, const Labels& labels = {},
                           std::vector<std::string>* log = nullptr, std::vector<Scored>* scored = nullptr,

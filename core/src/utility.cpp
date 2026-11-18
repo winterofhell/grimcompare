@@ -41,16 +41,14 @@ constexpr int kLifeLeech = 20, kTotalDamageReduction = 28;
 constexpr int kBlockChance = 55, kBlockAmount = 56;
 constexpr int kCooldown = 1, kCost = 2;
 
-// Read elsewhere or by a key here. Char 8 ManaLimitReserve is left out (more is worse). Defense 17..19 copy 16:
-// defensiveTotalSpeedResistance shows as 24 on all four types (fixture lvl15-wp-after-feet-dreeg-on), so slow resist
-// is the slow_resist key alone.
+// Read elsewhere or keyed here; exceptions in MECHANICS §13.29.
 const std::set<int> kCharCovered = {1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 21, 22, 23, 24, kBlockRecovery, kDodge, kDeflect, kExperience};
 const std::set<int> kDefenseCovered = {0,  1,  2,  4,  5,  6,  7,  8,  9,  10, 11, 13, 15, 16, 17, 18, 19, 38, 39,
                                        40, 42, 43, 44, 45, 46, 48, kBlockChance, kBlockAmount, 57, 58, 60, 64, 65};
 const std::set<int> kDamageCovered = {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 15, 58, 59, 60};
 const std::set<int> kOffenseCovered = {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 15, 58, kLifeLeech, kTotalDamageReduction, 32, 33, 34, 35, 36, 37};
 
-// As SkillAttributeAccumulator::GetValue 0x51F1A0 without the chance parts. Before schema 9: items only.
+// GetValue 0x51F1A0 without chance parts; pre-schema 9: items only.
 template <class F>
 void for_skill_attributes(const snap::Snapshot& s, F f) {
   for (const auto& a : s.skill_attributes) f(a.type, a.value + std::abs(a.value) * a.modifier / 100.0);

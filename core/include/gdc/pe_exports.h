@@ -1,6 +1,5 @@
 #pragma once
-// Works on a mapped image (RVA == offset) and a raw file (RVA via section table). Bounds-checked. Layout:
-// PE/COFF spec, "The .edata Section".
+// Mapped image or raw file; bounds-checked (PE/COFF spec, .edata).
 #include <cstdint>
 #include <span>
 #include <string>

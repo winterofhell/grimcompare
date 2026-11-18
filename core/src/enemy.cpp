@@ -12,8 +12,7 @@ struct Row {
   Enemy e;
 };
 constexpr int kLevels = 21;
-// re/EnemyByLevel.tsv: level, oa, da, hit, hit_physical, rr, rr_share, crit_damage, boss_rr, boss_rr_share; one
-// block per difficulty.
+// re/EnemyByLevel.tsv columns, one block per difficulty (§13.24).
 constexpr Row kRows[kDifficulties][kLevels] = {
     {  // Normal
         {1, {160, 135, 56, 15, 7.5, 0.0264, 0, 12.1, 0.0708}},
@@ -190,7 +189,7 @@ constexpr Penalty kPenalties[] = {
     {15, {0, 0, 25}},
 };
 
-// re/EnemyRaces.tsv: the same monsters grouped by characterRacialProfile (lowercase tags, sorted, "," joined).
+// re/EnemyRaces.tsv: monsters grouped by characterRacialProfile tags.
 struct Races {
   std::string_view races;
   int monsters;

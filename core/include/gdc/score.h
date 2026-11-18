@@ -1,6 +1,5 @@
 #pragma once
-// score = Damage^a x Survivability^b x Other^c; change % = (after / before - 1) x 100.
-// Only ratios are reported, so terms need no absolute unit. Sources: docs/MECHANICS.md §5, defense order §9.
+// score = Damage^a x Survivability^b x Other^c (MECHANICS §5, §13.16).
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -18,15 +17,13 @@
 
 namespace gdc::score {
 
-// (CombatAttributeType, is duration). Acid = Poison type 7 direct, poison = type 7 duration (ERRATA §0).
+// (CombatAttributeType, is duration); acid vs poison: ERRATA §0.
 using DamageKey = std::pair<int, bool>;
 std::optional<DamageKey> damage_key(std::string_view name);
 std::string damage_label(DamageKey k);
 std::string damage_name(DamageKey k);  // its [match] damage name, "" if it has none
 
-// A record as main_skills' auto mode sees it: main = an attack-class or weapon-pool skill with damage at `level`;
-// weapon = weaponDamagePct > 0 (it deals the weapon's damage); types = the damage its own record (or its
-// buffSkillName record) deals, before conversions (Elemental as Cold, Fire and Lightning, Physical base as Physical).
+// A record as main_skills' auto mode sees it (§13.16).
 struct SkillKind {
   bool main = false, weapon = false;
   std::vector<DamageKey> types;
@@ -40,16 +37,14 @@ struct Weight {
 };
 std::map<std::string, Weight> default_other();
 
-// Every number here is a design choice unless it cites a source (docs/PRESETS.md).
+// Numbers here are design choices unless cited (docs/PRESETS.md).
 struct Settings {
   double damage_weight = 1.0, survival_weight = 1.0, other_weight = 0.25;  // a, b, c
   double negligible_percent = 0.1;
   double threshold_below = 1.0, threshold_above = 0.05, threshold_width = 0.05;
-  // The 9 base resists share one threshold term (geometric mean of their factors) raised to this: 1 = together
-  // they count like one other threshold, 9 = each resist counts like one.
+  // Exponent of the shared base-resist threshold term (§13.16).
   double threshold_resist_weight = 1.0;
-  // recast_buffs: uptime = min(1, duration / (recharge x (1 - CDR))); else [uptime] from the record.
-  // live_buffs: take each buff as the snapshot caught it.
+  // recast_buffs: uptime from duration and recharge; else record uptime.
   bool recast_buffs = true, live_buffs = false;
   std::vector<std::string> skills;  // empty = auto
   bool weigh_by_points = false;
@@ -63,13 +58,11 @@ struct Settings {
   double enemy_hit_per_level = 0;   // 0 = monster table
   double melee_share = 0.5;         // melee hits face dodge, the rest deflect
   double damage_reduction_uptime = 0.5;
-  // Enemy resistance reduction on the 9 base resists. Empty = the monster table's (gdc/enemy.h): its rr for
-  // its rr_share of the incoming damage, bosses' boss_rr for boss_share x boss_rr_share. A number is always on.
+  // Enemy RR on base resists; empty = monster table (§13.16).
   std::optional<double> resist_reduction;
-  int resist_reduction_from = 0;    // game difficulty (0..2) from which the number applies; below it: auto
-  double boss_share = 0.15;         // share of incoming damage from Quest / Boss / Nemesis / SuperBoss enemies
-  // On Normal and Elite: score the base resists also under the next difficulty's extra penalty, for a share
-  // that ramps from 0 to 1 over the last levels before that difficulty (score.cpp lookahead()).
+  int resist_reduction_from = 0;    // game difficulty (0..2) where the number starts; below: auto
+  double boss_share = 0.15;         // incoming damage share from Quest / Boss / Nemesis / SuperBoss
+  // Also score next difficulty's penalty, ramping in (lookahead(), §13.16).
   bool difficulty_lookahead = true;
   double incoming_hits_per_sec = 2;
   double low_health_per_sec = 0.05;
@@ -79,8 +72,7 @@ struct Settings {
       {9, 0.10}, {10, 0.10}, {11, 0.10}, {15, 0.05}};
   std::map<std::string, Weight> other = default_other();
   std::string stage;
-  // Mean defensive<Type> of the 48 Boss records under records/creatures/enemies/ (database.arz + GDX1..3, unchanged 1.3.1.1 -> 1.3.1.2);
-  // enemy::resist adds the difficulty's share.
+  // Mean defensive<Type> of the 48 Boss records (§13.16).
   std::map<int, double> enemy_resist = {{2, 19}, {4, 22}, {5, 32}, {6, 15}, {7, 15},
                                         {8, 16}, {9, 30}, {10, 15}, {11, 17}, {15, 0}};
   std::map<std::string, double> uptime;
@@ -106,8 +98,7 @@ struct Preset : Settings {
   double match_share = 0.5;
   std::string match_character;
   std::vector<std::string> match_characters;  // always match, skipping every other check
-  // Save keys (snap::save_key). A name in character / characters that one of them names matches only that save
-  // when the snapshot knows its save; names no key mentions match by name alone.
+  // Save keys (snap::save_key); a named save binds that name (§13.16).
   std::vector<std::string> match_saves;
   std::string match_archetype;
   std::vector<Stage> stages;           // file order
@@ -116,7 +107,7 @@ struct Preset : Settings {
   bool operator==(const Preset&) const = default;
 };
 
-// Unknown keys, wrong types and out-of-range values are errors. Never throws.
+// Unknown keys, bad types, out-of-range values: errors. Never throws.
 std::optional<Preset> parse(std::string_view toml, std::string& error);
 
 // Last matching stage in file order.
@@ -131,17 +122,15 @@ Match match(const Preset& p, const snap::Snapshot& s, const arz::Database& db, c
 
 // Save keys compare like Windows folder names (ASCII case-insensitive).
 bool same_save_key(std::string_view a, std::string_view b);
-// False when [match] saves names this character but not this save (empty save: unknown, true).
+// False when [match] saves name this character, not this save.
 bool in_bound_save(const Preset& p, std::string_view name, std::string_view save);
-// [match] characters lists the name and in_bound_save holds: the preset applies with no other check.
+// Listed in [match] characters with a bound save: applies outright.
 bool binds(const Preset& p, std::string_view name, std::string_view save);
 
-// A build's own preset before a template that lists all ten masteries.
+// A build's own preset before an all-masteries template.
 bool tried_first(const Preset& a, const Preset& b);
 
-// Pet summons are Skill_SpawnPet / Skill_TargetedSpawnPet whose spawnObjects has Class Pet; the
-// PetPlayerScaling ones (mines, totems, seals, Wind Devils) are not pets. Modifiers count for their parent.
-// Thresholds in archetype() are design choices.
+// Pet summons spawn a Class Pet; PetPlayerScaling ones aren't (§13.16).
 struct Archetype {
   std::string name;
   std::string why;
@@ -150,13 +139,10 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db);
 
 std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db);
 
-// Source type -> (to -> percent), in the order the engine first saw each source type.
+// Source type -> (to -> percent), in engine first-seen order.
 using Conversions = std::vector<std::pair<int, std::map<int, double>>>;
 
-// Damage by type after conversions as Skill::CollectCombatParameters: `skill` first, then `global` (fractions, in
-// snapshot order), each weighed to 100% per source type and run source type by source type in first-seen order;
-// converted damage is not converted again; Elemental in or out is a third each of Cold, Fire, Lightning
-// (docs/MECHANICS.md §2).
+// Damage by type after conversions, as CollectCombatParameters (MECHANICS §2).
 std::map<DamageKey, double> convert(const std::map<DamageKey, double>& in, const Conversions& skill,
                                     const std::vector<snap::Conversion>& global, std::vector<std::string>& notes);
 
@@ -165,8 +151,7 @@ struct Skill {
   double weight = 0;
 };
 
-// Smooth threshold, no step: ln f = above x u - (below - above) x width x ln(1 + e^(-u / width)),
-// u = value / target - 1.
+// Smooth threshold, no step; formula in MECHANICS §13.16.
 double threshold_factor(double value, double target, const Settings& p);
 
 struct Conversion {
@@ -177,8 +162,7 @@ struct Conversion {
 std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const snap::Snapshot& after,
                                             const Settings& p, const std::vector<DamageKey>& targets,
                                             const arz::Database* db);
-// File name (no extension) F10 writes for this character: "frozen-winterofhell-928303920" (Steam account),
-// "-local", plus "-custom" / "-backup"; the name alone when the save is unknown. ASCII only.
+// F10 file name for this character, ASCII only (§13.16).
 std::string frozen_file(const snap::Snapshot& s);
 // parse(freeze(...)) must give back the same settings.
 std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Database& db, const std::string& name,
@@ -220,7 +204,7 @@ struct BuffUse {
 };
 std::string_view damage_label(int type, bool dot);
 struct BuffView {
-  model::Sheet sheet;     // buffs up at least half the time on, the rest off
+  model::Sheet sheet;     // buffs up half the time or more on, others off
   std::vector<BuffUse> buffs;
 };
 BuffView buff_view(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database* db);
@@ -235,17 +219,11 @@ struct Result {
   bool pets = false;  // Class Pet damage is in Damage (experimental estimate, docs/MECHANICS.md §4)
   std::vector<effects::Reduction> rr_lost, rr_gained;
   std::vector<OtherChange> other_changes;
-  // Each term's ln ratio split over its parts and scaled by the term's exponent, so the parts sum to
-  // ln(1 + percent / 100) x 100.
+  // Each term's ln ratio split over parts, scaled by exponent.
   std::vector<Contribution> contributions;
 };
 
-// Buffs that are not always up split each side into states. Terms are computed per state and mixed
-// geometrically (ln X = sum p x ln X_state, buffs independent) so caps see real sheets and the reverse swap
-// stays exact. Only the kMaxEnumerated buffs with the largest uptime x (1 - uptime) are enumerated.
-//
-// `memo` keeps the before side for the next call with the same `before` object and weapon base (one tooltip
-// scores one snapshot against several afters); `before` must outlive it unchanged, as must skills, p and db.
+// Mixes buff states (§13.16); memo's inputs must outlive it unchanged.
 struct BeforeSide;
 using Memo = std::shared_ptr<const BeforeSide>;
 Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const std::vector<Skill>& skills,

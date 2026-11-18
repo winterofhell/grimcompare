@@ -10,14 +10,10 @@ enum class Face : std::uint8_t {
   LinBiolinumSans,  // GrayStats1
 };
 
-// StyleManager::LoadStyle 0x1C4400: as is at scale 1, else ceil(points x scale), at least 8
-// (lowResMinimumFontSize default).
+// StyleManager::LoadStyle 0x1C4400 point size at a UI scale (§13.14).
 int pixel_size(int points, float ui_scale);
 
-// GameTextString's measure (Game.dll 0x317470) on GraphicsFont2::GetStyle(size, 0) (Engine.dll 0xB0830 -> 0xAE660:
-// nearest size, first on a tie), per glyph (0x317820): x += previous "after" (not for a space after a non-space),
-// then the bearing (x >= 0), then floor(advance x scale + 0.5). No kerning in these fonts. Outside
-// U+0020..007E: glyph U+0000.
+// GameTextString's text width in pixels (§13.14).
 int width(Face face, int size, std::string_view text);
 
 }  // namespace gdc::font

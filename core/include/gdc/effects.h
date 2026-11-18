@@ -1,13 +1,5 @@
 #pragma once
-// Every effect has uses per second and an uptime in [0, 1] tagged with its origin (MECHANICS §1, §4).
-// DB sources (ERRATA §0, re/CombatAttributeType.tsv):
-// RR type 1: defensive<Type> < 0 on a debuff record (debufSkill > 0 or SkillBuff_Debuf), duration skillActiveDuration
-// RR type 2 / 3: offensive{Total,Physical,Elemental}ResistanceReduction{Percent,Absolute}Min (32..37), duration
-// the field's DurationMin
-// procs: templateAutoCast / itemSkillAutoController -> chanceToRun, triggerType, triggerParam; passives:
-// lifeMonitorPercent, onHitActivationChance, skillChanceWeight (Skill_WPAttack_*)
-// pets: spawnObjects, petLimit, spawnObjectsTimeToLive (+ modifiers'; a transmuter's modSpawnObjectsTimeToLive /
-// modSpawnObjects), the pet's attackSkillName and skillName<n>; live pets' speeds and animations (Snapshot::pets)
+// Effects: uses per second and uptime (MECHANICS §1, §4, §13.12).
 #include <algorithm>
 #include <cstdint>
 #include <map>
@@ -34,9 +26,9 @@ struct Rates {
   double blocks = 0;      // Block
   double low_health = 0;
   double kills = 0;       // OnKill
-  double pet_attacks = 0; // preset pet_attack_rate per pet; 0 = from the pet's record (estimate)
+  double pet_attacks = 0; // preset pet_attack_rate per pet; 0 = record estimate
   double pet_attack_speed = 0, pet_cast_speed = 0;  // pet bonus %, Class Pet only
-  // This side's pet bonus % minus that of the snapshot its live pets (Snapshot::pets) were captured in.
+  // Pet bonus % change since the live pets' capture.
   double pet_attack_shift = 0, pet_cast_shift = 0;
   double char_level = 0;  // pets' charLevel (the player's level)
 };
@@ -51,14 +43,12 @@ struct Effect {
   bool maintained = false; // no cooldown: assumed kept up
   double per_sec = 0;      // pets: all living pets; 0 = never / unknown
   double pets = 0;
-  // LowHealth: controller triggerParam or lifeMonitorPercent. 0 when the controller has none (the engine's
-  // default threshold is not traced).
+  // LowHealth threshold; 0 when the controller has none.
   double life_below = 0;
   Origin origin = Origin::Default;
   std::string basis;
   std::vector<std::pair<std::string, std::uint32_t>> modifiers;
-  // Pets: the pet record and its skills that hold its weapon damage (Skill_Passive with flat damage at their level),
-  // which weaponDamagePct scales; the pet record itself stands for a plain attack (100% of it).
+  // Pets: the pet record and skills holding its weapon damage.
   std::string pet_record;
   std::vector<std::pair<std::string, std::uint32_t>> weapon;
 };
@@ -80,19 +70,14 @@ struct Collected {
 Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates& rates,
                   const std::map<std::string, double>& overrides, const std::vector<int>& resists);
 
-// Pet: Pet::ContributeMisc* (0x3C7C10..) add GameEngine::ContributePetBonus*, so pet bonuses apply.
-// PetPlayerScaling overrides all seven ContributeMisc* (0x3C8840..0x3C88B0) to Character's, so no pet bonus, and
-// Skill::CollectCombatParameters 0x499E40 swaps its caster for the owning Player.
+// Pet stats get pet bonuses; PetPlayerScaling uses the owner's (§13.12).
 const arz::Record* summoned(const arz::Record& skill, std::uint32_t level, const arz::Database& db);
 std::string summoned_record(const arz::Record& skill, std::uint32_t level);  // "": not a summon
 
-// A DB equation of charLevel (pets' skillLevel<n>, bio records: "((charLevel*21.3)^1.29)+35"): numbers,
-// charLevel, + - * / ^ and parentheses. nullopt for anything else.
+// Parses a DB equation of charLevel; nullopt otherwise (§13.12).
 std::optional<double> equation(std::string_view expr, double char_level);
 
-// A pet's skills with their levels: skillName<n> / skillLevel<n> (numbers or equations of charLevel) and, at the
-// modifier's level, the petSkillName of the summon's learned SkillSecondary_PetModifier (summon_hellhound2_petmodifier
-// -> petskill_hellhound_fireclaw, level 0 in the pet record).
+// A pet's skills and levels, incl. the pet modifier's (§13.12).
 std::vector<std::pair<std::string, std::uint32_t>> pet_skills(const arz::Record& pet, double char_level,
                                                               const std::vector<std::pair<std::string, std::uint32_t>>& modifiers,
                                                               const arz::Database& db);
@@ -101,9 +86,7 @@ inline double uptime(const Effect& e, double duration) {
   return e.maintained ? 1.0 : std::min(1.0, e.per_sec * std::max(0.0, duration));
 }
 
-// Type 1 adds value x uptime; types 2 and 3 are highest-only, each source active with probability
-// u_k x prod over stronger (1 - u_j), sources independent (MECHANICS §4). Order 1 -> 2 -> 3; type 2 only while the
-// resist is above 0 (MECHANICS §1).
+// RR stacking: type 1 sums, 2 / 3 highest-only (§13.12).
 std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, const std::vector<Reduction>& rr);
 
 }  // namespace gdc::effects

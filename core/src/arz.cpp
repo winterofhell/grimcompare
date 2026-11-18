@@ -47,7 +47,7 @@ struct Reader {
   }
 };
 
-constexpr std::size_t kHeader = 24;  // record data offsets are relative to the end of the header
+constexpr std::size_t kHeader = 24;  // record data offsets count from the header's end
 
 }  // namespace
 
@@ -84,9 +84,7 @@ std::vector<std::byte> lz4_block(std::span<const std::byte> src, std::size_t out
 
 namespace {
 
-// Field names are short ASCII and often differ only in the middle (offensiveSlowColdDurationMin /
-// offensiveSlowFireDurationMin): length, head, middle and tail words, mixed. Far cheaper than std::hash's
-// full pass; a collision only costs a probe.
+// Cheap hash over length, head, middle and tail (§13.23).
 std::size_t key_hash(std::string_view s) {
   auto load = [&](std::size_t at) {
     std::uint64_t v;
@@ -317,7 +315,7 @@ const Record* Database::record(std::string_view name) const {
     Spin l(cache_->lock);
     if (const auto it = cache_->records.find(name); it != cache_->records.end()) return it->second.get();
   }
-  std::unique_ptr<const Record> rec;  // decoded outside the lock; a racing decode of the same name is dropped
+  std::unique_ptr<const Record> rec;  // decoded outside the lock; a racing duplicate is dropped
   for (auto it = files_.rbegin(); it != files_.rend(); ++it)
     if (it->contains(name)) {
       if (auto r = it->record(name)) rec = std::make_unique<const Record>(std::move(*r));

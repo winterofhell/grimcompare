@@ -1,8 +1,5 @@
 #pragma once
-// From Game.dll 1.3.1.1: CharAttributeType / CombatAttributeType from exported class names (re/*.tsv, checked by
-// tests/test_attribute_names.cpp; 41, 47, 49 have none). SkillAttributeType: the +8 store in each
-// SkillAttributeVal_* / Mod_* ctor (0x51EE70..0x51F050). GameDifficulty: GetGameDifficultyAsPath 0x2D85B0.
-// EquipLocations: EquipManager::LocationToString 0x286480. Skill_Type has no string table.
+// Engine enum names from Game.dll 1.3.1.1 (§13.6).
 #include <string_view>
 
 namespace gdc::names {

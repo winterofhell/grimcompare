@@ -1,6 +1,5 @@
 #pragma once
-// One chain per segment per character: a full baseline, then RFC 7386 merge patches between keyed snapshots.
-// Files: <root>/<character>/<segment>-<seq>-<full|delta>.json.gz; names sort in time order (docs/SNAPSHOT.md).
+// One chain per segment: baseline, then RFC 7386 patches (docs/SNAPSHOT.md).
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -16,8 +15,7 @@ namespace gdc::store {
 std::string gzip(std::string_view data);
 std::string gunzip(std::string_view gz);
 
-// Arrays keyed by identity so a patch touches only what changed. Keyed entries are in key order, so the engine's
-// list order is lost. A missing or repeated key leaves the array as is.
+// Arrays keyed by identity, so patches touch only changes (§13.20).
 std::string keyed(const snap::Snapshot& s);
 snap::Snapshot from_keyed(std::string_view keyed_json);
 

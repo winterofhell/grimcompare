@@ -1,6 +1,5 @@
 #pragma once
-// The build wizard: pick a character from the saves, its masteries, then a catalog build or a few questions, and
-// write GDCompare.presets/<name>.toml bound to that character.
+// Build wizard: character, masteries, build; writes a bound preset.
 #include <filesystem>
 #include <string>
 

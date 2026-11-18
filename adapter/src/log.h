@@ -9,7 +9,7 @@ namespace gdc::log {
 
 // Best-effort: failure is silent.
 void open(const std::wstring& path);
-// Straight to WriteFile, no buffer, so the text survives a crash right after.
+// Straight to WriteFile, unbuffered, so text survives a crash.
 void write(std::string_view text);
 void printf(const char* fmt, ...);
 // For the vectored handler: no lock, no heap, no CRT.

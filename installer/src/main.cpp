@@ -1,12 +1,7 @@
-// gdcompare-setup: installs GrimCompare into the folder Grim Dawn runs from and writes build presets.
-// usage: gdcompare-setup [--plain] [--payload DIR] [--game DIR] [--wizard]
-//        gdcompare-setup launch-options add|remove [--steam DIR] [--game-folder DIR]   (scripts/deploy.sh)
+// gdcompare-setup: installs GrimCompare and writes build presets.
 #include <algorithm>
 #include <cstdio>
-#include <fstream>
-#include <iostream>
 #include <set>
-#include <sstream>
 
 #include "catalog.h"
 #include "detect.h"
@@ -38,7 +33,7 @@ fs::path find_payload(const Options& o) {
   return exe.parent_path() / "payload";
 }
 
-// Under the home folder as ~/... (Linux): the full Steam path alone fills an 80-column line.
+// Show home as ~/: full Steam paths fill 80 columns.
 std::string short_path(const fs::path& p) {
   const std::string s = u8string(p);
 #ifndef _WIN32
@@ -224,6 +219,46 @@ int launch_options_cli(int argc, char** argv) {
   return 0;
 }
 
+// 0 install, 1 wizard, 2 uninstall, 3 folder, 4 quit.
+int main_menu(const Game& game, const std::string& folder, bool has_payload) {
+  const fs::path target = game.root / u8path(folder);
+  const bool installed = !read_manifest(target).empty();
+  std::vector<ui::Item> items;
+  std::vector<int> actions;
+  if (has_payload) items.push_back({installed ? tr("Update or repair GrimCompare") : tr("Install GrimCompare"), ""}), actions.push_back(0);
+  items.push_back({tr("Set up a build preset for a character"), tr("the build wizard")}), actions.push_back(1);
+  if (installed) items.push_back({tr("Uninstall GrimCompare"), ""}), actions.push_back(2);
+  items.push_back({tr("Change folder"), tr("other game folder, or x64 / compat")}), actions.push_back(3);
+  items.push_back({tr("Quit"), ""}), actions.push_back(4);
+  const int i = ui::choose(fmt(tr("Grim Dawn: {} ({})\nThe mod goes into: {}/\n\nWhat would you like to do?"),
+                               {short_path(game.root), game.source, folder}),
+                           items, 0, {}, false, true);
+  return i < 0 ? 4 : actions[static_cast<std::size_t>(i)];
+}
+
+// True when a warning is on screen.
+bool change_folder(std::optional<Game>& game, std::string& folder) {
+  const auto folders = run_folders(game->root);
+  std::vector<ui::Item> fi;
+  for (const auto& f : folders) fi.push_back({f + "/", f == "compat" ? tr("Steam's Compatibility Mode entry") : tr("the 64-bit game")});
+  fi.push_back({tr("Another Grim Dawn folder"), ""});
+  const auto now = std::find(folders.begin(), folders.end(), folder);
+  const int f = ui::choose(tr("Where should the mod go?"), fi, static_cast<int>(now - folders.begin()));
+  if (f < 0) return false;
+  if (f < static_cast<int>(folders.size())) {
+    folder = folders[static_cast<std::size_t>(f)];
+    return false;
+  }
+  auto g = pick_game(Options{});
+  if (!g) return false;
+  if (const std::string next = default_folder(g->root); !next.empty()) {
+    game = g, folder = next;
+    return false;
+  }
+  ui::warn(fmt(tr("{} has no x64 or compat folder with Grim Dawn.exe; staying with the folder before."), {u8string(g->root)}));
+  return true;
+}
+
 int run(const Options& o) {
   ui::title(fmt(tr("GrimCompare {} setup"), {std::string(kVersion)}));
   ui::wrap(tr("Installs the item comparison mod into your Grim Dawn folder and sets up how it scores items for your build. "
@@ -244,19 +279,7 @@ int run(const Options& o) {
   if (o.wizard_only) return wizard(*game, folder, payload_dir) == WizardEnd::kFailed ? 1 : 0;
 
   for (;;) {
-    const fs::path target = game->root / u8path(folder);
-    const bool installed = !read_manifest(target).empty();
-    std::vector<ui::Item> items;
-    std::vector<int> actions;  // 0 install, 1 wizard, 2 uninstall, 3 folder, 4 quit
-    if (payload) items.push_back({installed ? tr("Update or repair GrimCompare") : tr("Install GrimCompare"), ""}), actions.push_back(0);
-    items.push_back({tr("Set up a build preset for a character"), tr("the build wizard")}), actions.push_back(1);
-    if (installed) items.push_back({tr("Uninstall GrimCompare"), ""}), actions.push_back(2);
-    items.push_back({tr("Change folder"), tr("other game folder, or x64 / compat")}), actions.push_back(3);
-    items.push_back({tr("Quit"), ""}), actions.push_back(4);
-    const int i = ui::choose(fmt(tr("Grim Dawn: {} ({})\nThe mod goes into: {}/\n\nWhat would you like to do?"),
-                                 {short_path(game->root), game->source, folder}),
-                             items, 0, {}, false, true);
-    const int a = i < 0 ? 4 : actions[static_cast<std::size_t>(i)];
+    const int a = main_menu(*game, folder, payload.has_value());
     if (a == 4) return 0;
     bool shown = true;  // results on screen: wait before the menu clears them
     if (a == 0) {
@@ -267,26 +290,7 @@ int run(const Options& o) {
     } else if (a == 2) {
       run_plan(Mode::kUninstall, *game, folder, nullptr);
     } else if (a == 3) {
-      const auto folders = run_folders(game->root);
-      std::vector<ui::Item> fi;
-      for (const auto& f : folders) fi.push_back({f + "/", f == "compat" ? tr("Steam's Compatibility Mode entry") : tr("the 64-bit game")});
-      fi.push_back({tr("Another Grim Dawn folder"), ""});
-      const auto now = std::find(folders.begin(), folders.end(), folder);
-      const int f = ui::choose(tr("Where should the mod go?"), fi, static_cast<int>(now - folders.begin()));
-      if (f < 0) continue;
-      if (f < static_cast<int>(folders.size())) {
-        folder = folders[static_cast<std::size_t>(f)];
-        shown = false;
-      } else if (auto g = pick_game(Options{})) {
-        if (const std::string next = default_folder(g->root); !next.empty()) {
-          game = g, folder = next;
-          shown = false;
-        } else {
-          ui::warn(fmt(tr("{} has no x64 or compat folder with Grim Dawn.exe; staying with the folder before."), {u8string(g->root)}));
-        }
-      } else {
-        shown = false;
-      }
+      shown = change_folder(game, folder);
     }
     if (shown) ui::pause();
   }

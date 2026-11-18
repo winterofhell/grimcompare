@@ -1,5 +1,5 @@
 #pragma once
-// Each falls back to the internal name when the database or text is missing.
+// Falls back to the internal name without database or text.
 #include <string>
 
 #include "gdc/arz.h"
@@ -15,7 +15,7 @@ class Labels {
 
   // Item-text tag "Defense<name>" (tags_ui.txt), "Resistance" shortened to "Resist".
   std::string resist(int type) const;
-  // Skill_BuffRadius and SkillSecondary_PetModifier keep the name on their buff / pet record.
+  // Skill_BuffRadius / SkillSecondary_PetModifier: name from the buff or pet record.
   std::string skill(const std::string& record) const;
   std::string set(const std::string& record) const;
   // Components and augments use `description`; gear uses `itemNameTag`.

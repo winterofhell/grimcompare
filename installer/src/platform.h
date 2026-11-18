@@ -1,6 +1,5 @@
 #pragma once
-// The few OS calls setup needs. Paths are UTF-8 in std::string everywhere; u8path / u8string convert, because on
-// Windows fs::path(std::string) reads the ANSI code page.
+// OS calls setup needs; UTF-8 paths, u8path converts (Windows ANSI).
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -15,11 +14,10 @@ std::optional<std::string> env(const char* name);
 std::filesystem::path home();
 std::filesystem::path exe_dir();
 
-// Grim Dawn.exe running: Linux /proc (wine names the process after the exe; its cmdline starts with a Windows path),
-// Windows Toolhelp32. nullopt: could not tell.
+// Is Grim Dawn.exe running (Linux /proc, Windows Toolhelp32); nullopt: unknown.
 std::optional<bool> game_running();
 
-// Windows only (empty elsewhere): the user's Documents folder, and registry strings.
+// Windows only (else empty): Documents folder, registry strings.
 std::filesystem::path documents_dir();
 enum class Hive { kCurrentUser, kLocalMachine };
 std::optional<std::string> registry_string(Hive hive, const std::string& key, const std::string& value);

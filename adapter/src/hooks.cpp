@@ -1,5 +1,4 @@
-// Nothing here writes game memory. A faulting snapshot turns snapshots off for the session; a probe or writer
-// failure turns auto snapshots off.
+// Read-only. A fault turns snapshots or auto snapshots off.
 #include "hooks.h"
 
 #include <windows.h>
@@ -32,8 +31,7 @@ constexpr std::size_t kMaxTooltipItems = 8;
 
 HookConfig g_cfg;
 int g_vk = VK_F9;
-// F10 by default: the game binds F1..F7 (keybindings.txt, DirectInput 59..65), Steam takes F12, KDE takes
-// Ctrl+F1..F12 and Alt+F-keys.
+// F10: game, Steam and KDE already bind the others (§13.2).
 int g_freeze_vk = VK_F10;
 UpdateFn g_update = nullptr;
 TooltipFn g_tip_equipment = nullptr, g_tip_artifact = nullptr;
@@ -105,14 +103,14 @@ bool write_file(const std::wstring& path, const std::string& text) {
   return true;
 }
 
-// Jobs are recycled so the game thread refills buffers that already have capacity.
+// Recycled jobs keep buffer capacity for the game thread.
 struct Job {
   snap::Snapshot snap;
   snap::Spares spare;
   unsigned triggers = 0;
   bool manual = false;
   long long game_us = 0;
-  Probe probe;            // the tooltip block uses the snapshot while the live probe equals it
+  Probe probe;            // the tooltip uses the snapshot while the live probe matches
   Timing timing;
 };
 
@@ -269,7 +267,7 @@ void capture(unsigned triggers, bool manual) {
   }
 }
 
-// A burst that ends where the last capture was (item picked up and put back) captures nothing.
+// A burst ending at the last capture captures nothing.
 constexpr ULONGLONG kProbeMs = 100;
 ULONGLONG g_debounce_ms = 2000;
 Probe g_seen, g_captured;
@@ -340,11 +338,8 @@ bool create(void* target, void* detour, void** original, const char* label) {
   return st == MH_OK;
 }
 
-}  // namespace
-
-bool hooks_install(const Resolve& r, const HookConfig& cfg) {
-  g_cfg = cfg;
-  const std::wstring ini = cfg.mod_dir + L"GDCompare.ini";
+// Snapshot and freeze keys from GDCompare.ini.
+void read_keys(const std::wstring& ini) {
   const UINT vk = GetPrivateProfileIntW(L"snapshot", L"key", VK_F9, ini.c_str());
   if (vk >= 1 && vk <= 254) {
     g_vk = static_cast<int>(vk);
@@ -362,28 +357,33 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
   } else {
     g_freeze_vk = static_cast<int>(fk);
   }
-  g_tip_ids.reserve(kMaxTooltipItems);
-  g_tips.reserve(kMaxTooltipItems);
-  g_free.reserve(kMaxJobs);
-  const bool want_auto = GetPrivateProfileIntW(L"snapshot", L"auto", 1, ini.c_str()) != 0;
-  const UINT cap_mb = GetPrivateProfileIntW(L"snapshot", L"auto_cap_mb", 50, ini.c_str());
+}
+
+struct AutoConfig {
+  bool wanted = false;
+  UINT cap_mb = 0;
+};
+
+// Auto snapshots need the store; calibration writes next to it.
+AutoConfig open_store(const std::wstring& ini, const HookConfig& cfg) {
+  AutoConfig a;
+  a.wanted = GetPrivateProfileIntW(L"snapshot", L"auto", 1, ini.c_str()) != 0;
+  a.cap_mb = GetPrivateProfileIntW(L"snapshot", L"auto_cap_mb", 50, ini.c_str());
   g_debounce_ms = std::clamp<UINT>(GetPrivateProfileIntW(L"snapshot", L"auto_debounce_ms", 2000, ini.c_str()), 200, 60000);
-  if (want_auto) {
+  if (a.wanted) {
     try {
       g_store = std::make_unique<store::Store>(std::filesystem::path(cfg.mod_dir + L"snapshots"),
-                                               std::uint64_t{std::clamp<UINT>(cap_mb, 1, 4096)} << 20);
+                                               std::uint64_t{std::clamp<UINT>(a.cap_mb, 1, 4096)} << 20);
     } catch (const std::exception& e) {
       log::printf("auto snapshot: store init failed: %s", e.what());
     }
   }
   if (g_store) calibration_init(cfg.mod_dir, cfg.mod_version.c_str());
-  HANDLE wt = CreateThread(nullptr, 0, writer, nullptr, 0, nullptr);
-  if (!wt) {
-    log::printf("hooks: writer thread not started (%lu)", GetLastError());
-    return false;
-  }
-  CloseHandle(wt);
+  return a;
+}
 
+// Creates the three detours; enabling comes later.
+bool create_hooks(const Resolve& r) {
   void* update_target = const_cast<void*>(r("GameEngine::Update"));
   void* eq_target = const_cast<void*>(r("ItemEquipment::GetUIDisplayText"));
   void* art_target = const_cast<void*>(r("ItemArtifact::GetUIDisplayText"));
@@ -391,7 +391,7 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     log::write("hooks: a detour target is unresolved");
     return false;
   }
-  MH_STATUS st = MH_Initialize();
+  const MH_STATUS st = MH_Initialize();
   if (st != MH_OK) {
     log::printf("hooks: MH_Initialize failed: %s", MH_StatusToString(st));
     return false;
@@ -404,10 +404,30 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
     MH_Uninitialize();
     return false;
   }
+  return true;
+}
+
+}  // namespace
+
+bool hooks_install(const Resolve& r, const HookConfig& cfg) {
+  g_cfg = cfg;
+  const std::wstring ini = cfg.mod_dir + L"GDCompare.ini";
+  read_keys(ini);
+  g_tip_ids.reserve(kMaxTooltipItems);
+  g_tips.reserve(kMaxTooltipItems);
+  g_free.reserve(kMaxJobs);
+  const AutoConfig autos = open_store(ini, cfg);
+  HANDLE wt = CreateThread(nullptr, 0, writer, nullptr, 0, nullptr);
+  if (!wt) {
+    log::printf("hooks: writer thread not started (%lu)", GetLastError());
+    return false;
+  }
+  CloseHandle(wt);
+  if (!create_hooks(r)) return false;
   if (!tooltip_init(r, cfg.mod_dir)) log::write("tooltip: block off");
-  g_auto = want_auto && g_store != nullptr;
+  g_auto = autos.wanted && g_store != nullptr;
   g_snapshots = true;  // before enabling: the first hooked Update may run immediately
-  st = MH_EnableHook(MH_ALL_HOOKS);
+  const MH_STATUS st = MH_EnableHook(MH_ALL_HOOKS);
   if (st != MH_OK) {
     g_snapshots = false;
     log::printf("hooks: MH_EnableHook failed: %s", MH_StatusToString(st));
@@ -417,7 +437,7 @@ bool hooks_install(const Resolve& r, const HookConfig& cfg) {
   log::printf("hooks installed; snapshot key = virtual-key %d (F9 = 120), GDCompare.ini [snapshot] key", g_vk);
   log::printf("freeze key = virtual-key %d (F10 = 121, 0 = off), GDCompare.ini [freeze] key", g_freeze_vk);
   log::printf("auto snapshots %s (debounce %llu ms, cap %u MB; [snapshot] auto, auto_debounce_ms, auto_cap_mb)",
-              g_auto ? "on" : "off", static_cast<unsigned long long>(g_debounce_ms), cap_mb);
+              g_auto ? "on" : "off", static_cast<unsigned long long>(g_debounce_ms), autos.cap_mb);
   return true;
 }
 

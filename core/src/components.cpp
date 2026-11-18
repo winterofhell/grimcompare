@@ -156,8 +156,7 @@ bool has_stats(const std::string& record, const arz::Database* db) {
   return false;
 }
 
-// ItemReplicaInfo +0xB0: the component's completion bonus, or an artifact's own (d016_relic:
-// completionrelics/aocc_20a).
+// ItemReplicaInfo +0xB0: completion bonus (artifacts: their own).
 bool component_bonus(const snap::Item& it) {
   return it.replica && !it.replica->relic_bonus.empty() && (it.relic || !it.replica->relic.empty());
 }

@@ -19,7 +19,7 @@ constexpr int index_of(std::string_view cls) {
   return it != std::end(kParents) && it->first == cls ? static_cast<int>(it - std::begin(kParents)) : -1;
 }
 
-// Parent row of each row, -1 at a root: is_a walks ints instead of searching names at every level.
+// Parent row per row, -1 at roots: is_a walks ints.
 constexpr auto kParentRow = [] {
   std::array<int, std::size(kParents)> out{};
   for (std::size_t i = 0; i < out.size(); ++i) out[i] = index_of(kParents[i].second);

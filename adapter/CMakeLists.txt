@@ -14,8 +14,17 @@ add_library(gdcompare SHARED
   src/log.cpp
   src/seh.cpp
   src/snapshot.cpp
+  src/snapshot_accumulators.cpp
+  src/snapshot_character.cpp
+  src/snapshot_init.cpp
+  src/snapshot_items.cpp
+  src/snapshot_pets.cpp
+  src/snapshot_skills.cpp
   src/hooks.cpp
   src/tooltip.cpp
+  src/tooltip_build.cpp
+  src/tooltip_presets.cpp
+  src/tooltip_worker.cpp
 )
 set_target_properties(gdcompare PROPERTIES OUTPUT_NAME GDCompare SUFFIX .asi)
 target_link_libraries(gdcompare PRIVATE gdc_core minhook bcrypt)

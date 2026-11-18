@@ -42,7 +42,7 @@ std::string trim(std::string_view s) {
   return a == std::string_view::npos ? "" : std::string(s.substr(a, b - a + 1));
 }
 
-// UTF-16LE text after `key` in a version resource String block: key, NULs to 4-byte alignment, value, NUL.
+// UTF-16LE value after `key` in a version String block.
 std::string version_string(const std::string& data, std::string_view key) {
   std::string pat;
   for (const char c : key) pat += c, pat += '\0';
@@ -81,7 +81,7 @@ bool copy_atomic(const fs::path& from, const fs::path& to, std::string& error) {
   fs::create_directories(to.parent_path(), ec);
   fs::path tmp = to;
   tmp += ".gdc-tmp";
-  // A rename, never an in-place rewrite: the old file may still be mapped by a process.
+  // Rename, never rewrite: a process may still map the file.
   if (!fs::copy_file(from, tmp, fs::copy_options::overwrite_existing, ec) || (fs::rename(tmp, to, ec), ec)) {
     error = "could not write " + u8string(to) + ": " + ec.message();
     fs::remove(tmp, ec);
@@ -183,108 +183,135 @@ bool ini_loads_in_dllmain(const fs::path& ini) {
   return ok;
 }
 
+namespace {
+
+using Manifest = std::map<std::string, std::string>;
+
+// sha256 of an installed file; "?" when unreadable.
+std::optional<std::string> current_hash(const fs::path& target, const std::string& name) {
+  std::error_code ec;
+  if (!fs::exists(at(target, name), ec)) return std::nullopt;
+  return sha256_file(at(target, name)).value_or("?");
+}
+
+void add(Plan& plan, Step::Kind k, const std::string& f, std::string why, bool backup = false) {
+  plan.steps.push_back({k, f, std::move(why), backup});
+}
+
+void plan_uninstall(Plan& plan, const Manifest& old) {
+  const fs::path& target = plan.target;
+  if (old.empty()) plan.blockers.push_back("GrimCompare is not installed in " + u8string(target) + " (no " + std::string(kManifest) + ").");
+  // Loader stays while other .asi plugins still use it.
+  bool other_asi = false;
+  std::error_code dec;
+  for (const auto& e : fs::directory_iterator(target, dec))
+    other_asi = other_asi || (lower(u8string(e.path().extension())) == ".asi" && u8string(e.path().filename()) != kAsi);
+  for (const auto& [name, hash] : old) {
+    const auto have = current_hash(target, name);
+    if (!have) continue;
+    if ((name == kDll || name == kIni) && other_asi) add(plan, Step::Kind::kKeep, name, "other .asi plugins in this folder use it");
+    else if (*have == hash) add(plan, Step::Kind::kRemove, name, "installed by setup");
+    else {
+      add(plan, Step::Kind::kKeep, name, "changed since it was installed, so it is yours now");
+      plan.manifest[name] = hash;
+    }
+  }
+  std::error_code ec;
+  if (fs::exists(target / "GDCompare.log", ec)) add(plan, Step::Kind::kRemove, "GDCompare.log", "the mod's log");
+  for (const auto& e : fs::directory_iterator(target / kPresetDir, ec))
+    if (!old.contains(std::string(kPresetDir) + "/" + u8string(e.path().filename())))
+      add(plan, Step::Kind::kKeep, std::string(kPresetDir) + "/" + u8string(e.path().filename()), "your own preset");
+}
+
+// Foreign dinput8.dll: reuse a 64-bit UAL, else block.
+void plan_foreign_loader(Plan& plan, const std::string& name) {
+  const LoaderInfo li = inspect_loader(at(plan.target, name));
+  if (li.ual && li.x64) {
+    add(plan, Step::Kind::kKeep, name, "your Ultimate ASI Loader " + li.version + ", reused");
+    plan.notes.push_back("Using the Ultimate ASI Loader already there (" + li.version + "). GrimCompare is tested with v9.7.4; if the game "
+                         "fails to start, replace it with the dinput8.dll from this package.");
+  } else if (li.ual) {
+    plan.blockers.push_back("dinput8.dll is a 32-bit Ultimate ASI Loader; the 64-bit game cannot load it. Remove it, then run setup again.");
+  } else {
+    plan.blockers.push_back(
+        "dinput8.dll in " + u8string(plan.target) + " belongs to another mod" + (li.product.empty() ? "" : " (" + li.product + ")") +
+        ". GrimCompare loads through Ultimate ASI Loader, which must be dinput8.dll, so the two cannot both be installed as they are. "
+        "Setup will not overwrite it. If that mod can be loaded as an .asi plugin, or under another name, set it up that way and run setup again.");
+  }
+}
+
+// Differs from both the package and what setup installed.
+void plan_changed_file(Plan& plan, const Manifest& old, const std::string& name, const std::string& src_hash) {
+  if (name == kDll) {
+    plan_foreign_loader(plan, name);
+  } else if (name == kIni) {
+    if (ini_loads_in_dllmain(at(plan.target, name))) {
+      add(plan, Step::Kind::kKeep, name, "yours, has dontloadfromdllmain=0");
+    } else {
+      plan.blockers.push_back("dinput8.ini in " + u8string(plan.target) + " is not from GrimCompare and lacks \"dontloadfromdllmain=0\" under "
+                              "[globalsets]. Without it the game crashes before the main menu. Add that line (or delete the file), then "
+                              "run setup again.");
+    }
+  } else if (is_preset(name)) {
+    std::string error;
+    if (parses(at(plan.target, name), error)) {
+      add(plan, Step::Kind::kKeep, name, "edited by you, kept (the new version is in the package's presets folder)");
+      if (const auto owned = old.find(name); owned != old.end()) plan.manifest[name] = owned->second;  // uninstall keeps it as changed
+    } else {
+      add(plan, Step::Kind::kWrite, name, "has an error (" + error + "), replaced; your copy is backed up", true);
+      plan.manifest[name] = src_hash;
+    }
+  } else {
+    add(plan, Step::Kind::kWrite, name, "not from this setup, replaced; the old file is backed up", true);
+    plan.manifest[name] = src_hash;
+  }
+}
+
+void plan_install(Plan& plan, const Manifest& old, const Payload& payload) {
+  for (const auto& [name, src_hash] : payload.files) {
+    const auto have = current_hash(plan.target, name);
+    const auto owned = old.find(name);
+    const bool ours = have && owned != old.end() && owned->second == *have;
+    if (!have) {
+      add(plan, Step::Kind::kWrite, name, "new");
+      plan.manifest[name] = src_hash;
+    } else if (*have == src_hash) {
+      add(plan, Step::Kind::kKeep, name, "up to date");
+      plan.manifest[name] = src_hash;
+    } else if (ours) {
+      add(plan, Step::Kind::kWrite, name, "update");
+      plan.manifest[name] = src_hash;
+    } else {
+      plan_changed_file(plan, old, name, src_hash);
+    }
+  }
+  // Presets dropped from this version: removed while unchanged.
+  for (const auto& [name, hash] : old)
+    if (!payload.files.contains(name)) {
+      const auto have = current_hash(plan.target, name);
+      if (have && *have == hash) add(plan, Step::Kind::kRemove, name, "no longer shipped");
+      else if (have) add(plan, Step::Kind::kKeep, name, "no longer shipped, but changed by you");
+    }
+}
+
+}  // namespace
+
 Plan make_plan(Mode mode, const fs::path& target, const Payload* payload, std::optional<bool> running) {
   Plan plan;
   plan.mode = mode;
   plan.target = target;
   if (!running) plan.blockers.push_back("Could not check whether Grim Dawn is running. Close the game and try again.");
   else if (*running) plan.blockers.push_back("Grim Dawn is running. Quit the game first, then run setup again.");
-
-  const auto old = read_manifest(target);
-  auto current = [&](const std::string& name) -> std::optional<std::string> {
-    std::error_code ec;
-    if (!fs::exists(at(target, name), ec)) return std::nullopt;
-    return sha256_file(at(target, name)).value_or("?");
-  };
-  auto add = [&](Step::Kind k, const std::string& f, std::string why, bool backup = false) {
-    plan.steps.push_back({k, f, std::move(why), backup});
-  };
-
+  const Manifest old = read_manifest(target);
   if (mode == Mode::kUninstall) {
-    if (old.empty()) plan.blockers.push_back("GrimCompare is not installed in " + u8string(target) + " (no " + std::string(kManifest) + ").");
-    // The loader stays while other .asi plugins (added after the install) still load through it.
-    bool other_asi = false;
-    std::error_code dec;
-    for (const auto& e : fs::directory_iterator(target, dec))
-      other_asi = other_asi || (lower(u8string(e.path().extension())) == ".asi" && u8string(e.path().filename()) != kAsi);
-    for (const auto& [name, hash] : old) {
-      const auto have = current(name);
-      if (!have) continue;
-      if ((name == kDll || name == kIni) && other_asi) add(Step::Kind::kKeep, name, "other .asi plugins in this folder use it");
-      else if (*have == hash) add(Step::Kind::kRemove, name, "installed by setup");
-      else {
-        add(Step::Kind::kKeep, name, "changed since it was installed, so it is yours now");
-        plan.manifest[name] = hash;
-      }
-    }
-    std::error_code ec;
-    if (fs::exists(target / "GDCompare.log", ec)) add(Step::Kind::kRemove, "GDCompare.log", "the mod's log");
-    for (const auto& e : fs::directory_iterator(target / kPresetDir, ec))
-      if (!old.contains(std::string(kPresetDir) + "/" + u8string(e.path().filename())))
-        add(Step::Kind::kKeep, std::string(kPresetDir) + "/" + u8string(e.path().filename()), "your own preset");
+    plan_uninstall(plan, old);
     return plan;
   }
-
   if (!payload) {
     plan.blockers.push_back("No install files found next to setup.");
     return plan;
   }
-  for (const auto& [name, src_hash] : payload->files) {
-    const auto have = current(name);
-    const auto owned = old.find(name);
-    const bool ours = have && owned != old.end() && owned->second == *have;
-    if (!have) {
-      add(Step::Kind::kWrite, name, "new");
-      plan.manifest[name] = src_hash;
-    } else if (*have == src_hash) {
-      add(Step::Kind::kKeep, name, "up to date");
-      plan.manifest[name] = src_hash;
-    } else if (ours) {
-      add(Step::Kind::kWrite, name, "update");
-      plan.manifest[name] = src_hash;
-    } else if (name == kDll) {
-      const LoaderInfo li = inspect_loader(at(target, name));
-      if (li.ual && li.x64) {
-        add(Step::Kind::kKeep, name, "your Ultimate ASI Loader " + li.version + ", reused");
-        plan.notes.push_back("Using the Ultimate ASI Loader already there (" + li.version + "). GrimCompare is tested with v9.7.4; if the game "
-                             "fails to start, replace it with the dinput8.dll from this package.");
-      } else if (li.ual) {
-        plan.blockers.push_back("dinput8.dll is a 32-bit Ultimate ASI Loader; the 64-bit game cannot load it. Remove it, then run setup again.");
-      } else {
-        plan.blockers.push_back(
-            "dinput8.dll in " + u8string(target) + " belongs to another mod" + (li.product.empty() ? "" : " (" + li.product + ")") +
-            ". GrimCompare loads through Ultimate ASI Loader, which must be dinput8.dll, so the two cannot both be installed as they are. "
-            "Setup will not overwrite it. If that mod can be loaded as an .asi plugin, or under another name, set it up that way and run setup again.");
-      }
-    } else if (name == kIni) {
-      if (ini_loads_in_dllmain(at(target, name))) {
-        add(Step::Kind::kKeep, name, "yours, has dontloadfromdllmain=0");
-      } else {
-        plan.blockers.push_back("dinput8.ini in " + u8string(target) + " is not from GrimCompare and lacks \"dontloadfromdllmain=0\" under "
-                                "[globalsets]. Without it the game crashes before the main menu. Add that line (or delete the file), then "
-                                "run setup again.");
-      }
-    } else if (is_preset(name)) {
-      std::string error;
-      if (parses(at(target, name), error)) {
-        add(Step::Kind::kKeep, name, "edited by you, kept (the new version is in the package's presets folder)");
-        if (owned != old.end()) plan.manifest[name] = owned->second;  // still listed: uninstall keeps it as changed
-      } else {
-        add(Step::Kind::kWrite, name, "has an error (" + error + "), replaced; your copy is backed up", true);
-        plan.manifest[name] = src_hash;
-      }
-    } else {
-      add(Step::Kind::kWrite, name, "not from this setup, replaced; the old file is backed up", true);
-      plan.manifest[name] = src_hash;
-    }
-  }
-  // Presets an earlier version shipped that this one does not: removed while unchanged.
-  for (const auto& [name, hash] : old)
-    if (!payload->files.contains(name)) {
-      const auto have = current(name);
-      if (have && *have == hash) add(Step::Kind::kRemove, name, "no longer shipped");
-      else if (have) add(Step::Kind::kKeep, name, "no longer shipped, but changed by you");
-    }
+  plan_install(plan, old, *payload);
   if (!plan.blockers.empty()) plan.manifest.clear();
   return plan;
 }

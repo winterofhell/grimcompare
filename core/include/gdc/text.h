@@ -1,6 +1,5 @@
 #pragma once
-// .arc v3 layout: re/tools/arc.py. Expansions redefine some base tags; a later file wins as in the database
-// (assumed, not traced for text).
+// .arc v3 reader (re/tools/arc.py); later files win, assumed.
 #include <cstddef>
 #include <filesystem>
 #include <span>
@@ -17,7 +16,7 @@ std::vector<std::pair<std::string, std::vector<std::byte>>> read_arc(std::span<c
 class Table {
  public:
   void add(std::string_view file);
-  // Files with "console" in the name are skipped (console wording of the same tags).
+  // Skips files named "console" (console wording of the same tags).
   static Table open_game(const std::filesystem::path& game_dir, std::string_view lang = "EN");
 
   std::string_view get(std::string_view tag) const;  // "" if absent

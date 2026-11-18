@@ -1,6 +1,5 @@
 #pragma once
-// Other = 1 + sum of weight x value + default x sum of unlisted stats (MECHANICS §5). Unlisted stats count at
-// `default` per 100 and are always named, never dropped.
+// Other part of the score (MECHANICS §5, §13.22).
 #include <map>
 #include <span>
 #include <string>
@@ -42,8 +41,7 @@ Values values(const snap::Snapshot& s, const arz::Database* db);
 // For callers that evaluate one character under several buff states.
 Values item_values(const snap::Snapshot& s, const arz::Database* db);
 Values values(const snap::Snapshot& s, Values items);
-// Skill::GetCooldownTime 0x4917E0 = skillCooldownTime x 1000 x (1 - 0.01 x CDR), skipped for item skills
-// (Skill+0x2F9) and potion skills (Skill+0x2FC): MECHANICS §4 "Recharge".
+// Game.dll 0x4917E0, cooldown x (1 - CDR) (MECHANICS §4).
 double cooldown_reduction(const snap::Snapshot& s);
 
 // Only the strongest "reduced target's damage" debuff applies (the guide).

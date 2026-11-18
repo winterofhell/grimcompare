@@ -23,7 +23,7 @@ struct Timing {
   } sections[kMax];
   int count = 0;
 };
-// Game thread only. Faulted: some sections faulted (out.errors), the rest is filled.
+// Game thread only. Faulted: some sections faulted, see out.errors.
 Take snapshot_take(snap::Snapshot& out, snap::Spares& spare, const std::vector<std::uint32_t>& tooltip_ids,
                    bool with_inventory, Timing& timing);
 
@@ -38,7 +38,7 @@ struct Probe {
 };
 Take snapshot_probe(Probe& out);
 
-// NoPlayer also when the type slot was not verified at init.
+// NoPlayer also when init could not verify the type slot.
 Take snapshot_candidate(const void* item, snap::Item& out, int& item_type);
 
 Take snapshot_candidate_id(std::uint32_t id, snap::Item& out, int& item_type);

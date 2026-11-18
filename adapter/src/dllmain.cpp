@@ -1,8 +1,4 @@
-// Loads under the ASI loader, identifies the build, resolves exports. Only a missing required export disables
-// (docs/RECON.md §6); an unknown hash just warns.
-// Safety rules (crash 2026-11-14, docs/BUILD.md "Safe-mode test"): DllMain only starts one thread; the kill switch
-// (GDCompare.disable or GDCOMPARE_DISABLE=1) is checked first; log lines go straight to WriteFile so a crash
-// leaves the last step; each step runs under SEH; the vectored handler only logs faults inside this module.
+// Loads under the ASI loader; safety rules in MECHANICS §13.1.
 #include <windows.h>
 #include <bcrypt.h>
 #include <psapi.h>
@@ -72,7 +68,7 @@ std::string where(std::uintptr_t addr) {
   return buf;
 }
 
-// Can run on any thread in any state: log-only, lock-free, no heap.
+// Any thread, any state: log-only, lock-free, no heap.
 LONG CALLBACK fault_logger(EXCEPTION_POINTERS* ep) {
   const auto addr = reinterpret_cast<std::uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
   if (addr >= g_self_begin && addr < g_self_end && g_veh_logged.fetch_add(1) < kVehMaxLines)
@@ -273,7 +269,7 @@ bool step_hooks(Ctx& c) {
   return gdc::adapter::hooks_install(resolver(c), {self_dir(), kModVersion, c.game.build});
 }
 
-// The SEH frame holds no C++ objects; exceptions are caught one level down.
+// No C++ objects in the SEH frame; exceptions caught below.
 
 using StepFn = bool (*)(Ctx&);
 enum StepResult : int { kFault = -2, kCppException = -1, kFailed = 0, kOk = 1 };

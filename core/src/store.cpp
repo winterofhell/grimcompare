@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -71,7 +70,7 @@ bool numeric(const std::string& k) {
   return !k.empty() && std::all_of(k.begin(), k.end(), [](char c) { return (c >= '0' && c <= '9') || c == '-'; });
 }
 
-// Canonical order, so a rebuilt snapshot matches wherever a patch inserted a key.
+// Canonical order, so rebuilt snapshots match regardless of patch insertion.
 J sorted_values(const J& obj) {
   std::vector<std::pair<std::string, const J*>> items;
   for (const auto& [k, v] : obj.items()) items.emplace_back(k, &v);
@@ -323,7 +322,7 @@ Store::Written Store::write(const snap::Snapshot& s, unsigned triggers) {
   fs::create_directories(dir);
   const std::string k = keyed(s);
   Chain& c = chains_[folder];
-  // New segment once a chain holds a quarter of the cap, so finished segments rotate away whole.
+  // Rotate at a quarter of the cap, dropping whole segments.
   const bool full = c.prev.empty() || c.bytes > cap_ / 4;
   if (full) c = Chain{segment_of(s.taken_at), 0, {}, 0};
   else ++c.seq;

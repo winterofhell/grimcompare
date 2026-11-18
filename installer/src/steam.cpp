@@ -48,7 +48,7 @@ std::vector<std::string> tokens(std::string_view t) {
   return out;
 }
 
-// "a,b=n,b;c=b" -> {[a,b], "n,b"}, {[c], "b"}; an entry without '=' has no mode.
+// "a,b=n,b;c=b" -> {[a,b], "n,b"}, {[c], "b"}; no '=': no mode.
 struct Override {
   std::vector<std::string> dlls;
   std::optional<std::string> mode;

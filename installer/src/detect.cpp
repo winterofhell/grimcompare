@@ -34,8 +34,7 @@ void add_game(std::vector<Game>& out, const fs::path& root, const std::string& s
 }
 
 #ifndef _WIN32
-// Heroic's GOG install list, installed.json: {"installed": [{"install_path": ...}, ...]}. The layout is not
-// documented; any object with an install_path is tried and checked on disk.
+// Heroic's GOG installed.json: any install_path is tried, then checked.
 void heroic(std::vector<Game>& out, const fs::path& file) {
   std::ifstream f(file);
   if (!f) return;
@@ -101,7 +100,7 @@ std::vector<Game> find_games() {
   const fs::path h = home();
   heroic(out, h / ".config/heroic/gog_store/installed.json");
   heroic(out, h / ".var/app/com.heroicgameslauncher.hgl/config/heroic/gog_store/installed.json");
-  // Lutris and hand-made Wine prefixes keep no list we can read: look two levels deep under ~/Games.
+  // Lutris and custom Wine prefixes: search two levels under ~/Games.
   std::error_code ec;
   for (const auto& a : fs::directory_iterator(h / "Games", ec)) {
     add_game(out, a.path(), "folder scan");

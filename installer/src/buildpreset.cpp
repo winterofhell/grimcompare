@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <set>
 
 namespace setup {
 
@@ -82,7 +81,7 @@ std::string toml_string(std::string_view v) {
 }
 
 std::pair<double, double> playstyle_weights(Playstyle p) {
-  // Design choice: a 25-30% shift of weight between Damage and Survivability; balanced = the default preset.
+  // Design choice: 25-30% weight shift; balanced = default preset.
   switch (p) {
     case Playstyle::kTanky: return {0.8, 1.3};
     case Playstyle::kGlass: return {1.25, 0.75};
@@ -103,7 +102,7 @@ BuildAnswers from_entry(const Entry& e, const std::vector<int>& masteries, const
   a.sets = e.sets;
   a.other = e.other;
   a.pets = e.category == "pets" || e.other.contains("pet_bonus");
-  // Same as presets/pet.toml: pets' own defenses ride on pet_bonus in Other, so Other weighs more.
+  // As presets/pet.toml: pet defenses ride pet_bonus in Other.
   if (e.category == "pets") a.advanced["score.other"] = 0.35;
   if (!e.conversion.empty()) a.hints.push_back("Conversion: " + e.conversion);
   if (!e.stats.empty()) a.hints.push_back("Key stats: " + e.stats);

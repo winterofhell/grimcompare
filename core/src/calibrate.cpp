@@ -1,6 +1,5 @@
 #include "gdc/calibrate.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -144,15 +143,17 @@ std::vector<Diff> differences(const snap::Snapshot& cur, const snap::Snapshot& a
 
 }  // namespace
 
-Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database* db) {
-  Check c;
+namespace {
+
+// Changed slots; sets c.skipped when the pair can't be checked.
+void changed_slots(const snap::Snapshot& before, const snap::Snapshot& after, Check& c) {
   if (!before.complete || !after.complete) {
     c.skipped = "incomplete snapshot";
-    return c;
+    return;
   }
   if (const std::string why = other_change(before, after); !why.empty()) {
     c.skipped = why;
-    return c;
+    return;
   }
   std::set<int> locs;
   for (const auto* s : {&before, &after})
@@ -161,21 +162,53 @@ Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz
     if (!same_item(at(before, l), at(after, l))) c.locations.push_back(l);
   if (c.locations.empty()) {
     c.skipped = "no equipment change";
-    return c;
+    return;
   }
   for (int l : c.locations) {
     const snap::Item* n = at(after, l);
     const snap::Item* o = at(before, l);
     if (!n) {
       c.skipped = "slot " + std::to_string(l) + " emptied (unequip not modeled)";
-      return c;
+      return;
     }
     if (!n->stats || (o && !o->stats)) {
       c.skipped = "item without stats";
-      return c;
+      return;
     }
   }
+}
 
+void skill_activity_notes(const snap::Snapshot& before, const snap::Snapshot& after, Check& c) {
+  std::map<std::string, const snap::Skill*> by_record;
+  for (const auto& k : before.skills) by_record[k.record] = &k;
+  for (const auto& k : after.skills) {
+    const auto it = by_record.find(k.record);
+    if (it != by_record.end() && it->second->current_level == k.current_level && !same_passive(*it->second, k))
+      c.notes.push_back("skill activity changed: " + k.record);
+  }
+}
+
+// The snapshot does not show a buff cast in between (bloodofdreeg1).
+// shortcut: one buff at a time — revisit when two buffs switching in one pair shows up as a FAIL.
+void explain_by_buff(const snap::Snapshot& predicted, const snap::Snapshot& after, const arz::Database& db, Check& c) {
+  const auto explains = [&](const snap::Skill& k, bool on) {
+    const auto t = model::toggle_buff(predicted, k, on, db);
+    return t && differences(t->after, after).empty();
+  };
+  for (const auto& k : predicted.skills)
+    if (const bool on = explains(k, true); on || explains(k, false)) {
+      c.buff = k.record + (on ? " switched on" : " switched off");
+      c.diffs.clear();
+      break;
+    }
+}
+
+}  // namespace
+
+Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database* db) {
+  Check c;
+  changed_slots(before, after, c);
+  if (!c.skipped.empty()) return c;
   snap::Snapshot cur = before;
   std::set<std::string> warned;
   for (int l : c.locations) {
@@ -184,30 +217,9 @@ Check check(const snap::Snapshot& before, const snap::Snapshot& after, const arz
       if (warned.insert(w).second) c.warnings.push_back(std::move(w));
     cur = std::move(p.after);
   }
-
-  std::map<std::string, const snap::Skill*> sb;
-  for (const auto& k : before.skills) sb[k.record] = &k;
-  for (const auto& k : after.skills) {
-    const auto it = sb.find(k.record);
-    if (it != sb.end() && it->second->current_level == k.current_level && !same_passive(*it->second, k))
-      c.notes.push_back("skill activity changed: " + k.record);
-  }
-
+  skill_activity_notes(before, after, c);
   c.diffs = differences(cur, after);
-  // The snapshot does not show a buff cast in between (bloodofdreeg1).
-  // shortcut: one buff at a time — revisit when two buffs switching in one pair shows up as a FAIL.
-  if (!c.diffs.empty() && db) {
-    const auto explains = [&](const snap::Skill& k, bool on) {
-      const auto t = model::toggle_buff(cur, k, on, *db);
-      return t && differences(t->after, after).empty();
-    };
-    for (const auto& k : cur.skills)
-      if (const bool on = explains(k, true); on || explains(k, false)) {
-        c.buff = k.record + (on ? " switched on" : " switched off");
-        c.diffs.clear();
-        break;
-      }
-  }
+  if (!c.diffs.empty() && db) explain_by_buff(cur, after, *db, c);
   return c;
 }
 

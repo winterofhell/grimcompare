@@ -1,6 +1,5 @@
 #pragma once
-// The __try frame must hold no C++ objects (clang-cl / MSVC). Destructors inside skip on a fault: leak,
-// never crash.
+// No C++ objects in __try; a fault leaks, never crashes.
 #include <windows.h>
 
 #include <cstdint>

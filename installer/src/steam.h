@@ -1,7 +1,5 @@
 #pragma once
-// Steam's text KeyValues files (libraryfolders.vdf, localconfig.vdf, appmanifest_*.acf) and Grim Dawn's launch
-// options with `dinput8=n,b` merged into WINEDLLOVERRIDES (Wine loads the ASI loader's dinput8.dll only then).
-// deploy.sh and uninstall.sh print them through `gdcompare-setup launch-options`. Never writes Steam files: Steam rewrites them while it runs.
+// Reads Steam KeyValues and launch options; never writes (§13.38).
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -24,8 +22,7 @@ struct Vdf {
 };
 Vdf parse_vdf(std::string_view text);
 
-// present: lower-case file names in the game folder; given, DXVK_HDR is dropped unless a renodx*.addon64 is there
-// (RenoDX HDR). Every other variable and override (dxgi for a DLSS / ReShade mod) is kept as is.
+// present: game folder file names; DXVK_HDR dropped without RenoDX (§13.38).
 std::string merge_launch_options(std::string_view opts, const std::set<std::string>* present = nullptr);
 std::string remove_launch_options(std::string_view opts);
 

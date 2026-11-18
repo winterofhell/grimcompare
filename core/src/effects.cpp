@@ -4,26 +4,15 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
-#include <set>
 
+#include "effects_internal.h"
 #include "gdc/classes.h"
-#include "gdc/db_fields.h"
 #include "gdc/sets.h"
 #include "gdc/stat_model.h"
 #include "gdc/utility.h"
 
 namespace gdc::effects {
-namespace {
 
-// Past the end of the per-level array the last value holds.
-double at(const arz::Record& r, std::string_view key, std::uint32_t level) {
-  const auto it = r.fields.find(key);
-  if (it == r.fields.end() || it->second.numbers.empty() || level == 0) return 0;
-  const auto& n = it->second.numbers;
-  return n[std::min<std::size_t>(level, n.size()) - 1];
-}
-
-// Devotion powers keep cooldown and templateAutoCast on the buff record (tier2_32d_skill.dbr).
 double own_or_buff(const arz::Record& r, std::string_view key, std::uint32_t level, const arz::Database& db) {
   if (r.fields.contains(key)) return at(r, key, level);
   const arz::Record* b = db.record(r.string("buffSkillName"));
@@ -40,6 +29,8 @@ std::string fmt(double v, int decimals) {
   return {buf, std::to_chars(buf, buf + sizeof buf, v, std::chars_format::fixed, decimals).ptr};
 }
 
+namespace {
+
 // Elemental (58) lands on Cold, Fire, Lightning.
 struct Resist {
   std::string_view field;
@@ -51,7 +42,7 @@ constexpr Resist kDebuffFields[] = {
     {"defensiveAether", 11},  {"defensiveBleeding", 15}, {"defensiveElementalResistance", 58}};
 constexpr int kElementalTypes[] = {5, 6, 8};
 
-// `on`: 0 = every resist of the enemy model, 2 = Physical, 58 = Elemental.
+// `on`: 0 = every resist, 2 = Physical, 58 = Elemental.
 struct Offensive {
   std::string_view min, duration;
   int category, on;
@@ -68,12 +59,6 @@ bool debuff(const arz::Record& r) { return r.number("debufSkill") > 0 || r.cls =
 
 bool pet_summon(const arz::Record& r) { return r.cls == "Skill_SpawnPet" || r.cls == "Skill_TargetedSpawnPet"; }
 
-bool has_flat(const arz::Record& r, std::uint32_t level) {
-  for (const auto& f : fields::flat_damage())
-    if (at(r, f.min, level) > 0) return true;
-  return false;
-}
-
 void spread(std::map<int, double>& out, int type, double v, const std::vector<int>& all) {
   if (type == 0)
     for (int t : all) out[t] += v;
@@ -83,8 +68,7 @@ void spread(std::map<int, double>& out, int type, double v, const std::vector<in
     out[type] += v;
 }
 
-// itemSkillLevelEq: a number or "itemLevel/4+1" (303 records in 1.3.1.1), rounded down, using the base item's
-// itemLevel. Checked on one item: a03_torso001b (itemLevel 11) "of Balanced Steel" shows Ring of Steel at level 3.
+// A number or "itemLevel/4+1", floored, from the base item (§11.11).
 std::uint32_t item_skill_level(std::string_view eq, const arz::Record& item, std::string& note) {
   std::uint32_t v = 0;
   const auto [end, ec] = std::from_chars(eq.data(), eq.data() + eq.size(), v);
@@ -98,333 +82,252 @@ std::uint32_t item_skill_level(std::string_view eq, const arz::Record& item, std
   return 0;
 }
 
-struct Builder {
-  const snap::Snapshot& s;
-  const arz::Database& db;
-  const Rates& rates;
-  const std::map<std::string, double>& overrides;
-  const std::vector<int>& resists;
-  Collected out;
-
-  double cdr;
-
-  // Skill::GetCooldownTime 0x4917E0 skips CDR only when Skill+0x2F9 (IsItemSkill 0x30AD10, set by
-  // SkillManager::AddItemSkills 0x538BC0 and buff replicas) or Skill+0x2FC (potionModifier) is set. Devotion powers cast
-  // via SkillAutoCastController::AppraiseAndExecute 0x523440 -> GetCooldownTime, so they get CDR. Item and set
-  // skills (`own` false) keep the DB value.
-  double recharge(double cooldown, bool own) const { return own ? cooldown * (1 - cdr) : cooldown; }
-  std::string recharge_text(double cooldown, bool own) const {
-    return fmt(cooldown, 1) + " s" + (own && cdr > 0 ? " x (1 - " + fmt(cdr * 100, 0) + "%)" : "");
+// The preset, a kept-up effect, or uses/s x duration.
+void set_uptime(Reduction& r, const Effect& e, double duration, const std::map<std::string, double>& overrides) {
+  const auto o = overrides.find(e.record);
+  if (o != overrides.end()) {
+    r.uptime = o->second, r.origin = Origin::Preset, r.basis = "preset [uptime]";
+  } else if (e.maintained) {
+    r.uptime = 1, r.origin = e.origin, r.basis = e.basis;
+  } else if (e.per_sec > 0 && duration > 0) {
+    r.uptime = std::min(1.0, e.per_sec * duration), r.origin = e.origin;
+    r.basis = e.basis + ", " + fmt(duration, 1) + " s";
+  } else {
+    r.uptime = 0, r.origin = Origin::Default;
+    r.basis = e.per_sec > 0 ? "no duration" : e.basis;
   }
+}
 
-  // Skill::GetSkillModifierData 0x49AF90 (from GetCooldownTime 0x4917E0, GetPetLimit 0x493880,
-  // GetSpawnObjectTimeToLive 0x493660): the skill's profile plus its learned (Skill+0x140) and item (Skill+0x158)
-  // modifiers', added by SkillProfile_Modifiers 0x54ACF0. e.modifiers holds both.
-  double summed(const Effect& e, const arz::Record& skill, std::string_view key) const {
-    double v = key == "skillCooldownTime" ? own_or_buff(skill, key, e.level, db) : at(skill, key, e.level);
-    for (const auto& [m, lv] : e.modifiers)
-      if (const arz::Record* r = db.record(m)) v += at(*r, key, lv);
-    return std::max(0.0, v);
+// Passives and modifiers add to their parent.
+void learned_skills(Builder& b) {
+  for (const auto& sk : b.s.skills) {
+    if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
+    if (!sk.record.starts_with("records/skills/playerclass")) continue;
+    const arz::Record* r = b.db.record(sk.record);
+    // Subclasses too: blackwater3 (RR) belongs to blackwater1.
+    if (!r || classes::is_a(r->cls, "Skill_Passive") || classes::is_a(r->cls, "Skill_Modifier")) continue;
+    Effect e;
+    e.record = e.skill = sk.record;
+    e.source = "learned";
+    e.level = sk.current_level;
+    for (const std::uint32_t id : sk.modifier_ids)
+      for (const auto& m : b.s.skills)
+        if (m.id == id && m.current_level > 0) e.modifiers.emplace_back(m.record, m.current_level);
+    for (const auto& m : b.s.item_skill_modifiers)
+      if (m.skill_id == sk.id && !m.modifier_record.empty()) e.modifiers.emplace_back(m.modifier_record, 1);
+    if (!(model::triggered_buff(*r) && b.own_trigger(e, *r, 1, true))) b.cast(e, *r, "cast", true);
+    b.add(std::move(e));
   }
+}
 
-  // Expected time between casts = recharge + 1 / (chance x rate), triggers assumed random.
-  void trigger(Effect& e, const arz::Record& skill, double chance, std::string_view trigger, bool own) {
-    double rate = 0;
-    std::string what;
-    if (trigger == "AttackEnemy") rate = rates.action, what = "on attack";
-    else if (trigger == "AttackEnemyCrit") rate = rates.action * rates.crit, what = "on crit";
-    else if (trigger == "HitByEnemy") rate = rates.hits_taken, what = "when hit";
-    else if (trigger == "HitByMelee") rate = rates.melee_hits, what = "when hit in melee";
-    else if (trigger == "HitByProjectile") rate = rates.projectile_hits, what = "when hit by a projectile";
-    else if (trigger == "HitByCrit") rate = rates.crit_hits, what = "when critically hit";
-    else if (trigger == "OnKill") rate = rates.kills, what = "on kill";
-    else if (trigger == "Block") rate = rates.blocks, what = "on block";
-    else if (trigger == "LowHealth") rate = rates.low_health, what = "at low health";
-    else if (trigger == "WeaponPool") rate = rates.weapon, what = "of weapon attacks";
-    else {
-      e.basis = "trigger " + std::string(trigger);
-      return;
-    }
-    if (rate <= 0) {
-      e.basis = what + ": rate unknown";
-      return;
-    }
-    const double cooldown = summed(e, skill, "skillCooldownTime");
-    e.per_sec = chance > 0 ? 1 / (recharge(cooldown, own) + 1 / (chance * rate)) : 0;
-    e.origin = Origin::Derived;
-    e.basis = fmt(chance * 100, 0) + "% " + what + " x " + fmt(rate, 2) + "/s" +
-              (cooldown > 0 ? ", cooldown " + recharge_text(cooldown, own) : "") + e.basis;
+void devotion_powers(Builder& b) {
+  for (const auto& sk : b.s.skills) {
+    if (sk.devotion_max_level == 0 || sk.current_level == 0) continue;
+    const arz::Record* r = b.db.record(sk.record);
+    const std::string_view controller = r ? own_or_buff(*r, "templateAutoCast", b.db) : std::string_view{};
+    if (controller.empty()) continue;
+    Effect e;
+    e.record = e.skill = sk.record;
+    e.source = sk.record;
+    e.level = sk.current_level;
+    b.proc(e, *r, controller, true);
+    b.add(std::move(e));
   }
+}
 
-  void proc(Effect& e, const arz::Record& skill, std::string_view controller_record, bool own) {
-    const arz::Record* c = db.record(controller_record);
-    if (!c) {
-      e.basis = "controller not in the database";
-      return;
-    }
-    const std::string_view type = c->string("triggerType");
-    if (type == "OnEquip") {  // base_atself_onequip.dbr: always up
-      e.maintained = true;
-      e.origin = Origin::Derived;
-      e.basis = "on equip: kept up" + e.basis;
-      return;
-    }
-    if (type == "LowHealth") e.life_below = c->number("triggerParam");
-    trigger(e, skill, c->number("chanceToRun") / 100, type, own);
-  }
-
-  // skillChanceWeight is read as a percent of weapon attacks ("x% Chance to be Used").
-  bool own_trigger(Effect& e, const arz::Record& skill, double chance, bool own) {
-    if (classes::is_a(skill.cls, "Skill_PassiveOnLifeBuffSelf")) {
-      e.life_below = at(skill, "lifeMonitorPercent", e.level);
-      trigger(e, skill, chance, "LowHealth", own);
-    } else if (classes::is_a(skill.cls, "Skill_PassiveOnCritBuffSelf")) {
-      // Character::AttackTarget -> SkillManager::OnCriticalAttack 0x535900: every skill whose vt+0x1F8
-      // (IsSkillOnCritActive 0x5021E0) is true gets OnHitActivation, so the owner's own crits trigger it.
-      trigger(e, skill, at(skill, "onHitActivationChance", e.level) / 100, "AttackEnemyCrit", own);
-    } else if (classes::is_a(skill.cls, "Skill_PassiveOnHitBuffSelf")) {  // incl. Skill_PassiveOnHitBuffShield
-      trigger(e, skill, at(skill, "onHitActivationChance", e.level) / 100, "HitByEnemy", own);
-    } else if (skill.cls.starts_with("Skill_WPAttack_")) {
-      trigger(e, skill, at(skill, "skillChanceWeight", e.level) / 100, "WeaponPool", own);
-    } else {
-      return false;
-    }
-    return true;
-  }
-
-  // Design choice: cast whenever ready; kept up with no cooldown or when CDR takes it all.
-  void cast(Effect& e, const arz::Record& skill, const char* how, bool own) {
-    const double cooldown = summed(e, skill, "skillCooldownTime");
-    const double wait = recharge(cooldown, own);
-    e.origin = Origin::Derived;
-    if (wait > 0) {
-      e.per_sec = 1 / wait;
-      e.basis = std::string(how) + " on cooldown " + recharge_text(cooldown, own) + e.basis;
-    } else if (cooldown > 0) {
-      e.maintained = true;
-      e.basis = std::string(how) + ", cooldown " + recharge_text(cooldown, own) + ": kept up" + e.basis;
-    } else {
-      e.maintained = true;
-      e.basis = std::string(how) + ", no cooldown: kept up" + e.basis;
-    }
-  }
-
-  // `summon` by value: add() grows out.effects. Experimental estimate (docs/MECHANICS.md §4), per pet: the plain
-  // attack (attackSkillName, else the pet's weapon) at characterAttackSpeed, a spell class at
-  // characterSpellCastSpeed, x (1 + pet bonus %) for Class Pet, read as uses per second like the player's sheet
-  // speeds (unverified; Character::GetAttackSpeed 0x692E0 is type 15 x (1 + type 17) for every Character).
-  // specialAttack<n>SkillName: chance / max(specialAttack<n>Delay, cooldown) per second (design reading of the
-  // fields); its share of the pet's time comes off the plain attack. Other attack skills with a cooldown: once
-  // per cooldown. A preset pet_attack_rate replaces the plain attack's rate.
-  void pets(const Effect summon, const arz::Record& skill) {
-    std::string pet_name = summoned_record(skill, summon.level);
-    const double limit = summed(summon, skill, "petLimit");
-    double ttl = summed(summon, skill, "spawnObjectsTimeToLive");
-    // GetSpawnObjectTimeToLive 0x493660: the last modifier with a non-zero vt+0x6F0 replaces the sum; only
-    // Skill_SpawnPetTransmuter 0x509F40 has one (modSpawnObjectsTimeToLive[level - 1]), Skill_Modifier's is 0.
-    // Skill::AddModifierPetChanges 0x494CE0: its modSpawnObjects replaces the pet, indexed by the summon's level
-    // (min(level - 1, size - 1), 0x50A631; summon_blightbeast1b: max level 1, 26 entries).
-    for (const auto& [m, lv] : summon.modifiers)
-      if (const arz::Record* r = db.record(m); r && classes::is_a(r->cls, "Skill_SpawnPetTransmuter")) {
-        if (const double t = at(*r, "modSpawnObjectsTimeToLive", lv); t != 0) ttl = t;
-        const auto it = r->fields.find("modSpawnObjects");
-        if (it != r->fields.end() && !it->second.strings.empty())
-          pet_name = it->second.strings[std::min<std::size_t>(std::max<std::uint32_t>(summon.level, 1), it->second.strings.size()) - 1];
+void item_and_set_skills(Builder& b) {
+  for (const auto& it : b.s.equipped)
+    for (const auto& name : model::item_records(it))
+      if (const arz::Record* rec = b.db.record(name); rec && !rec->string("itemSkillName").empty()) {
+        std::string note;
+        const arz::Record* base = b.db.record(it.record);
+        const std::uint32_t level = item_skill_level(rec->string("itemSkillLevelEq"), base ? *base : *rec, note);
+        b.granted(std::string(rec->string("itemSkillName")), level, note, rec->string("itemSkillAutoController"), name);
       }
-    const arz::Record* pet = db.record(pet_name);
-    if (!pet) return;
-    double alive = 0;
-    std::string how;
-    // Skill_TargetedSpawnPet::SpawnPet 0x50A560 calls Monster::SetLifetime 0x37B620 only for a time to live > 0, and
-    // every pet record's own lifeTime (Monster::Load 0x37482B) is 0. Without one a pet stays until it dies or a new
-    // one past petLimit replaces it (KillExtraPets 0x509890), so it is kept at the limit whatever the summon's
-    // cooldown: Hellhound, Raven, Briarthorn, Skeletons, and the invincible Blade Spirit, Squall, Celestial Guardian.
-    // shortcut: no petLimit read as one pet — revisit if a permanent summon without petLimit shows up.
-    const bool scaled = pet->cls == "PetPlayerScaling";
-    const bool permanent = ttl <= 0;
-    if (summon.maintained || permanent) {
-      alive = limit > 0 ? limit : 1;
-      how = (permanent ? "permanent, kept at " : "kept at ") + fmt(alive, 0);
-    } else if (summon.per_sec > 0 && ttl > 0) {
-      alive = std::min(limit > 0 ? limit : 1e9, summon.per_sec * ttl);
-      how = fmt(summon.per_sec, 2) + " summons/s x " + fmt(ttl, 0) + " s, limit " + fmt(limit, 0);
+  for (const auto& [set, n] : sets::counts(b.s))
+    if (const arz::Record* rec = b.db.record(set)) {
+      const sets::Bonus bonus = sets::bonus(*rec, n);
+      if (!bonus.granted_skill.empty())
+        b.granted(bonus.granted_skill, static_cast<std::uint32_t>(bonus.granted_level), "",
+                  rec->string("itemSkillAutoController"), set);
     }
-    const auto list = pet_skills(*pet, rates.char_level, summon.modifiers, db);
-    auto level_of = [&](std::string_view r) -> std::uint32_t {
-      for (const auto& [n, l] : list)
-        if (n == r) return l;
-      return 0;
-    };
-    std::vector<std::pair<std::string, std::uint32_t>> weapon;
-    for (const auto& [n, l] : list)
-      if (const arz::Record* r = db.record(n); r && classes::is_a(r->cls, "Skill_Passive") && has_flat(*r, l))
-        weapon.emplace_back(n, l);
-    // A live pet of this record (snapshot schema 12): the engine's own speeds, shifted by the pet bonus change since
-    // the capture (GetTotalCharModifier is the % in them; the cap is not re-applied to the shift), and per skill
-    // the hit animation, so uses per second = speed x frame rate / frames, as the engine times the player's spells
-    // (docs/MECHANICS.md §5 "Uses per second").
-    const snap::Pet* live = nullptr;
-    for (const auto& p : s.pets)
-      if (p.record == pet_name && p.attack_speed > 0 && p.cast_speed > 0) {
-        live = &p;
-        break;
-      }
-    auto shifted = [](double captured, double mod, double shift) {
-      return 1 + mod / 100 > 0 ? captured * std::max(0.0, 1 + (mod + shift) / 100) / (1 + mod / 100) : captured;
-    };
-    const double aspd = live ? shifted(live->attack_speed, live->attack_speed_modifier, scaled ? 0 : rates.pet_attack_shift)
-                             : pet->number("characterAttackSpeed") * (1 + (scaled ? 0 : rates.pet_attack_speed) / 100);
-    const double cspd = live ? shifted(live->cast_speed, live->cast_speed_modifier, scaled ? 0 : rates.pet_cast_shift)
-                             : pet->number("characterSpellCastSpeed") * (1 + (scaled ? 0 : rates.pet_cast_speed) / 100);
-    auto anim = [&](auto match) -> const snap::PetSkill* {
-      if (live)
-        for (const auto& k : live->skills)
-          if (match(k) && k.anim_frames > 0 && k.anim_frame_rate > 0) return &k;
-      return nullptr;
-    };
-    // Uses per second at most, and how.
-    auto speed_of = [&](const arz::Record& r, const snap::PetSkill* k, std::string& how) {
-      const bool cast = classes::speed(r.cls) == classes::Speed::kCast;
-      const double sp = cast ? cspd : aspd;
-      how = std::string(live ? "engine " : "record ") + (cast ? "cast" : "attack") + " speed " + fmt(sp, 2);
-      if (!k) return sp;
-      how += " x " + std::to_string(k->anim_frame_rate) + " / " + std::to_string(k->anim_frames) + " frames";
-      return sp * k->anim_frame_rate / k->anim_frames;
-    };
-    auto speed = [&](const arz::Record& r, std::string_view name, std::string& how) {
-      return speed_of(r, anim([&](const snap::PetSkill& k) { return k.record == name; }), how);
-    };
+}
 
-    struct Use {
-      std::string record;
-      std::uint32_t level;
-      double per_pet;
-      std::string how;
-      Origin origin;
-    };
-    std::vector<Use> uses;
-    double busy = 0;
-    const std::string attack(pet->string("attackSkillName"));
-    for (const char* n : {"", "2", "3", "4"}) {
-      const std::string name(pet->string(std::string("specialAttack") + n + "SkillName"));
-      const std::uint32_t lv = level_of(name);
-      const arz::Record* r = lv ? db.record(name) : nullptr;
-      if (!r || name == attack) continue;
-      const double chance = pet->number(std::string("specialAttack") + n + "Chance") / 100;
-      const double wait = std::max(pet->number(std::string("specialAttack") + n + "Delay"), at(*r, "skillCooldownTime", lv));
-      if (wait <= 0 || chance <= 0) continue;
-      std::string how;
-      const double sp = speed(*r, name, how), u = sp > 0 ? std::min(chance / wait, sp) : chance / wait;
-      if (sp > 0) busy += u / sp;
-      uses.push_back({name, lv, u, "special every " + fmt(wait, 1) + " s x " + fmt(chance * 100, 0) + "%, " + how, Origin::Derived});
-    }
-    for (const auto& [name, lv] : list) {
-      const arz::Record* r = db.record(name);
-      if (!r || name == attack || !classes::is_a(r->cls, "SkillActivated")) continue;
-      if (std::any_of(uses.begin(), uses.end(), [&](const Use& u) { return u.record == name; })) continue;
-      const double cooldown = at(*r, "skillCooldownTime", lv);
-      if (cooldown <= 0) continue;
-      std::string how;
-      const double sp = speed(*r, name, how), u = sp > 0 ? std::min(1 / cooldown, sp) : 1 / cooldown;
-      if (sp > 0) busy += u / sp;
-      uses.push_back({name, lv, u, "cooldown " + fmt(cooldown, 1) + " s, " + how, Origin::Derived});
-    }
-    const arz::Record* plain = attack.empty() ? pet : db.record(attack);
-    if (plain && (plain != pet || !weapon.empty())) {
-      const std::uint32_t lv = plain == pet ? 1 : std::max<std::uint32_t>(level_of(attack), 1);
-      if (rates.pet_attacks > 0)
-        uses.push_back({plain == pet ? pet_name : attack, lv, rates.pet_attacks, "preset pet_attack_rate", Origin::Preset});
-      else {
-        // The pet's own weapon: its SkillManager's default skill (GetDefaultSkillId(0)) holds the animation.
-        const snap::PetSkill* k = plain == pet ? anim([&](const snap::PetSkill& x) { return x.id == live->default_skill_id; })
-                                               : anim([&](const snap::PetSkill& x) { return x.record == attack; });
-        std::string how;
-        if (const double sp = speed_of(*plain, k, how); sp > 0)
-          uses.push_back({plain == pet ? pet_name : attack, lv, sp * std::max(0.0, 1 - busy),
-                          "plain attack, " + how + (busy > 0 ? " x (1 - " + fmt(busy, 2) + " specials)" : ""),
-                          Origin::Derived});
-      }
-    }
-    for (const auto& u : uses) {
-      Effect e;
-      e.record = e.skill = u.record;
-      e.source = summon.skill;
-      e.level = u.level;
-      e.pet = true;
-      e.player_scaled = scaled;
-      e.pets = alive;
-      e.pet_record = pet_name;
-      e.weapon = weapon;
-      if (alive > 0 && u.per_pet > 0) {
-        e.per_sec = alive * u.per_pet;
-        e.origin = u.origin;
-        e.basis = fmt(alive, 1) + " pets (" + how + ") x " + fmt(u.per_pet, 2) + "/s (" + u.how + ")";
-      } else {
-        e.basis = alive > 0 ? "pet attack rate unknown" : "summon rate unknown (" + summon.basis + ")";
-      }
-      add(std::move(e));
-    }
+// Highest-only: each source counts while stronger ones are off.
+std::vector<std::pair<double, double>> states(std::vector<std::pair<double, double>> v) {
+  std::sort(v.rbegin(), v.rend());
+  std::vector<std::pair<double, double>> s;
+  double none = 1;
+  for (const auto& [value, u] : v) {
+    s.emplace_back(value, none * u);
+    none *= 1 - u;
   }
-
-  void add(Effect e) {
-    const arz::Record* rec = db.record(e.record);
-    if (!rec) return;
-    const auto o = overrides.find(e.record);
-    const arz::Record* buff = db.record(rec->string("buffSkillName"));
-    const arz::Record* deb = buff && debuff(*buff) ? buff : debuff(*rec) ? rec : nullptr;
-    auto uptime = [&](Reduction& r, double duration) {
-      if (o != overrides.end()) {
-        r.uptime = o->second, r.origin = Origin::Preset, r.basis = "preset [uptime]";
-      } else if (e.maintained) {
-        r.uptime = 1, r.origin = e.origin, r.basis = e.basis;
-      } else if (e.per_sec > 0 && duration > 0) {
-        r.uptime = std::min(1.0, e.per_sec * duration), r.origin = e.origin;
-        r.basis = e.basis + ", " + fmt(duration, 1) + " s";
-      } else {
-        r.uptime = 0, r.origin = Origin::Default;
-        r.basis = e.per_sec > 0 ? "no duration" : e.basis;
-      }
-    };
-    if (deb) {
-      Reduction r;
-      r.record = e.record;
-      r.category = 1;
-      auto take = [&](const arz::Record& x, std::uint32_t lvl) {
-        for (const auto& f : kDebuffFields)
-          if (const double v = at(x, f.field, lvl); v < 0) spread(r.amount, f.type, -v, resists);
-      };
-      take(*deb, e.level);
-      for (const auto& [m, lvl] : e.modifiers)
-        if (const arz::Record* mr = db.record(m)) take(*mr, lvl);
-      if (!r.amount.empty()) {
-        uptime(r, at(*deb, "skillActiveDuration", e.level));
-        out.reductions.push_back(std::move(r));
-      }
-    }
-    for (const auto& f : kOffensiveFields) {
-      double v = 0, duration = 0;
-      for (const arz::Record* x : {rec, buff}) {
-        if (!x) continue;
-        v = std::max(v, at(*x, f.min, e.level));
-        duration = std::max(duration, at(*x, f.duration, e.level));
-      }
-      for (const auto& [m, lvl] : e.modifiers)
-        if (const arz::Record* mr = db.record(m)) v += at(*mr, f.min, lvl);
-      if (v <= 0) continue;
-      Reduction r;
-      r.record = e.record;
-      r.category = f.category;
-      spread(r.amount, f.on, v, resists);
-      uptime(r, duration);
-      out.reductions.push_back(std::move(r));
-    }
-    const bool summons = pet_summon(*rec);
-    out.effects.push_back(e);
-    if (summons) pets(out.effects.back(), *rec);
-  }
-};
+  s.emplace_back(0, none);
+  return s;
+}
 
 }  // namespace
+
+// Game.dll 0x4917E0, cooldown x (1 - CDR); see §11.11.
+double Builder::recharge(double cooldown, bool own) const { return own ? cooldown * (1 - cdr) : cooldown; }
+
+std::string Builder::recharge_text(double cooldown, bool own) const {
+  return fmt(cooldown, 1) + " s" + (own && cdr > 0 ? " x (1 - " + fmt(cdr * 100, 0) + "%)" : "");
+}
+
+// Skill::GetSkillModifierData 0x49AF90: profile plus learned and item modifiers.
+double Builder::summed(const Effect& e, const arz::Record& skill, std::string_view key) const {
+  double v = key == "skillCooldownTime" ? own_or_buff(skill, key, e.level, db) : at(skill, key, e.level);
+  for (const auto& [m, lv] : e.modifiers)
+    if (const arz::Record* r = db.record(m)) v += at(*r, key, lv);
+  return std::max(0.0, v);
+}
+
+// Random trigger interval: recharge + 1 / (chance x rate).
+void Builder::trigger(Effect& e, const arz::Record& skill, double chance, std::string_view trigger, bool own) {
+  double rate = 0;
+  std::string what;
+  if (trigger == "AttackEnemy") rate = rates.action, what = "on attack";
+  else if (trigger == "AttackEnemyCrit") rate = rates.action * rates.crit, what = "on crit";
+  else if (trigger == "HitByEnemy") rate = rates.hits_taken, what = "when hit";
+  else if (trigger == "HitByMelee") rate = rates.melee_hits, what = "when hit in melee";
+  else if (trigger == "HitByProjectile") rate = rates.projectile_hits, what = "when hit by a projectile";
+  else if (trigger == "HitByCrit") rate = rates.crit_hits, what = "when critically hit";
+  else if (trigger == "OnKill") rate = rates.kills, what = "on kill";
+  else if (trigger == "Block") rate = rates.blocks, what = "on block";
+  else if (trigger == "LowHealth") rate = rates.low_health, what = "at low health";
+  else if (trigger == "WeaponPool") rate = rates.weapon, what = "of weapon attacks";
+  else {
+    e.basis = "trigger " + std::string(trigger);
+    return;
+  }
+  if (rate <= 0) {
+    e.basis = what + ": rate unknown";
+    return;
+  }
+  const double cooldown = summed(e, skill, "skillCooldownTime");
+  e.per_sec = chance > 0 ? 1 / (recharge(cooldown, own) + 1 / (chance * rate)) : 0;
+  e.origin = Origin::Derived;
+  e.basis = fmt(chance * 100, 0) + "% " + what + " x " + fmt(rate, 2) + "/s" +
+            (cooldown > 0 ? ", cooldown " + recharge_text(cooldown, own) : "") + e.basis;
+}
+
+void Builder::proc(Effect& e, const arz::Record& skill, std::string_view controller_record, bool own) {
+  const arz::Record* c = db.record(controller_record);
+  if (!c) {
+    e.basis = "controller not in the database";
+    return;
+  }
+  const std::string_view type = c->string("triggerType");
+  if (type == "OnEquip") {  // base_atself_onequip.dbr: always up
+    e.maintained = true;
+    e.origin = Origin::Derived;
+    e.basis = "on equip: kept up" + e.basis;
+    return;
+  }
+  if (type == "LowHealth") e.life_below = c->number("triggerParam");
+  trigger(e, skill, c->number("chanceToRun") / 100, type, own);
+}
+
+// skillChanceWeight: percent of weapon attacks ("x% Chance to be Used").
+bool Builder::own_trigger(Effect& e, const arz::Record& skill, double chance, bool own) {
+  if (classes::is_a(skill.cls, "Skill_PassiveOnLifeBuffSelf")) {
+    e.life_below = at(skill, "lifeMonitorPercent", e.level);
+    trigger(e, skill, chance, "LowHealth", own);
+  } else if (classes::is_a(skill.cls, "Skill_PassiveOnCritBuffSelf")) {
+    // SkillManager::OnCriticalAttack 0x535900: the owner's own crits trigger it.
+    trigger(e, skill, at(skill, "onHitActivationChance", e.level) / 100, "AttackEnemyCrit", own);
+  } else if (classes::is_a(skill.cls, "Skill_PassiveOnHitBuffSelf")) {  // incl. Skill_PassiveOnHitBuffShield
+    trigger(e, skill, at(skill, "onHitActivationChance", e.level) / 100, "HitByEnemy", own);
+  } else if (skill.cls.starts_with("Skill_WPAttack_")) {
+    trigger(e, skill, at(skill, "skillChanceWeight", e.level) / 100, "WeaponPool", own);
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// Cast whenever ready; nothing left to wait means kept up.
+void Builder::cast(Effect& e, const arz::Record& skill, const char* how, bool own) {
+  const double cooldown = summed(e, skill, "skillCooldownTime");
+  const double wait = recharge(cooldown, own);
+  e.origin = Origin::Derived;
+  if (wait > 0) {
+    e.per_sec = 1 / wait;
+    e.basis = std::string(how) + " on cooldown " + recharge_text(cooldown, own) + e.basis;
+  } else if (cooldown > 0) {
+    e.maintained = true;
+    e.basis = std::string(how) + ", cooldown " + recharge_text(cooldown, own) + ": kept up" + e.basis;
+  } else {
+    e.maintained = true;
+    e.basis = std::string(how) + ", no cooldown: kept up" + e.basis;
+  }
+}
+
+// An item or set skill.
+void Builder::granted(const std::string& skill, std::uint32_t level, std::string note, std::string_view controller,
+                      const std::string& source) {
+  const arz::Record* r = db.record(skill);
+  if (!r) return;
+  Effect e;
+  e.record = e.skill = skill;
+  e.source = source;
+  e.level = level;
+  e.basis = std::move(note);
+  if (level == 0) {
+    e.basis = "level equation" + e.basis;
+    add(std::move(e));
+    return;
+  }
+  const arz::Record* c = db.record(controller);
+  if (own_trigger(e, *r, c ? c->number("chanceToRun") / 100 : 1, false)) {
+  } else if (controller.empty()) cast(e, *r, "activated", false);
+  else proc(e, *r, controller, false);
+  add(std::move(e));
+}
+
+void Builder::add(Effect e) {
+  const arz::Record* rec = db.record(e.record);
+  if (!rec) return;
+  const arz::Record* buff = db.record(rec->string("buffSkillName"));
+  const arz::Record* deb = buff && debuff(*buff) ? buff : debuff(*rec) ? rec : nullptr;
+  if (deb) {
+    Reduction r;
+    r.record = e.record;
+    r.category = 1;
+    auto take = [&](const arz::Record& x, std::uint32_t lvl) {
+      for (const auto& f : kDebuffFields)
+        if (const double v = at(x, f.field, lvl); v < 0) spread(r.amount, f.type, -v, resists);
+    };
+    take(*deb, e.level);
+    for (const auto& [m, lvl] : e.modifiers)
+      if (const arz::Record* mr = db.record(m)) take(*mr, lvl);
+    if (!r.amount.empty()) {
+      set_uptime(r, e, at(*deb, "skillActiveDuration", e.level), overrides);
+      out.reductions.push_back(std::move(r));
+    }
+  }
+  for (const auto& f : kOffensiveFields) {
+    double v = 0, duration = 0;
+    for (const arz::Record* x : {rec, buff}) {
+      if (!x) continue;
+      v = std::max(v, at(*x, f.min, e.level));
+      duration = std::max(duration, at(*x, f.duration, e.level));
+    }
+    for (const auto& [m, lvl] : e.modifiers)
+      if (const arz::Record* mr = db.record(m)) v += at(*mr, f.min, lvl);
+    if (v <= 0) continue;
+    Reduction r;
+    r.record = e.record;
+    r.category = f.category;
+    spread(r.amount, f.on, v, resists);
+    set_uptime(r, e, duration, overrides);
+    out.reductions.push_back(std::move(r));
+  }
+  const bool summons = pet_summon(*rec);
+  out.effects.push_back(e);
+  if (summons) pets(out.effects.back(), *rec);
+}
 
 std::string summoned_record(const arz::Record& skill, std::uint32_t level) {
   if (!pet_summon(skill)) return {};
@@ -439,172 +342,12 @@ const arz::Record* summoned(const arz::Record& skill, std::uint32_t level, const
   return r.empty() ? nullptr : db.record(r);
 }
 
-namespace {
-
-struct Parser {
-  std::string_view s;
-  double level;
-  std::size_t i = 0;
-  bool ok = true;
-
-  void space() {
-    while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) ++i;
-  }
-  bool eat(char c) {
-    space();
-    if (i < s.size() && s[i] == c) return ++i, true;
-    return false;
-  }
-  double primary() {
-    space();
-    if (eat('(')) {
-      const double v = sum();
-      if (!eat(')')) ok = false;
-      return v;
-    }
-    if (eat('-')) return -primary();
-    constexpr std::string_view kName = "charlevel";
-    if (s.size() - i >= kName.size()) {
-      bool same = true;
-      for (std::size_t k = 0; k < kName.size(); ++k)
-        same = same && std::tolower(static_cast<unsigned char>(s[i + k])) == kName[k];
-      if (same) return i += kName.size(), level;
-    }
-    double v = 0;
-    const auto [end, ec] = std::from_chars(s.data() + i, s.data() + s.size(), v);
-    if (ec != std::errc{}) return ok = false, 0.0;
-    i = static_cast<std::size_t>(end - s.data());
-    return v;
-  }
-  double power() {
-    const double b = primary();
-    return eat('^') ? std::pow(b, power()) : b;
-  }
-  double product() {
-    double v = power();
-    for (;;) {
-      if (eat('*')) v *= power();
-      else if (eat('/')) {
-        const double d = power();
-        if (d == 0) return ok = false, 0.0;
-        v /= d;
-      } else return v;
-    }
-  }
-  double sum() {
-    double v = product();
-    for (;;) {
-      if (eat('+')) v += product();
-      else if (eat('-')) v -= product();
-      else return v;
-    }
-  }
-};
-
-}  // namespace
-
-std::optional<double> equation(std::string_view expr, double char_level) {
-  Parser p{expr, char_level};
-  const double v = p.sum();
-  p.space();
-  if (!p.ok || p.i != expr.size() || !std::isfinite(v)) return std::nullopt;
-  return v;
-}
-
-std::vector<std::pair<std::string, std::uint32_t>> pet_skills(const arz::Record& pet, double char_level,
-                                                              const std::vector<std::pair<std::string, std::uint32_t>>& modifiers,
-                                                              const arz::Database& db) {
-  std::vector<std::pair<std::string, std::uint32_t>> out;
-  auto put = [&](std::string name, std::uint32_t lv) {
-    if (name.empty() || lv == 0) return;
-    for (auto& [n, l] : out)
-      if (n == name) return void(l = std::max(l, lv));
-    out.emplace_back(std::move(name), lv);
-  };
-  for (const auto& [key, field] : pet.fields) {
-    if (!key.starts_with("skillName") || field.strings.empty()) continue;
-    const auto lk = pet.fields.find("skillLevel" + key.substr(9));
-    if (lk == pet.fields.end()) continue;
-    double lv = lk->second.numbers.empty() ? 0 : lk->second.numbers[0];
-    if (!lk->second.strings.empty())
-      lv = equation(lk->second.strings[0], char_level).value_or(0);  // shortcut: unparsed equation = not learned
-    if (lv >= 1) put(field.strings[0], static_cast<std::uint32_t>(lv));
-  }
-  for (const auto& [m, lv] : modifiers)
-    if (const arz::Record* r = db.record(m); r && classes::is_a(r->cls, "SkillSecondary_PetModifier"))
-      put(std::string(r->string("petSkillName")), lv);
-  return out;
-}
-
 Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates& rates,
                   const std::map<std::string, double>& overrides, const std::vector<int>& resists) {
   Builder b{s, db, rates, overrides, resists, {}, utility::cooldown_reduction(s)};
-  // Passives and modifiers add to their parent.
-  for (const auto& sk : s.skills) {
-    if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
-    if (!sk.record.starts_with("records/skills/playerclass")) continue;
-    const arz::Record* r = db.record(sk.record);
-    // Engine subclasses too: Skill_ProjectileModifier blackwater3 (RR) belongs to blackwater1, not a skill of its own.
-    if (!r || classes::is_a(r->cls, "Skill_Passive") || classes::is_a(r->cls, "Skill_Modifier")) continue;
-    Effect e;
-    e.record = e.skill = sk.record;
-    e.source = "learned";
-    e.level = sk.current_level;
-    for (const std::uint32_t id : sk.modifier_ids)
-      for (const auto& m : s.skills)
-        if (m.id == id && m.current_level > 0) e.modifiers.emplace_back(m.record, m.current_level);
-    for (const auto& m : s.item_skill_modifiers)
-      if (m.skill_id == sk.id && !m.modifier_record.empty()) e.modifiers.emplace_back(m.modifier_record, 1);
-    if (!(model::triggered_buff(*r) && b.own_trigger(e, *r, 1, true))) b.cast(e, *r, "cast", true);
-    b.add(std::move(e));
-  }
-  for (const auto& sk : s.skills) {
-    if (sk.devotion_max_level == 0 || sk.current_level == 0) continue;
-    const arz::Record* r = db.record(sk.record);
-    const std::string_view controller = r ? own_or_buff(*r, "templateAutoCast", db) : std::string_view{};
-    if (controller.empty()) continue;
-    Effect e;
-    e.record = e.skill = sk.record;
-    e.source = sk.record;
-    e.level = sk.current_level;
-    b.proc(e, *r, controller, true);
-    b.add(std::move(e));
-  }
-  auto granted = [&](const std::string& skill, std::uint32_t level, std::string note, std::string_view controller,
-                     const std::string& source) {
-    const arz::Record* r = db.record(skill);
-    if (!r) return;
-    Effect e;
-    e.record = e.skill = skill;
-    e.source = source;
-    e.level = level;
-    e.basis = std::move(note);
-    if (level == 0) {
-      e.basis = "level equation" + e.basis;
-      b.add(std::move(e));
-      return;
-    }
-    const arz::Record* c = db.record(controller);
-    if (b.own_trigger(e, *r, c ? c->number("chanceToRun") / 100 : 1, false)) {
-    } else if (controller.empty()) b.cast(e, *r, "activated", false);
-    else b.proc(e, *r, controller, false);
-    b.add(std::move(e));
-  };
-  for (const auto& it : s.equipped)
-    for (const auto& name : model::item_records(it))
-      if (const arz::Record* rec = db.record(name); rec && !rec->string("itemSkillName").empty()) {
-        std::string note;
-        const arz::Record* base = db.record(it.record);
-        const std::uint32_t level = item_skill_level(rec->string("itemSkillLevelEq"), base ? *base : *rec, note);
-        granted(std::string(rec->string("itemSkillName")), level, note, rec->string("itemSkillAutoController"), name);
-      }
-  for (const auto& [set, n] : sets::counts(s))
-    if (const arz::Record* rec = db.record(set)) {
-      const sets::Bonus bonus = sets::bonus(*rec, n);
-      if (!bonus.granted_skill.empty())
-        granted(bonus.granted_skill, static_cast<std::uint32_t>(bonus.granted_level), "",
-                rec->string("itemSkillAutoController"), set);
-    }
+  learned_skills(b);
+  devotion_powers(b);
+  item_and_set_skills(b);
   return std::move(b.out);
 }
 
@@ -619,17 +362,6 @@ std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, con
       if (r.category == 1) r1 -= it->second * r.uptime;
       else by[r.category].emplace_back(it->second, r.uptime);
     }
-    auto states = [](std::vector<std::pair<double, double>> v) {
-      std::sort(v.rbegin(), v.rend());
-      std::vector<std::pair<double, double>> s;
-      double none = 1;
-      for (const auto& [value, u] : v) {
-        s.emplace_back(value, none * u);
-        none *= 1 - u;
-      }
-      s.emplace_back(0, none);
-      return s;
-    };
     double m = 0;
     for (const auto& [v2, p2] : states(by[2]))
       for (const auto& [v3, p3] : states(by[3])) {

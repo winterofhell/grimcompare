@@ -1,7 +1,5 @@
 #pragma once
-// Lines are built by the exported GameTextLine ctor and moved in with the engine's push_back
-// (gdc::scan::line_push_back_call), so the game owns and frees them. GameTextLineToString is unused in
-// Game.dll 1.3.1.1.
+// Lines come from the engine's ctor and push_back (MECHANICS §12.2).
 #include <cstdint>
 #include <string>
 
