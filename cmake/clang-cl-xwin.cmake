@@ -29,7 +29,7 @@ set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_lib}")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_lib}")
 
 # Dynamic release CRT (/MD) in every config, try_compile included: Game.dll and Engine.dll
-# import MSVCP140/VCRUNTIME140/ucrt (winedump, docs/RECON.md §7), so we share their heap.
+# import MSVCP140/VCRUNTIME140/ucrt (winedump), so we share their heap.
 # The debug CRT (msvcrtd/msvcp140d) is neither in xwin's splat nor in the Proton prefix.
 # gdcompare-setup sets MultiThreaded (/MT) instead: a standalone exe that needs no VC++ redistributable.
 if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)

@@ -1,5 +1,5 @@
 #pragma once
-// .arz v3 reader (re/tools/arz.py, §13.5); never reads out of bounds.
+// .arz v3 reader (re/tools/arz.py); never reads out of bounds.
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -25,7 +25,13 @@ struct Field {
   std::vector<std::string> strings;
 };
 
-// Fields sorted by name, hash-indexed for speed (§13.5).
+// Lets std::string-keyed maps find by string_view without building a string.
+struct StringHash {
+  using is_transparent = void;
+  std::size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
+};
+
+// Fields sorted by name, hash-indexed for speed.
 class Fields {
  public:
   using value_type = std::pair<std::string, Field>;
@@ -63,7 +69,7 @@ class File {
   // Memory-mapped: 175 MB stays file-backed, outside game private memory.
   static File open(const std::filesystem::path& path);
 
-  bool contains(std::string_view name) const { return index_.contains(std::string(name)); }
+  bool contains(std::string_view name) const { return index_.contains(name); }
   std::size_t size() const { return index_.size(); }
   std::optional<Record> record(std::string_view name) const;
 
@@ -77,10 +83,10 @@ class File {
   std::shared_ptr<const void> owner_;
   std::span<const std::byte> data_;
   std::vector<std::string> strings_;
-  std::unordered_map<std::string, Entry> index_;
+  std::unordered_map<std::string, Entry, StringHash, std::equal_to<>> index_;
 };
 
-// A later file replaces a whole record (docs/DATABASE.md).
+// A later file replaces a whole record.
 class Database {
  public:
   void add(File f) { files_.push_back(std::move(f)); }
@@ -106,12 +112,7 @@ class Database {
     // shortcut: spin lock instead of std::mutex, which faults on the Proton prefix's 2016 msvcp140.dll
     // (docs/BUILD.md). Held only for a map find / emplace — revisit if tooltip timings show contention.
     std::atomic_flag lock;
-    struct Hash {
-      using is_transparent = void;
-      std::size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
-    };
-    // Found by string_view: no std::string built per lookup.
-    std::unordered_map<std::string, std::unique_ptr<const Record>, Hash, std::equal_to<>> records;  // null: absent
+    std::unordered_map<std::string, std::unique_ptr<const Record>, StringHash, std::equal_to<>> records;  // null: absent
     struct Key {
       const void* tag;
       const Record* record;

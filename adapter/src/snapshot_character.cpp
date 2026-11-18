@@ -70,7 +70,7 @@ void sec_defense(Ctx& c) {
   api.combat_acc_dtor(acc);
 }
 
-// As an incoming hit with no enemy reduction (§13.3).
+// As an incoming hit with no enemy reduction.
 void sec_defense_processed(Ctx& c) {
   struct alignas(16) Zero {
     unsigned char b[64] = {};

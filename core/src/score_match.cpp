@@ -67,24 +67,24 @@ bool tried_first(const Preset& a, const Preset& b) {
 }
 
 Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
-  enum Cat { kNone, kPet, kAttack, kWeapon, kRetaliation };
+  enum class Cat { None, Pet, Attack, Weapon, Retaliation };
   auto category = [&](const snap::Skill& sk) {
     const arz::Record* r = db.record(sk.record);
-    if (!r) return kNone;
+    if (!r) return Cat::None;
     const std::uint32_t lv = sk.current_level;
     if (r->cls == "Skill_SpawnPet" || r->cls == "Skill_TargetedSpawnPet") {
       const arz::Record* pet = effects::summoned(*r, lv, db);
-      return pet && pet->cls == "Pet" ? kPet : kNone;
+      return pet && pet->cls == "Pet" ? Cat::Pet : Cat::None;
     }
     const arz::Record* buff = db.record(r->string("buffSkillName"));
     // Every playerclass record of these classes has weaponDamagePct.
-    if (r->cls.starts_with("Skill_WeaponPool_") || r->cls.starts_with("Skill_WPAttack_")) return kWeapon;
+    if (r->cls.starts_with("Skill_WeaponPool_") || r->cls.starts_with("Skill_WPAttack_")) return Cat::Weapon;
     if (attack_class(r->cls)) {
       const arz::Record* d = has_damage(db, *r, lv) ? r : (buff && has_damage(db, *buff, lv) ? buff : nullptr);
-      if (d) return at_level(*d, "weaponDamagePct", lv) > 0 ? kWeapon : kAttack;
+      if (d) return at_level(*d, "weaponDamagePct", lv) > 0 ? Cat::Weapon : Cat::Attack;
     }
-    if (has_retaliation(*r, lv) || (buff && has_retaliation(*buff, lv))) return kRetaliation;
-    return kNone;
+    if (has_retaliation(*r, lv) || (buff && has_retaliation(*buff, lv))) return Cat::Retaliation;
+    return Cat::None;
   };
   std::map<std::uint32_t, const snap::Skill*> parent;
   for (const auto& sk : s.skills)
@@ -101,11 +101,11 @@ Archetype archetype(const snap::Snapshot& s, const arz::Database& db) {
       if (!r || r->cls == "Skill_Mastery") continue;
     }
     switch (category(root)) {
-      case kPet: pet += sk.level; break;
-      case kWeapon: weapon += sk.level; attack += sk.level; break;
-      case kAttack: attack += sk.level; break;
-      case kRetaliation: retaliation += sk.level; break;
-      case kNone: break;
+      case Cat::Pet: pet += sk.level; break;
+      case Cat::Weapon: weapon += sk.level; attack += sk.level; break;
+      case Cat::Attack: attack += sk.level; break;
+      case Cat::Retaliation: retaliation += sk.level; break;
+      case Cat::None: break;
     }
   }
   Archetype a;

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include "gdc/attribute_names.h"
+
 namespace gdc::fields {
 namespace {
 
@@ -185,9 +187,10 @@ constexpr FlatDamage kFlat[] = {
     {"offensiveElementalMin", "offensiveElementalMax", "", "offensiveElementalChance", 58},
 };
 
-constexpr int kAllDirect[] = {2, 4, 5, 6, 7, 8, 9, 10, 11};
-constexpr int kAllDot[] = {2, 5, 6, 7, 8, 9, 10, 11, 15};
-constexpr int kElemental[] = {5, 6, 8};
+using namespace combat_attr;
+constexpr int kAllDirect[] = {kPhysical, kPierce, kCold, kFire, kPoison, kLightning, kLife, kChaos, kAether};
+constexpr int kAllDot[] = {kPhysical, kCold, kFire, kPoison, kLightning, kLife, kChaos, kAether, kBleeding};
+constexpr int kElementalTypes[] = {kCold, kFire, kLightning};
 
 }  // namespace
 
@@ -200,7 +203,7 @@ const Target* damage_modifier(std::string_view field) {
 std::span<const std::pair<std::string_view, Target>> damage_modifiers() { return kDamageMods; }
 
 const Target* lookup(std::string_view field, double& scale) {
-  static constexpr Target kCrit{Kind::Damage, 59, false};
+  static constexpr Target kCrit{Kind::Damage, combat_attr::kCritDamage, false};
   // target(), damage_modifier(), then crit; hashed, hot per skill level.
   static const std::unordered_map<std::string_view, std::pair<const Target*, double>> index = [] {
     std::unordered_map<std::string_view, std::pair<const Target*, double>> m;
@@ -215,8 +218,8 @@ const Target* lookup(std::string_view field, double& scale) {
 }
 
 std::span<const int> spread(int type, bool dot) {
-  if (type == 60) return dot ? std::span<const int>(kAllDot) : std::span<const int>(kAllDirect);
-  if (type == 58) return kElemental;
+  if (type == combat_attr::kAll) return dot ? std::span<const int>(kAllDot) : std::span<const int>(kAllDirect);
+  if (type == combat_attr::kElemental) return kElementalTypes;
   return {};
 }
 

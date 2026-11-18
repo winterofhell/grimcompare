@@ -1,4 +1,4 @@
-// Pet attack rates, experimental (MECHANICS §4, §11.11).
+// Pet attack rates, experimental (MECHANICS §4).
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -25,7 +25,7 @@ struct Spawn {
   double limit = 0, ttl = 0;
 };
 
-// GetSpawnObjectTimeToLive 0x493660, AddModifierPetChanges 0x494CE0 (§11.11).
+// GetSpawnObjectTimeToLive 0x493660, AddModifierPetChanges 0x494CE0.
 Spawn spawn_of(const Builder& b, const Effect& summon, const arz::Record& skill) {
   Spawn out;
   out.pet = summoned_record(skill, summon.level);
@@ -41,7 +41,7 @@ Spawn spawn_of(const Builder& b, const Effect& summon, const arz::Record& skill)
   return out;
 }
 
-// Pets alive on average; no time to live keeps them at the limit (§11.11).
+// Pets alive on average; no time to live keeps them at the limit.
 // shortcut: no petLimit read as one pet — revisit if a permanent summon without petLimit shows up.
 double alive_pets(const Effect& summon, const Spawn& spawn, std::string& how) {
   double alive = 0;
@@ -71,7 +71,7 @@ std::uint32_t level_in(const Skills& list, std::string_view record) {
   return 0;
 }
 
-// Live pet speeds from the engine, else the record's (§11.11).
+// Live pet speeds from the engine, else the record's.
 struct Pace {
   const snap::Pet* live = nullptr;
   double attack = 0, cast = 0;

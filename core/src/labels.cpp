@@ -19,7 +19,7 @@ std::string Labels::tag(std::string_view t) const {
 std::string Labels::resist(int type) const {
   const std::string internal(names::combat_attribute(type));
   std::string s = tag("Defense" + internal);
-  if (s.empty()) return type == 9 ? "Vitality" : internal;  // tagDamageBaseVitality
+  if (s.empty()) return type == combat_attr::kLife ? "Vitality" : internal;  // tagDamageBaseVitality
   constexpr std::string_view kLong = " Resistance";
   if (s.ends_with(kLong)) s.replace(s.size() - kLong.size(), kLong.size(), " Resist");
   // 0.9.2 wrapped "Poison & Acid"; "Poison/Acid" never wraps.

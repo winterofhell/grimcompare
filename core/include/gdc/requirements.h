@@ -1,5 +1,5 @@
 #pragma once
-// Item requirement check, as Game.dll does it (MECHANICS §7, §13.15).
+// Item requirement check, as Game.dll does it (MECHANICS §7).
 #include <cstdint>
 #include <optional>
 #include <string>

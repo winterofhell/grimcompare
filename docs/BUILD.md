@@ -36,6 +36,6 @@ Both print the exact Steam launch options string. `GD_SUBDIR=x64` targets the no
 ### Safe-mode test (after every loader change, or any crash before the main menu)
 1. `scripts/deploy.sh --loader-only`, start the game. Must reach the main menu. No `GDCompare.log` appears.
 2. `scripts/deploy.sh`, start the game. Must reach the main menu. Send `compat/GDCompare.log`.
-3. Only if step 1 crashes: OptiScaler/ReShade are already removed (2026-11-14, see RECON.md); send the crash zip from the game root.
+3. Only if step 1 crashes: OptiScaler/ReShade are already removed (2026-11-14); send the crash zip from the game root.
 
 Kill switch: `compat/GDCompare.disable` exists, or launch option `GDCOMPARE_DISABLE=1` → the .asi does nothing (no log written).

@@ -2,10 +2,12 @@
 
 #include <cmath>
 
+#include "gdc/attribute_names.h"
+
 namespace gdc::requirements {
 namespace {
 
-constexpr int kGlobalReduction = 53, kLevelReduction = 54;  // CharAttributeType (re/CharAttributeType.tsv)
+using char_attr::kGlobalReqReduction, char_attr::kLevelReqReduction;
 
 float total(const snap::Snapshot& s, int type) {
   for (const auto& a : s.char_attributes)
@@ -26,10 +28,10 @@ std::vector<Unmet> unmet(const snap::Item& item, const snap::Snapshot& s) {
   if (!item.requirements) return out;
   const snap::Requirements& q = *item.requirements;
   if (q.level != 0) {
-    const std::uint32_t need = effective(q.level, total(s, kLevelReduction));
+    const std::uint32_t need = effective(q.level, total(s, kLevelReqReduction));
     if (static_cast<double>(s.level) < need) out.push_back({0, need, static_cast<double>(s.level)});
   }
-  const float global = total(s, kGlobalReduction);
+  const float global = total(s, kGlobalReqReduction);
   for (int a = 0; a < 3; ++a) {
     if (q.attribute[a] == 0) continue;
     float red = total(s, q.reductions[a][0]);

@@ -1,5 +1,5 @@
 #pragma once
-// Set bonuses, added outside item getters (§13.17).
+// Set bonuses, added outside item getters.
 #include <map>
 #include <set>
 #include <string>

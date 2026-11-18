@@ -36,12 +36,11 @@ constexpr Stat kStats[] = {
     {"default", "100 of any stat no other key or score term reads", 0.05, ""},
 };
 
-constexpr int kBlockRecovery = 25, kDodge = 27, kDeflect = 28, kExperience = 55;
-constexpr int kLifeLeech = 20, kTotalDamageReduction = 28;
-constexpr int kBlockChance = 55, kBlockAmount = 56;
+using char_attr::kBlockRecovery, char_attr::kDodge, char_attr::kDeflect, char_attr::kExperience;
+using combat_attr::kLifeLeech, combat_attr::kTotalDamageReduction, combat_attr::kBlockChance, combat_attr::kBlockAmount;
 constexpr int kCooldown = 1, kCost = 2;
 
-// Read elsewhere or keyed here; exceptions in MECHANICS §13.29.
+// Read elsewhere or keyed here.
 const std::set<int> kCharCovered = {1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 21, 22, 23, 24, kBlockRecovery, kDodge, kDeflect, kExperience};
 const std::set<int> kDefenseCovered = {0,  1,  2,  4,  5,  6,  7,  8,  9,  10, 11, 13, 15, 16, 17, 18, 19, 38, 39,
                                        40, 42, 43, 44, 45, 46, 48, kBlockChance, kBlockAmount, 57, 58, 60, 64, 65};
@@ -112,6 +111,11 @@ double racial_share(const arz::Record& r) {
   return it == r.fields.end() ? 0 : enemy::race_share(it->second.strings);
 }
 
+// Char pet bonuses left out of the mean.
+const std::set<int> kPetSkipped = {char_attr::kCunning,     char_attr::kSpirit,     char_attr::kTotalSpeed,
+                                  char_attr::kAttackSpeed, char_attr::kCastSpeed, char_attr::kOffensiveAbility,
+                                  char_attr::kOffensiveAbilityModifier};
+
 double pet_bonus(const arz::Record& r) {
   double sum = 0;
   int n = 0;
@@ -121,9 +125,7 @@ double pet_bonus(const arz::Record& r) {
     double scale = 1;
     const fields::Target* t = fields::lookup(key, scale);
     if (!t || t->kind == fields::Kind::Damage) continue;
-    if (t->kind == fields::Kind::Char && (t->type == 2 || t->type == 3 || t->type == 13 || t->type == 15 ||
-                                          t->type == 16 || t->type == 21 || t->type == 22))
-      continue;
+    if (t->kind == fields::Kind::Char && kPetSkipped.contains(t->type)) continue;
     sum += field.numbers[0] * scale;
     ++n;
   }
@@ -139,7 +141,7 @@ double pet_bonus(const arz::Record& r) {
 // (1 - char 25 / 100).
 // shortcut: the hit is one damage attribute of size `hit` — revisit with multi-type enemy hits.
 double block_share(const snap::Snapshot& s, const arz::Database* db, double hits_per_sec) {
-  const snap::Item* lh = at(s, 1);
+  const snap::Item* lh = at(s, equip::kLeftHand);
   const arz::Record* r = lh && db ? db->record(lh->record) : nullptr;
   if (!r || r->cls != "WeaponArmor_Shield") return 0;
   const double chance = std::clamp((r->number("defensiveBlockChance") + defense_raw(s, kBlockChance)) / 100, 0.0, 1.0);
@@ -150,7 +152,7 @@ double block_share(const snap::Snapshot& s, const arz::Database* db, double hits
 double block(const snap::Snapshot& s, const arz::Database* db, double hit, double hits_per_sec) {
   const double share = block_share(s, db, hits_per_sec);
   if (share <= 0 || hit <= 0) return 0;
-  const arz::Record* r = db->record(at(s, 1)->record);
+  const arz::Record* r = db->record(at(s, equip::kLeftHand)->record);
   const double absorb = r->number("blockAbsorption", 0, 100) / 100;
   const double amount = r->number("defensiveBlock") * (1 + defense_raw(s, kBlockAmount) / 100);
   return share * absorb * std::min(amount, hit) / hit;

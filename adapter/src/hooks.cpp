@@ -31,7 +31,7 @@ constexpr std::size_t kMaxTooltipItems = 8;
 
 HookConfig g_cfg;
 int g_vk = VK_F9;
-// F10: game, Steam and KDE already bind the others (§13.2).
+// F10: game, Steam and KDE already bind the others.
 int g_freeze_vk = VK_F10;
 UpdateFn g_update = nullptr;
 TooltipFn g_tip_equipment = nullptr, g_tip_artifact = nullptr;

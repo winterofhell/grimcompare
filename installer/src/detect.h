@@ -1,5 +1,5 @@
 #pragma once
-// Finds Grim Dawn; every candidate is checked on disk (§13.33).
+// Finds Grim Dawn; every candidate is checked on disk.
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -11,7 +11,7 @@ struct Game {
   std::string source;  // "Steam", "Steam (Flatpak)", "GOG", "Heroic", "folder scan", "typed in"
 };
 
-// Steam roots that exist, Linux and Windows (§13.33).
+// Steam roots that exist, Linux and Windows.
 std::vector<std::filesystem::path> steam_roots();
 bool flatpak_steam(const std::filesystem::path& steam_root);
 

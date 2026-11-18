@@ -15,7 +15,7 @@ constexpr std::size_t kAdapterMaxPresets = 32;  // adapter/src/tooltip_internal.
 
 namespace {
 
-// One setup preset per character; others drop it (§13.40).
+// One setup preset per character; others drop it.
 bool unbind_elsewhere(const Ctx& c, const Who& who, const fs::path& keep) {
   const std::string character = who_label(who);
   for (auto& e : setup_presets(c.presets)) {

@@ -57,7 +57,7 @@ std::vector<Broken> take_off_broken(const snap::Snapshot& before, snap::Snapshot
       }
     }
     if (!hit) break;
-    out.push_back({hit->location, hit->record, why});
+    out.push_back({.location = hit->location, .record = hit->record, .why = why});
     model::Prediction p = take_off(after, hit->location, db);
     for (auto& w : p.warnings) warnings.push_back(std::move(w));
     after = std::move(p.after);
@@ -66,20 +66,21 @@ std::vector<Broken> take_off_broken(const snap::Snapshot& before, snap::Snapshot
 }
 
 std::vector<int> locations_for(int item_type) {
+  using namespace equip;
   switch (item_type) {
-    case 1: return {7};
-    case 2: return {2};
-    case 3: return {8};      // 14 "Clothing" takes type 3 too; not a player slot
-    case 4: return {11};
-    case 5: return {12};
-    case 6: return {4, 5};
-    case 7: return {10};
-    case 8: return {1};      // shield, caster off-hand
-    case 9: return {0, 1};   // L Hand only while dual wielding
-    case 11: return {13};
-    case 13: return {6};
-    case 14: return {9};
-    case 15: return {3};
+    case item_types::kHead: return {kHead};
+    case item_types::kNeck: return {kNeck};
+    case item_types::kChest: return {kChest};  // 14 "Clothing" takes it too; not a player slot
+    case item_types::kLegs: return {kLegs};
+    case item_types::kFeet: return {kFeet};
+    case item_types::kRing: return {kFinger1, kFinger2};
+    case item_types::kHands: return {kHands};
+    case item_types::kOffHand: return {kLeftHand};  // shield, caster off-hand
+    case item_types::kWeapon: return {kRightHand, kLeftHand};  // L Hand only while dual wielding
+    case item_types::kArtifact: return {kArtifact};
+    case item_types::kWaist: return {kWaist};
+    case item_types::kShoulders: return {kShoulders};
+    case item_types::kMedal: return {kMedal};
     default: return {};
   }
 }
@@ -94,18 +95,20 @@ std::vector<Plan> plans(const snap::Snapshot& s, const snap::Item& candidate, in
   std::vector<Plan> out;
   auto title = [&](int loc) {
     std::string t = "vs " + std::string(names::equip_location(loc));
-    if (loc == 4 || loc == 5) t += loc == 4 ? " 1" : " 2";
+    if (loc == equip::kFinger1 || loc == equip::kFinger2) t += loc == equip::kFinger1 ? " 1" : " 2";
     return t + (at(s, loc) ? "" : " (empty)");
   };
-  const snap::Item *rh = at(s, 0), *lh = at(s, 1);
-  if (item_type == 9) {
-    if (two_handed(&candidate, db) && lh) out.push_back({0, 1, "vs R Hand + L Hand"});
-    else out.push_back({0, -1, title(0)});
-    if (!two_handed(&candidate, db) && weapon(lh, db)) out.push_back({1, -1, title(1)});
-  } else if (item_type == 8 && two_handed(rh, db)) {
-    out.push_back({1, 0, "vs R Hand (two-handed)"});
+  const snap::Item *rh = at(s, equip::kRightHand), *lh = at(s, equip::kLeftHand);
+  if (item_type == item_types::kWeapon) {
+    if (two_handed(&candidate, db) && lh)
+      out.push_back({.location = equip::kRightHand, .also_off = equip::kLeftHand, .title = "vs R Hand + L Hand"});
+    else out.push_back({.location = equip::kRightHand, .title = title(equip::kRightHand)});
+    if (!two_handed(&candidate, db) && weapon(lh, db))
+      out.push_back({.location = equip::kLeftHand, .title = title(equip::kLeftHand)});
+  } else if (item_type == item_types::kOffHand && two_handed(rh, db)) {
+    out.push_back({.location = equip::kLeftHand, .also_off = equip::kRightHand, .title = "vs R Hand (two-handed)"});
   } else {
-    for (int loc : locations_for(item_type)) out.push_back({loc, -1, title(loc)});
+    for (int loc : locations_for(item_type)) out.push_back({.location = loc, .title = title(loc)});
   }
   return out;
 }

@@ -17,7 +17,7 @@ double at(const arz::Record& r, std::string_view key, int n) {
   return it == r.fields.end() ? 0 : at(it->second, n);
 }
 
-// Template enum names (ERRATA §1) are CombatAttributeType names.
+// Template enum names are CombatAttributeType names.
 int damage_type_named(std::string_view name) {
   for (int t : {2, 4, 5, 6, 7, 8, 9, 10, 11, 58})
     if (!name.empty() && names::combat_attribute(t) == name) return t;

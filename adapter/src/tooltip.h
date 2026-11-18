@@ -1,5 +1,5 @@
 #pragma once
-// Lines come from the engine's ctor and push_back (MECHANICS §12.2).
+// Lines come from the engine's ctor and push_back.
 #include <cstdint>
 #include <string>
 

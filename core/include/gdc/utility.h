@@ -1,5 +1,5 @@
 #pragma once
-// Other part of the score (MECHANICS §5, §13.22).
+// Other part of the score (MECHANICS §5).
 #include <map>
 #include <span>
 #include <string>

@@ -6,7 +6,7 @@
 #include "score_internal.h"
 
 namespace gdc::score {
-// ConvertCombatAttributes 0x1199F0: Elemental is ⅓ Cold, Fire, Lightning (§11.1).
+// ConvertCombatAttributes 0x1199F0: Elemental is ⅓ Cold, Fire, Lightning.
 void split_elemental(Amounts& a) {
   for (const bool dot : {false, true}) {
     const auto it = a.find({kElemental, dot});
@@ -17,7 +17,7 @@ void split_elemental(Amounts& a) {
   }
 }
 
-// Engine conversion order and weighing: MECHANICS §11.2.
+// Engine conversion order and weighing, as Skill::CollectCombatParameters 0x499E40.
 Conversions global_pairs(const std::vector<snap::Conversion>& global) {
   Conversions g;
   for (const auto& c : global) add_pair(g, c.from, c.to, c.percent * 100);
@@ -63,8 +63,8 @@ std::map<DamageKey, double> convert(const std::map<DamageKey, double>& input, co
 }
 
 std::string conversion_label(int type) {
-  if (type == 7) return "Acid/Poison";
-  if (type == 58) return "Elemental";
+  if (type == kPoison) return "Acid/Poison";
+  if (type == kElemental) return "Elemental";
   return damage_label({type, false});
 }
 
@@ -73,7 +73,7 @@ std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const 
                                             const arz::Database* db) {
   std::vector<Conversion> out;
   if (p.conversion_warn.empty()) return out;
-  // Build types: >= 10% of main damage, design choice (§11.3).
+  // Build types: >= 10% of main damage, design choice.
   // shortcut: skill conversion output counts as source — revisit if it over-warns.
   auto types = [&](const snap::Snapshot& s) {
     std::set<int> t;

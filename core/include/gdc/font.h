@@ -10,10 +10,10 @@ enum class Face : std::uint8_t {
   LinBiolinumSans,  // GrayStats1
 };
 
-// StyleManager::LoadStyle 0x1C4400 point size at a UI scale (§13.14).
+// StyleManager::LoadStyle 0x1C4400 point size at a UI scale.
 int pixel_size(int points, float ui_scale);
 
-// GameTextString's text width in pixels (§13.14).
+// GameTextString's text width in pixels.
 int width(Face face, int size, std::string_view text);
 
 }  // namespace gdc::font

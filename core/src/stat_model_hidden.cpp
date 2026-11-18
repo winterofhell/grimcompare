@@ -14,7 +14,7 @@ namespace {
 
 // One record's Hidden part in field order, so sums match.
 struct HiddenOp {
-  enum Kind { Skill, Mastery, All, Modifier, MaxResist } kind;
+  enum class Kind { Skill, Mastery, All, Modifier, MaxResist } kind;
   std::string key, value;
   double v = 0;
 };
@@ -28,14 +28,14 @@ const std::vector<HiddenOp>& hidden_ops(const arz::Record& rec, const arz::Datab
         const std::string level_key = std::string(level_prefix) + key.substr(name_prefix.size());
         ops.push_back({kind, field.strings[0], {}, rec.number(level_key)});
       };
-      grant(HiddenOp::Skill, "augmentSkillName", "augmentSkillLevel");
-      grant(HiddenOp::Mastery, "augmentMasteryName", "augmentMasteryLevel");
-      if (key == "augmentAllLevel") ops.push_back({HiddenOp::All, {}, {}, rec.number(key)});
+      grant(HiddenOp::Kind::Skill, "augmentSkillName", "augmentSkillLevel");
+      grant(HiddenOp::Kind::Mastery, "augmentMasteryName", "augmentMasteryLevel");
+      if (key == "augmentAllLevel") ops.push_back({HiddenOp::Kind::All, {}, {}, rec.number(key)});
       if (key.starts_with("modifierSkillName") && !field.strings.empty() && !field.strings[0].empty()) {
         const std::string_view target = rec.string("modifiedSkillName" + key.substr(17));
-        if (!target.empty()) ops.push_back({HiddenOp::Modifier, std::string(target), field.strings[0], 0});
+        if (!target.empty()) ops.push_back({HiddenOp::Kind::Modifier, std::string(target), field.strings[0], 0});
       }
-      if (key.ends_with("MaxResist") && rec.number(key) != 0) ops.push_back({HiddenOp::MaxResist, key, {}, rec.number(key)});
+      if (key.ends_with("MaxResist") && rec.number(key) != 0) ops.push_back({HiddenOp::Kind::MaxResist, key, {}, rec.number(key)});
     }
     return ops;
   });
@@ -50,11 +50,11 @@ Hidden hidden(const snap::Item* it, const arz::Database& db) {
     const auto rec = db.record(name);
     if (!rec) continue;
     for (const auto& op : hidden_ops(*rec, db)) switch (op.kind) {
-        case HiddenOp::Skill: h.skills[op.key] += op.v; break;
-        case HiddenOp::Mastery: h.masteries[op.key] += op.v; break;
-        case HiddenOp::All: h.all += op.v; break;
-        case HiddenOp::Modifier: h.modifiers.emplace(op.key, op.value); break;
-        case HiddenOp::MaxResist: h.max_resist[op.key] += op.v; break;
+        case HiddenOp::Kind::Skill: h.skills[op.key] += op.v; break;
+        case HiddenOp::Kind::Mastery: h.masteries[op.key] += op.v; break;
+        case HiddenOp::Kind::All: h.all += op.v; break;
+        case HiddenOp::Kind::Modifier: h.modifiers.emplace(op.key, op.value); break;
+        case HiddenOp::Kind::MaxResist: h.max_resist[op.key] += op.v; break;
       }
   }
   return h;

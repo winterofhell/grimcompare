@@ -5,7 +5,7 @@
 namespace gdc::model {
 namespace {
 
-// playerlevels.dbr increments per 8 attribute points (§11.9).
+// playerlevels.dbr increments per 8 attribute points.
 constexpr double kLifePerPhysique = 20.0 / 8, kLifePerCunning = 8.0 / 8, kLifePerSpirit = 12.0 / 8;
 constexpr double kEnergyPerSpirit = 16.0 / 8;
 
@@ -37,7 +37,7 @@ void derive_attributes(Deltas& d, Prediction& p) {
     if (t != kPhysique && t != kCunning && t != kSpirit) apply(t);
 }
 
-// Absorption entries average; the rest sum (§11.9).
+// Absorption entries average; the rest sum.
 void derive_defense(const snap::Snapshot& s, const arz::Database* db, const Deltas& def, Prediction& p) {
   for (const auto& [t, v] : def) {
     if (v.first == 0 && v.second == 0) continue;
@@ -45,7 +45,7 @@ void derive_defense(const snap::Snapshot& s, const arz::Database* db, const Delt
     r.defense = static_cast<float>(r.defense + v.first);
     r.defense_modifier = static_cast<float>(r.defense_modifier + v.second);
   }
-  // Absorption is the gameengine.dbr constant while any armor exists (§11.9).
+  // Absorption is the gameengine.dbr constant while any armor exists.
   if (snap::CombatTotals* r = find_mut(p.after.defense, kAbsorption)) {
     const snap::CombatTotals* a = find(p.after.defense, kArmor);
     if (a && a->defense > 0) {

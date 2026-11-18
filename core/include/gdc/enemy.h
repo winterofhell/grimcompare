@@ -1,5 +1,5 @@
 #pragma once
-// Median monster per level and difficulty (MECHANICS §8, §9, §13.13).
+// Median monster per level and difficulty (MECHANICS §8, §9).
 #include <string>
 #include <vector>
 
@@ -7,7 +7,7 @@
 
 namespace gdc::enemy {
 
-// Difficulty x 2, plus 1 while ramp is up (§13.13).
+// Difficulty x 2, plus 1 while ramp is up.
 constexpr int kDifficulties = 6;
 
 struct Enemy {
@@ -28,10 +28,10 @@ Enemy at(double level, int difficulty);
 // Difficulty's monsterAttributePak resist bonus (gameengine.dbr).
 double resist(int type, int difficulty);
 
-// Share of monsters a racialBonusRace list applies to (§13.13).
+// Share of monsters a racialBonusRace list applies to.
 double race_share(const std::vector<std::string>& races);
 
-// playerAttributePak resist penalty, for the next difficulty's lookahead (§13.13).
+// playerAttributePak resist penalty, for the next difficulty's lookahead.
 double penalty(int type, int difficulty);
 
 }  // namespace gdc::enemy

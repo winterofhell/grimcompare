@@ -12,7 +12,7 @@ struct Row {
   Enemy e;
 };
 constexpr int kLevels = 21;
-// re/EnemyByLevel.tsv columns, one block per difficulty (§13.24).
+// re/EnemyByLevel.tsv columns, one block per difficulty.
 constexpr Row kRows[kDifficulties][kLevels] = {
     {  // Normal
         {1, {160, 135, 56, 15, 7.5, 0.0264, 0, 12.1, 0.0708}},

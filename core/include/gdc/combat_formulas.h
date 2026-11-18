@@ -7,17 +7,17 @@
 
 namespace gdc::formulas {
 
-// offensiveAbilityEquation from the DB, minus OA reduction (§13.9).
+// offensiveAbilityEquation from the DB, minus OA reduction.
 double offensive_ability(double level, double oa, double oa_modifier, double cunning, double reduction = 0);
 // defensiveAbilityEquation: same shape with strengthDV (Physique) and the DA attributes.
 double defensive_ability(double level, double da, double da_modifier, double physique, double reduction = 0);
-// probabilityToHitEquation from combatformulas.dbr (§13.9).
+// probabilityToHitEquation from combatformulas.dbr.
 double probability_to_hit(double oa, double da);
 
-// DesignerCalculateCriticalChance 0x686D0 as a fraction (§13.9).
+// DesignerCalculateCriticalChance 0x686D0 as a fraction.
 double critical_chance(double pth, const snap::PthTable& t);
 
-// One attack, as CombatManager::TakeAttack 0x11D950 resolves it (§13.9).
+// One attack, as CombatManager::TakeAttack 0x11D950 resolves it.
 struct Hit {
   double chance = 0;
   double crit_chance = 0;
@@ -25,7 +25,7 @@ struct Hit {
 };
 Hit expected_hit(double pth, const snap::PthTable& t, double crit_bonus);
 
-// Regen per second, playerresourcebehavior.dbr equations (§13.9).
+// Regen per second, playerresourcebehavior.dbr equations.
 double life_regen(const snap::Snapshot& s);
 double mana_regen(const snap::Snapshot& s);
 

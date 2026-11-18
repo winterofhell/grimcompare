@@ -1,5 +1,5 @@
 #pragma once
-// Moves each component's getter output between items (§13.10).
+// Moves each component's getter output between items.
 #include <string>
 #include <vector>
 

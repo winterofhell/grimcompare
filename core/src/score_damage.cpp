@@ -11,7 +11,7 @@ namespace {
 
 bool weapon_class(std::string_view cls) { return cls.starts_with("Weapon") && !cls.starts_with("WeaponArmor"); }
 
-// Elemental base shares its type with flat damage (§11.4).
+// Elemental base shares its type with flat damage.
 Amounts hand_base(const snap::Item& it, const arz::Database& db) {
   Amounts out;
   if (it.stats)
@@ -31,7 +31,7 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   Amounts out = base;
   for (const auto& it : s.equipped) {
     if (!it.stats) continue;
-    const bool hand = it.location == 0 || it.location == 1;
+    const bool hand = it.location == equip::kRightHand || it.location == equip::kLeftHand;
     Amounts mine;
     for (const auto& d : it.stats->offensive_damage) {
       if (d.type == kBasePhysical && hand) continue;
@@ -51,7 +51,7 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   for (const auto& sk : s.skills) {
     if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
     const arz::Record* r = db.record(sk.record);
-    // Passives, toggles and auras only (§11.4).
+    // Passives, toggles and auras only.
     // shortcut: timed buff flat damage left out — revisit for weapon builds.
     if (!r || !(classes::is_a(r->cls, "Skill_Passive") || classes::is_a(r->cls, "Skill_BuffSelfToggled") ||
                 classes::is_a(r->cls, "Skill_BuffRadiusToggled")))
@@ -80,7 +80,7 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   return out;
 }
 
-// shortcut: record DurMod values only (§11.4) — revisit with GetTotalDurationModifierType.
+// shortcut: record DurMod values only — revisit with GetTotalDurationModifierType.
 std::map<int, double> dot_duration(const snap::Snapshot& s, const arz::Database& db) {
   static constexpr std::pair<int, std::string_view> kFields[] = {
       {2, "offensiveSlowPhysicalDurationModifier"},  {5, "offensiveSlowColdDurationModifier"},
@@ -96,7 +96,7 @@ std::map<int, double> dot_duration(const snap::Snapshot& s, const arz::Database&
   return out;
 }
 
-// Cast whenever ready, capped by attack / cast speed (§11.6).
+// Cast whenever ready, capped by attack / cast speed.
 struct CooldownUses {
   double per_sec = 0, cdr = 0;
   bool capped = false;
@@ -113,7 +113,7 @@ CooldownUses cooldown_uses(double cooldown, double cdr, double rate) {
 // Captured for SkillActivatedSpell / BuffSelf only (schema 10).
 bool has_anim(const snap::Skill& sk) { return sk.anim_frames > 0 && sk.anim_frame_rate > 0; }
 
-// Player::CalculateSkillDps picks the speed by skill class (§11.6).
+// Player::CalculateSkillDps picks the speed by skill class.
 bool attack_speed(const Raw& raw) {
   return raw.speed == classes::Speed::kAttack || (raw.speed == classes::Speed::kNone && raw.weapon_pct > 0);
 }
@@ -145,7 +145,7 @@ Amounts shared_base(const snap::Snapshot& before, const snap::Snapshot& after, c
   Amounts out;
   for (const auto* s : {&before, &after})
     for (const auto& it : s->equipped) {
-      if (it.location != 0) continue;
+      if (it.location != equip::kRightHand) continue;
       const arz::Record* r = db.record(it.record);
       if (!r || !weapon_class(r->cls)) continue;
       for (const auto& [k, v] : hand_base(it, db)) out[k] += v / 2;
@@ -153,9 +153,9 @@ Amounts shared_base(const snap::Snapshot& before, const snap::Snapshot& after, c
   return out;
 }
 
-// combatformulas.dbr Cunning / Spirit divisors, checked in game (§11.5).
+// combatformulas.dbr Cunning / Spirit divisors, checked in game.
 double attribute_bonus(double cunning, double spirit, int type, bool dot) {
-  const bool physical = type == kPhysical || type == 4 || type == kBleeding;
+  const bool physical = type == kPhysical || type == kPierce || type == kBleeding;
   if (physical) return cunning / (dot ? 215.0 : 245.0);
   return spirit / (dot ? 200.0 : 215.0);
 }
@@ -167,7 +167,7 @@ Gear gear(const snap::Snapshot& s, const arz::Database& db, const Amounts& base)
   return {weapon_flat(s, db, base), dot_duration(s, db)};
 }
 
-// Max uses per second; animation-based for spells (§11.6).
+// Max uses per second; animation-based for spells.
 double use_rate(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw) {
   if (attack_speed(raw)) return s.attack_speed;
   if (has_anim(sk)) return static_cast<double>(s.cast_speed) * sk.anim_frame_rate / sk.anim_frames;
@@ -223,7 +223,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   return out;
 }
 
-// `memo` is shared by a side's buff states (§11.6).
+// `memo` is shared by a side's buff states.
 const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
                                std::optional<Converted>& own, std::vector<std::string>& notes) {
   if (memo)

@@ -43,8 +43,8 @@ std::string_view threat_name(int type) {
 
 std::string conversion_name(int type) {
   if (type == 0) return "*";
-  if (type == 58) return "elemental";
-  if (type == 7) return "acid";
+  if (type == kElemental) return "elemental";
+  if (type == kPoison) return "acid";
   return std::string(threat_name(type));
 }
 

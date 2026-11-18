@@ -1,5 +1,5 @@
 #pragma once
-// Wizard-written preset bound to characters (docs/PRESETS.md, §13.30).
+// Wizard-written preset bound to characters (docs/PRESETS.md).
 #include <map>
 #include <optional>
 #include <string>

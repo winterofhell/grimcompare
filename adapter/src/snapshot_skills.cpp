@@ -30,7 +30,7 @@ void read_buff_active(Ctx& c, const void* sk, snap::Skill& s) {
   else skill_fault(c, s.record, "buff_active", f);
 }
 
-// Only spells and self buffs, through the exported slot (§12).
+// Only spells and self buffs, through the exported slot.
 void read_hit_animation(Ctx& c, const void* sk, snap::Skill& s) {
   s.anim_frames = 0;
   s.anim_frame_rate = 0;

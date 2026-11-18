@@ -1,5 +1,5 @@
 #pragma once
-// Effects: uses per second and uptime (MECHANICS §1, §4, §13.12).
+// Effects: uses per second and uptime (MECHANICS §1, §4).
 #include <algorithm>
 #include <cstdint>
 #include <map>
@@ -70,14 +70,14 @@ struct Collected {
 Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates& rates,
                   const std::map<std::string, double>& overrides, const std::vector<int>& resists);
 
-// Pet stats get pet bonuses; PetPlayerScaling uses the owner's (§13.12).
+// Pet stats get pet bonuses; PetPlayerScaling uses the owner's.
 const arz::Record* summoned(const arz::Record& skill, std::uint32_t level, const arz::Database& db);
 std::string summoned_record(const arz::Record& skill, std::uint32_t level);  // "": not a summon
 
-// Parses a DB equation of charLevel; nullopt otherwise (§13.12).
+// Parses a DB equation of charLevel; nullopt otherwise.
 std::optional<double> equation(std::string_view expr, double char_level);
 
-// A pet's skills and levels, incl. the pet modifier's (§13.12).
+// A pet's skills and levels, incl. the pet modifier's.
 std::vector<std::pair<std::string, std::uint32_t>> pet_skills(const arz::Record& pet, double char_level,
                                                               const std::vector<std::pair<std::string, std::uint32_t>>& modifiers,
                                                               const arz::Database& db);
@@ -86,7 +86,7 @@ inline double uptime(const Effect& e, double duration) {
   return e.maintained ? 1.0 : std::min(1.0, e.per_sec * std::max(0.0, duration));
 }
 
-// RR stacking: type 1 sums, 2 / 3 highest-only (§13.12).
+// RR stacking: type 1 sums, 2 / 3 highest-only.
 std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, const std::vector<Reduction>& rr);
 
 }  // namespace gdc::effects

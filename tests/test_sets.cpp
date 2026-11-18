@@ -51,7 +51,7 @@ const snap::CombatTotals* damage_row(const snap::Snapshot& s, int type) {
   return nullptr;
 }
 
-constexpr const char* kGarden = "records/items/lootsets/itemset_d313.dbr";  // Worldkeeper's Garden (ERRATA §3)
+constexpr const char* kGarden = "records/items/lootsets/itemset_d313.dbr";  // Worldkeeper's Garden
 
 }  // namespace
 
@@ -124,7 +124,7 @@ TEST_CASE("sets: completing and breaking Worldkeeper's Garden applies the real t
                 piece(9, "records/items/gearshoulders/d318_shoulder.dbr", kGarden),
                 piece(8, "records/items/geartorso/d318_torso.dbr", kGarden)};
   // 3 -> 4: the medal completes the set. 3pc and 4pc share +22% Life, +120% Acid; 4pc adds 50% Vitality ->
-  // Acid and grants Conjure Living Blossom (ERRATA §3).
+  // Acid and grants Conjure Living Blossom.
   const auto medal = piece(-1, "records/items/gearaccessories/medals/d316_medal.dbr", kGarden);
   const auto up = model::swap(s, medal, 3, db);
   REQUIRE(up.sets.size() == 1);

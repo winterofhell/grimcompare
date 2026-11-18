@@ -32,7 +32,7 @@ std::vector<int> code_masteries(std::string_view code);
 bool fits(const Entry& e, const std::vector<int>& masteries);
 
 std::string mastery_record(int mastery);  // records/skills/playerclassNN/_classtraining_classNN.dbr
-// Class or mastery name from Text_EN, gender forms joined (§13.31).
+// Class or mastery name from Text_EN, gender forms joined.
 std::string class_name(const gdc::text::Table& text, std::string_view code);
 std::string class_code(std::vector<int> masteries);  // {6, 3} -> "0306"
 

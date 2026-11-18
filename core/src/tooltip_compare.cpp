@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 
+#include "gdc/attribute_names.h"
 #include "gdc/components.h"
 #include "gdc/db_fields.h"
 #include "gdc/requirements.h"
@@ -102,12 +103,12 @@ std::string gated_skill(const Context& ctx) {
 // shortcut: weapon-gated skills not re-checked when hand classes change — revisit with a weapon-swap build.
 void hand_warnings(const Context& ctx, Found& found, const Plan& plan, const snap::Item* old) {
   const int loc = plan.location;
-  if (loc > 1 && plan.also_off < 0) return;
+  if (loc > equip::kLeftHand && plan.also_off < 0) return;
   const snap::Item* off = plan.also_off >= 0 ? at(ctx.s, plan.also_off) : nullptr;
   const bool changes = hand_class(old, ctx.db) != hand_class(&ctx.candidate, ctx.db) || off;
   if (const std::string g = changes ? gated_skill(ctx) : std::string{}; !g.empty())
     add_unique(found.warnings, "weapon type changes: " + g + " needs a weapon type (not re-checked)");
-  if (weapon(at(ctx.s, 1), ctx.db) || (loc == 1 && weapon(&ctx.candidate, ctx.db)))
+  if (weapon(at(ctx.s, equip::kLeftHand), ctx.db) || (loc == equip::kLeftHand && weapon(&ctx.candidate, ctx.db)))
     add_unique(found.warnings, "dual wield: the L Hand weapon's base damage is not modeled");
 }
 

@@ -11,7 +11,7 @@ struct KnownBuild {
   std::string_view sha256;
 };
 
-// Steam buildids 25813250 (1.3.1.1), 26655545 (1.3.1.2) (docs/RECON.md §1).
+// Steam buildids 25813250 (1.3.1.1), 26655545 (1.3.1.2).
 inline constexpr KnownBuild kKnownBuilds[] = {
     {"Game.dll", "x64+compat", "v1.3.1.1 (x64)", "cd7ecd7942d719f96b42aff4896f8c25d52152b4a41191f71a4a66ea48cecad2"},
     {"Engine.dll", "x64", "v1.3.1.1 (x64)", "4c2ea14ce1c591b315cc29a8a96819a5c3c7e194adbd6f7eea208b9bb8a93153"},

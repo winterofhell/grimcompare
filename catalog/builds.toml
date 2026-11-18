@@ -1,6 +1,6 @@
-# GrimCompare build catalog: the builds the setup wizard offers. Source: docs/build-ref/build-matrix.md
-# (intent only), every skill, set, conversion and class checked against the 1.3.1.2 database
-# (database.arz + GDX1..3, Text_EN). What the matrix got wrong: docs/build-ref/ERRATA.md §9.
+# GrimCompare build catalog: the builds the setup wizard offers. Source: a community build
+# matrix (intent only), every skill, set, conversion and class checked against the 1.3.1.2 database
+# (database.arz + GDX1..3, Text_EN); where the matrix disagreed, the database wins.
 #
 # Per build:
 #   id, name, category (melee | ranged | caster | pets | hybrid)

@@ -1,4 +1,4 @@
-// Loads under the ASI loader; safety rules in MECHANICS §13.1.
+// Loads under the ASI loader; read-only, fails closed.
 #include <windows.h>
 #include <bcrypt.h>
 #include <psapi.h>

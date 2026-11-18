@@ -147,9 +147,9 @@ std::string off_sheet(const std::tuple<fields::Kind, int, bool>& key, double v, 
            pretty("default: " + std::string(names::char_attribute(type)));
   }
   if (kind == fields::Kind::Defense) {
-    if (type == 40 || find(b.off.resists, type) || find(b.on.resists, type)) return "";
+    if (type == combat_attr::kProtection || find(b.off.resists, type) || find(b.on.resists, type)) return "";
     // 16: defensiveTotalSpeedResistance, the engine's "TotalSpeed".
-    const std::string name = type == 16 ? "Slow resist" : pretty("default: " + std::string(names::combat_attribute(type)));
+    const std::string name = type == combat_attr::kTotalSpeed ? "Slow resist" : pretty("default: " + std::string(names::combat_attribute(type)));
     return signed_num(v, 0) + "% " + name;
   }
   return "";
@@ -171,7 +171,7 @@ std::vector<std::string> buff_items(const score::BuffUse& b, const Labels& label
     const std::string_view name = kind == fields::Kind::Damage ? score::damage_label(type, dot) : "";
     if (name.empty()) continue;
     // Crit damage is a fraction in totals; others are percent.
-    const std::string amount = signed_num(type == 59 ? v * 100 : v, 0);
+    const std::string amount = signed_num(type == combat_attr::kCritDamage ? v * 100 : v, 0);
     const auto same = std::find_if(damage.begin(), damage.end(), [&](const auto& d) { return d.first == amount; });
     if (same != damage.end()) same->second += "/" + std::string(name);
     else damage.emplace_back(amount, name);

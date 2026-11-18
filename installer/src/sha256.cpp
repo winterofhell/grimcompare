@@ -1,5 +1,6 @@
 #include "sha256.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -47,23 +48,24 @@ struct State {
 
 class Hasher {
  public:
-  void update(const unsigned char* p, std::size_t n) {
-    total_ += n;
-    while (n > 0) {
-      const std::size_t take = std::min(n, 64 - used_);
-      std::copy(p, p + take, buf_.begin() + static_cast<std::ptrdiff_t>(used_));
-      used_ += take, p += take, n -= take;
+  void update(std::span<const unsigned char> data) {
+    total_ += data.size();
+    while (!data.empty()) {
+      const std::size_t take = std::min(data.size(), 64 - used_);
+      std::copy_n(data.begin(), take, buf_.begin() + static_cast<std::ptrdiff_t>(used_));
+      used_ += take;
+      data = data.subspan(take);
       if (used_ == 64) st_.block(buf_.data()), used_ = 0;
     }
   }
   std::string hex() {
     const std::uint64_t bits = total_ * 8;
-    const unsigned char one = 0x80, zero = 0;
-    update(&one, 1);
-    while (used_ != 56) update(&zero, 1);
+    const unsigned char one[] = {0x80}, zero[] = {0};
+    update(one);
+    while (used_ != 56) update(zero);
     unsigned char len[8];
     for (int i = 0; i < 8; ++i) len[i] = static_cast<unsigned char>(bits >> (56 - 8 * i));
-    update(len, 8);
+    update(len);
     std::string out;
     char b[9];
     for (const std::uint32_t v : st_.h) std::snprintf(b, sizeof b, "%08x", v), out += b;
@@ -81,7 +83,7 @@ class Hasher {
 
 std::string sha256(std::span<const unsigned char> data) {
   Hasher h;
-  h.update(data.data(), data.size());
+  h.update(data);
   return h.hex();
 }
 
@@ -92,7 +94,7 @@ std::optional<std::string> sha256_file(const std::filesystem::path& p) {
   std::vector<char> buf(1 << 16);
   while (f) {
     f.read(buf.data(), static_cast<std::streamsize>(buf.size()));
-    h.update(reinterpret_cast<const unsigned char*>(buf.data()), static_cast<std::size_t>(f.gcount()));
+    h.update({reinterpret_cast<const unsigned char*>(buf.data()), static_cast<std::size_t>(f.gcount())});
   }
   if (f.bad()) return std::nullopt;
   return h.hex();

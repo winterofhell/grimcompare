@@ -1,5 +1,5 @@
 #pragma once
-// Console UI; all user strings go through tr() (§13.39).
+// Console UI; all user strings go through tr().
 #include <functional>
 #include <optional>
 #include <stdexcept>
@@ -35,7 +35,7 @@ struct Item {
   std::string hint;  // dim, after the label
 };
 
-// Index or -1 for back (§13.39).
+// Index or -1 for back.
 int choose(std::string_view heading, const std::vector<Item>& items, int start = 0,
            const std::function<std::string(int)>& panel = {}, bool search = false, bool quits = false);
 // Picked indexes in item order, nullopt: back; max 0: unlimited.

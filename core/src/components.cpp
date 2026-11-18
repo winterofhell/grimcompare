@@ -3,12 +3,13 @@
 #include <algorithm>
 #include <cmath>
 
+#include "gdc/attribute_names.h"
 #include "gdc/db_fields.h"
 
 namespace gdc::components {
 namespace {
 
-constexpr int kAbsorption = 39;
+using combat_attr::kAbsorption;
 constexpr double kEps = 1e-4;
 
 template <class Row>
@@ -215,27 +216,24 @@ snap::Item attach(const snap::Item& base, const snap::Item& donor, bool with_rel
 
 bool fits(const std::string& component_record, const std::string& item_record, int item_type,
           const arz::Database& db) {
-  const char* field = nullptr;
-  switch (item_type) {
-    case 1: field = "head"; break;
-    case 2: field = "amulet"; break;
-    case 3: field = "chest"; break;
-    case 4: field = "legs"; break;
-    case 5: field = "feet"; break;
-    case 6: field = "ring"; break;
-    case 7: field = "hands"; break;
-    case 8: {
-      const arz::Record* item = db.record(item_record);
-      if (!item) return false;
-      if (item->cls == "WeaponArmor_Shield") field = "shield";
-      else if (item->cls == "WeaponArmor_Offhand") field = "offhand";
-      else return false;
-      break;
-    }
-    case 13: field = "waist"; break;
-    case 14: field = "shoulders"; break;
-    case 15: field = "medal"; break;
-    default: return false;
+  // The component record's per-slot flag field.
+  static constexpr std::pair<int, std::string_view> kSlotField[] = {
+      {item_types::kHead, "head"},   {item_types::kNeck, "amulet"}, {item_types::kChest, "chest"},
+      {item_types::kLegs, "legs"},   {item_types::kFeet, "feet"},   {item_types::kRing, "ring"},
+      {item_types::kHands, "hands"}, {item_types::kWaist, "waist"}, {item_types::kShoulders, "shoulders"},
+      {item_types::kMedal, "medal"}};
+  std::string_view field;
+  if (item_type == item_types::kOffHand) {
+    const arz::Record* item = db.record(item_record);
+    if (!item) return false;
+    if (item->cls == "WeaponArmor_Shield") field = "shield";
+    else if (item->cls == "WeaponArmor_Offhand") field = "offhand";
+    else return false;
+  } else {
+    const auto it = std::find_if(std::begin(kSlotField), std::end(kSlotField),
+                                 [&](const auto& e) { return e.first == item_type; });
+    if (it == std::end(kSlotField)) return false;
+    field = it->second;
   }
   const arz::Record* rec = db.record(component_record);
   return rec && rec->number(field) != 0;

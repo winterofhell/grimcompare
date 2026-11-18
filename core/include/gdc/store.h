@@ -1,5 +1,5 @@
 #pragma once
-// One chain per segment: baseline, then RFC 7386 patches (docs/SNAPSHOT.md).
+// One chain per segment: baseline, then RFC 7386 patches.
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -15,7 +15,7 @@ namespace gdc::store {
 std::string gzip(std::string_view data);
 std::string gunzip(std::string_view gz);
 
-// Arrays keyed by identity, so patches touch only changes (§13.20).
+// Arrays keyed by identity, so patches touch only changes.
 std::string keyed(const snap::Snapshot& s);
 snap::Snapshot from_keyed(std::string_view keyed_json);
 

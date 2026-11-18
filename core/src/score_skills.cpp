@@ -60,7 +60,7 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   for (const auto& [field, t] : fields::damage_modifiers()) {
     const double v = at_level(r, field, level);
     if (v == 0) continue;
-    if (t.type == 58 || t.type == 60)
+    if (t.type == kElemental || t.type == kAll)
       for (int x : fields::spread(t.type, t.modifier)) out.pct[{x, t.modifier}] += v;
     else out.pct[{t.type, t.modifier}] += v;
   }

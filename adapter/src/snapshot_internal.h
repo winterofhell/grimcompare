@@ -1,5 +1,5 @@
 #pragma once
-// Shared by adapter snapshot sources only. Layouts: MECHANICS §12.
+// Shared by adapter snapshot sources only.
 #include <windows.h>
 
 #include <cstdint>
@@ -14,36 +14,36 @@ namespace gdc::adapter {
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
-// Item vtable slots, checked in init (§13.4).
+// Item vtable slots, checked in init.
 constexpr std::size_t kSlotChar = 0x498, kSlotSkill = 0x4A0, kSlotDamage = 0x4A8, kSlotOffMod = 0x4B0,
                       kSlotRetaliation = 0x4B8, kSlotRetMod = 0x4C0, kSlotDefense = 0x4C8, kSlotConversion = 0x4D0;
-// Scale 1.0, as CalculateRetaliationValues 0x3CDE50 passes (§13.4).
+// Scale 1.0, as CalculateRetaliationValues 0x3CDE50 passes.
 constexpr float kDamageScale = 1.0f;
 constexpr std::size_t kReplica = 0x538;
 constexpr std::size_t kAccBytes = 0x1000;  // CharAttributeAccumulator writes up to +0x338
 constexpr std::size_t kMaxVector = 4096;
 constexpr int kDamageDirect = 1, kDamageDuration = 2;  // CombatAttributeAbsDamage / DurDamage::GetDamageType
-// CollectWeaponDamage's inline values: chance stats at expected value (§13.4).
+// CollectWeaponDamage's inline values: chance stats at expected value.
 constexpr bool kDisplayModifyProcs = true;
 constexpr std::size_t kSlotGetValues = 0x110;  // CombatAttributeDamage_BasePhysical vftable 0x7358E8
 constexpr std::size_t kPthTable = 0x7A8;
-// Patched chance multiplier: raw, excluded and effective chance (§13.4).
+// Patched chance multiplier: raw, excluded and effective chance.
 constexpr std::size_t kDisplayVftSlots = 8, kSlotChanceMultiplier = 0x18, kGlobalChance = 0x88;
 // Skill's slots are the `ret` stub; Skill_Passive's (0x711BA0) override.
 constexpr std::size_t kSlotSkillPassiveChar = 0x408, kSlotSkillPassiveDefense = 0x438;
 constexpr int kAbsorptionProtection = 38;  // CombatAttributeDefense_AbsorptionProtection::GetType (0x1182E0)
 // Skill+0x140: Skill::GetModifiers 0x3C5970, AddModifier 0x48FD00, AddModifierDefenseAttributes 0x494970.
 constexpr std::size_t kSkillModifiers = 0x140;
-// Hit animation, called as Player::CalculateSkillDps does (§13.4).
+// Hit animation, called as Player::CalculateSkillDps does.
 constexpr std::size_t kSlotHitCallbackPoint = 0x6E0;
-// GetItemType, slot 0x550 of the Object-subobject vftable (§13.4).
+// GetItemType, slot 0x550 of the Object-subobject vftable.
 constexpr std::size_t kSlotItemType = 0x550;
-// Requirement getter slots and reduction ids, as AreRequirementsMet 0x343C30 (§13.4).
+// Requirement getter slots and reduction ids, as AreRequirementsMet 0x343C30.
 constexpr std::size_t kSlotReqLevel = 0x528, kSlotReqAttr[3] = {0x530, 0x538, 0x540};
 constexpr std::size_t kReqReduction[3][3] = {{0xDF8, 0xDEC, 0xE04}, {0xDFC, 0xDF0, 0xE08}, {0xE00, 0xDF4, 0xE0C}};
-// PetPen list layout, as KillExtraPets 0x509890 walks it (§13.4).
+// PetPen list layout, as KillExtraPets 0x509890 walks it.
 constexpr std::size_t kPetList = 8, kPetNodeId = 0x10, kPetNodeSkill = 0x14, kPetNodeReleased = 0x1C, kMaxPets = 64;
-// Save folder flags read by GetPlayerFolder 0x2E2FC8 (§13.4).
+// Save folder flags read by GetPlayerFolder 0x2E2FC8.
 constexpr std::size_t kBackupFolder = 0x4BDD, kMainFolder = 0x4B48;
 enum Pass { kExpected, kRaw, kExcluded, kProbe, kPasses };
 

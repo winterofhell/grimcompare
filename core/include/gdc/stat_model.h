@@ -37,7 +37,7 @@ struct Sheet {
 
 std::set<std::string> item_records(const snap::Item& it);
 
-// Armor formula inferred from the level-96 sheet (§13.19).
+// Armor formula inferred from the level-96 sheet.
 double armor(const snap::Snapshot& s);
 
 // Region chances, as PickRegion 0x120D90; they sum to 1.

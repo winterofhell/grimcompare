@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <span>
 
 #include "score_internal.h"
 
@@ -58,13 +60,55 @@ struct Parser {
   }
 };
 
+// A plain number key of a settings table: its range and the field it sets.
+struct NumberKey {
+  std::string_view key;
+  double lo, hi;
+  double Settings::*field;
+};
+
+constexpr NumberKey kScoreNumbers[] = {
+    {"damage", 0, 10, &Settings::damage_weight},
+    {"survival", 0, 10, &Settings::survival_weight},
+    {"other", 0, 10, &Settings::other_weight},
+    {"negligible_percent", 0, 100, &Settings::negligible_percent},
+    {"threshold_below", 0, 100, &Settings::threshold_below},
+    {"threshold_above", 0, 100, &Settings::threshold_above},
+    {"threshold_width", 0.001, 1, &Settings::threshold_width},
+    {"threshold_resist_weight", 0, 9, &Settings::threshold_resist_weight},
+};
+constexpr NumberKey kDamageNumbers[] = {
+    {"enemy_da_per_level", 0, 1000, &Settings::enemy_da_per_level},
+    {"filler_weight", 0, 1, &Settings::filler_weight},
+    {"pet_attack_rate", 0, 100, &Settings::pet_attack_rate},
+    {"kills_per_sec", 0, 100, &Settings::kills_per_sec},
+};
+constexpr NumberKey kSurvivalNumbers[] = {
+    {"enemy_oa_per_level", 0, 1000, &Settings::enemy_oa_per_level},
+    {"enemy_hit_per_level", 0, 100000, &Settings::enemy_hit_per_level},
+    {"melee_share", 0, 1, &Settings::melee_share},
+    {"damage_reduction_uptime", 0, 1, &Settings::damage_reduction_uptime},
+    {"boss_share", 0, 1, &Settings::boss_share},
+    {"incoming_hits_per_sec", 0, 100, &Settings::incoming_hits_per_sec},
+    {"low_health_per_sec", 0, 100, &Settings::low_health_per_sec},
+    {"cc_share", 0, 1, &Settings::cc_share},
+};
+
+// nullopt: `k` is not one of `keys`.
+std::optional<bool> number_key(Parser& ps, std::span<const NumberKey> keys, std::string_view k, const toml::node& v,
+                               Settings& p) {
+  for (const NumberKey& n : keys)
+    if (n.key == k) return ps.number(v, k, n.lo, n.hi, p.*n.field);
+  return std::nullopt;
+}
+
 // 0 = "*". Acid and poison share DB type 7.
 std::optional<int> conversion_type(std::string_view name) {
   if (name == "*") return 0;
-  if (name == "elemental") return 58;
-  if (name == "acid") return 7;
+  if (name == "elemental") return kElemental;
+  if (name == "acid") return kPoison;
   for (const auto& [n, t] : kThreatTypes)
-    if (n == name && t != 15) return t;  // bleeding is not a conversion type (ERRATA §1)
+    if (n == name && t != kBleeding) return t;  // bleeding is not a conversion type
   return std::nullopt;
 }
 
@@ -87,14 +131,7 @@ bool conversion_pairs(Parser& ps, const toml::node& n, std::string_view key, std
 
 bool score_table(Parser& ps, const toml::table& root, const std::string& w, Settings& p) {
   return ps.table(root, "score", [&](std::string_view k, const toml::node& v) {
-    if (k == "damage") return ps.number(v, k, 0, 10, p.damage_weight);
-    if (k == "survival") return ps.number(v, k, 0, 10, p.survival_weight);
-    if (k == "other") return ps.number(v, k, 0, 10, p.other_weight);
-    if (k == "negligible_percent") return ps.number(v, k, 0, 100, p.negligible_percent);
-    if (k == "threshold_below") return ps.number(v, k, 0, 100, p.threshold_below);
-    if (k == "threshold_above") return ps.number(v, k, 0, 100, p.threshold_above);
-    if (k == "threshold_width") return ps.number(v, k, 0.001, 1, p.threshold_width);
-    if (k == "threshold_resist_weight") return ps.number(v, k, 0, 9, p.threshold_resist_weight);
+    if (const auto r = number_key(ps, kScoreNumbers, k, v, p)) return *r;
     if (k == "recast_buffs") {
       const auto b = v.value<bool>();
       if (!b || !v.is_boolean()) return ps.fail(v, "recast_buffs must be true or false");
@@ -127,10 +164,7 @@ bool damage_table(Parser& ps, const toml::table& root, const std::string& w, Set
       p.auto_skills = static_cast<int>(n);
       return true;
     }
-    if (k == "enemy_da_per_level") return ps.number(v, k, 0, 1000, p.enemy_da_per_level);
-    if (k == "filler_weight") return ps.number(v, k, 0, 1, p.filler_weight);
-    if (k == "pet_attack_rate") return ps.number(v, k, 0, 100, p.pet_attack_rate);
-    if (k == "kills_per_sec") return ps.number(v, k, 0, 100, p.kills_per_sec);
+    if (const auto r = number_key(ps, kDamageNumbers, k, v, p)) return *r;
     if (k == "conversion_warn") return conversion_pairs(ps, v, k, p.conversion_warn);
     return ps.unknown(v, w + "damage", k);
   });
@@ -154,10 +188,7 @@ bool threat_table(Parser& ps, const toml::node& v, const std::string& w, Setting
 
 bool survival_table(Parser& ps, const toml::table& root, const std::string& w, Settings& p) {
   return ps.table(root, "survival", [&](std::string_view k, const toml::node& v) {
-    if (k == "enemy_oa_per_level") return ps.number(v, k, 0, 1000, p.enemy_oa_per_level);
-    if (k == "enemy_hit_per_level") return ps.number(v, k, 0, 100000, p.enemy_hit_per_level);
-    if (k == "melee_share") return ps.number(v, k, 0, 1, p.melee_share);
-    if (k == "damage_reduction_uptime") return ps.number(v, k, 0, 1, p.damage_reduction_uptime);
+    if (const auto r = number_key(ps, kSurvivalNumbers, k, v, p)) return *r;
     if (k == "resist_reduction") {
       if (const auto s = v.value<std::string>(); s && *s == "auto") {
         p.resist_reduction.reset();
@@ -172,14 +203,10 @@ bool survival_table(Parser& ps, const toml::table& root, const std::string& w, S
       if (d < 0) return ps.fail(v, "resist_reduction_from must be \"normal\", \"elite\" or \"ultimate\"");
       return p.resist_reduction_from = d, true;
     }
-    if (k == "boss_share") return ps.number(v, k, 0, 1, p.boss_share);
     if (k == "difficulty_lookahead") {
       if (const auto b = v.value<bool>(); b && v.is_boolean()) return p.difficulty_lookahead = *b, true;
       return ps.fail(v, "difficulty_lookahead must be true or false");
     }
-    if (k == "incoming_hits_per_sec") return ps.number(v, k, 0, 100, p.incoming_hits_per_sec);
-    if (k == "low_health_per_sec") return ps.number(v, k, 0, 100, p.low_health_per_sec);
-    if (k == "cc_share") return ps.number(v, k, 0, 1, p.cc_share);
     if (k == "threat") return threat_table(ps, v, w, p);
     return ps.unknown(v, w + "survival", k);
   });
@@ -425,10 +452,9 @@ const Settings& settings(const Preset& p, const snap::Snapshot& s) {
 }
 
 std::string_view damage_label(int type, bool dot) {
-  // 58 / 59 / 60: db_fields.h.
-  if (type == 58) return "Elemental";
-  if (type == 59) return "Crit";
-  if (type == 60) return "all";
+  if (type == kElemental) return "Elemental";
+  if (type == kCritDamage) return "Crit";
+  if (type == kAll) return "all";
   for (const auto& d : kDamageNames)
     if (d.type == type && d.dot == dot) return d.label;
   return {};

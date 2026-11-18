@@ -32,8 +32,8 @@ void contribute(std::vector<Contribution>& out, double ratio, double exponent, s
 
 std::string resist_label(int type) {
   if (type == kPhysical) return "Physical taken (resist, armor)";
-  if (type == 7) return "Acid/Poison Resist";
-  if (type == 9) return "Vitality Resist";
+  if (type == kPoison) return "Acid/Poison Resist";
+  if (type == kLife) return "Vitality Resist";
   return std::string(names::combat_attribute(type)) + " Resist";
 }
 

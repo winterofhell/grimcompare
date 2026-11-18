@@ -44,7 +44,7 @@ void add_archive(Table& t, const std::filesystem::path& p) {
 
 }  // namespace
 
-// .arc v3 header, part and entry layout (§13.28).
+// .arc v3 header, part and entry layout.
 std::vector<std::pair<std::string, std::vector<std::byte>>> read_arc(std::span<const std::byte> d) {
   if (d.size() < 28 || std::memcmp(d.data(), "ARC\0", 4) != 0) fail("not an .arc file");
   if (get<std::uint32_t>(d, 4) != 3) fail("not version 3");

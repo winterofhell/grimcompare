@@ -1,5 +1,5 @@
 #pragma once
-// Load field tables, checked against re/*.tsv by tests (§13.11).
+// Load field tables, checked against re/*.tsv by tests.
 #include <span>
 #include <string_view>
 #include <utility>
@@ -19,13 +19,13 @@ struct Target {
 const Target* target(std::string_view field);
 std::span<const std::pair<std::string_view, Target>> all();
 
-// Engine spreads 58 / 60 over single types (§13.11).
+// Engine spreads 58 / 60 over single types.
 const Target* damage_modifier(std::string_view field);
 std::span<const std::pair<std::string_view, Target>> damage_modifiers();
 // Spread targets as seen in fixture b002e_torso.
 std::span<const int> spread(int type, bool dot);
 
-// Crit damage: percent in records, fraction in row 59 (§13.11).
+// Crit damage: percent in records, fraction in row 59.
 const Target* lookup(std::string_view field, double& scale);
 
 // No TSV load field, but 33 skills use it.

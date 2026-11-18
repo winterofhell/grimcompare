@@ -1,5 +1,5 @@
-# plague-garden: Acid / Poison Occultist + Shaman (Conjurer), docs/build-ref/plague-garden.md.
-# Records: docs/build-ref/ERRATA.md §8. Missing keys keep presets/default.toml's values.
+# plague-garden: Acid / Poison Occultist + Shaman (Conjurer), from the community Plague Garden guide
+# and its priority summary (sections cited as §n). Missing keys keep presets/default.toml's values.
 #
 # Acid / Poison is not set anywhere: Damage is the main skills' own damage after conversions, so a bonus to a
 # type the skills do not end up dealing scores ~0 by itself.
@@ -36,13 +36,13 @@ min_share = 0.5   # design choice
 skill_weights = "points"
 # Red line when an item adds one of these conversions and its output is not Acid/Poison ([match] damage).
 # The guide forbids Acid -> Vitality / Cold / Fire, Physical -> Chaos / Fire, Vitality -> Chaos
-# (docs/build-ref/priorities.md §1); this list is wider (any output but Acid/Poison, design choice).
+# (priorities §1); this list is wider (any output but Acid/Poison, design choice).
 # Vitality / Physical -> Acid (Bat, Groble Vile Effigy, Worldkeeper's Gaze, priorities §1) never warn.
 # A conversion names the direct type and moves its DoT too ("acid" = DB "Poison"; Acid -> X also moves Poison,
 # Vitality -> X Vitality Decay, Physical -> X Internal Trauma; docs/MECHANICS.md §2).
 conversion_warn = ["acid->*", "vitality->*", "physical->*"]
 
-# Utility stats (presets/default.toml lists what each value is). Weights follow docs/build-ref/priorities.md where
+# Utility stats (presets/default.toml lists what each value is). Weights follow the priority summary where
 # it says something (§ cited); the rest keep the default's design choices.
 [other]
 run_speed = 0.5                               # default
@@ -67,7 +67,7 @@ pet_bonus = { weight = 0.2, when = "pets" }   # default. Living Bloom / Blossom 
 default = 0.05                                # default
 
 [score]
-# "Resist caps first" (docs/build-ref/priorities.md §3) without a fixed overcap buffer: a point under the 80
+# "Resist caps first" (priorities §3) without a fixed overcap buffer: a point under the 80
 # target costs 4x the default on top of the damage it lets through, about 0.7% Survivability per point of a
 # resist with a 10% threat share. Chosen so that 7 Fire + 15 Pierce under the cap outweigh +28 Physique and
 # +8% Life (the belt case, tests/test_presets.cpp) while a +2 skills medal that costs 10 Poison still wins.
@@ -85,7 +85,7 @@ resist_reduction = "auto"
 
 # Defense targets (docs/PRESETS.md "Thresholds"): Survivability x a smooth curve per stat, steep below the
 # target, small above. Resists 80 at every stage (gameengine.dbr playerDefenseCap, PRESETS decision); a stage
-# adds its own below. Lower-stage values are design choices; 94+ is priorities.md §2 (endgame minimums).
+# adds its own below. Lower-stage values are design choices; 94+ is priorities §2 (endgame minimums).
 [thresholds]
 resist = 80
 
@@ -150,12 +150,12 @@ requires = [
 [stage.score]
 threshold_resist_weight = 1  # the 25 buffer below (or Ultimate's -25 ahead) makes every point up to 105 count
 [stage.survival]
-# docs/build-ref/priorities.md §2 "+25-35% overcap on all 9 base resists" (endgame bosses, not in the monster
+# Priorities §2 "+25-35% overcap on all 9 base resists" (endgame bosses, not in the monster
 # table): its lower bound, always on, on Ultimate / Ascendant. A base resist needs 105 uncapped to stop costing
 # Survivability. Still on Normal / Elite: auto + difficulty_lookahead (the next difficulty's 25), not both.
 resist_reduction = 25
 resist_reduction_from = "ultimate"
-[stage.thresholds]  # docs/build-ref/priorities.md §2, "target minimum" column
+[stage.thresholds]  # priorities §2, "target minimum" column
 # overcap: [stage.survival] resist_reduction 25 (or the lookahead's 25) with resist 80 (no resist_overcap, which
 # would count the same 25 points twice)
 physical_resist = 20

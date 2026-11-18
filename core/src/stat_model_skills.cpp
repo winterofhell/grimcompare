@@ -78,7 +78,7 @@ struct Levels {
   double augmented = 0;
 };
 
-// GetCurrentLevel 0x4909C0: min(level + augmented, cap) (§11.8).
+// GetCurrentLevel 0x4909C0: min(level + augmented, cap).
 std::optional<Levels> levels(Pass& ps, const snap::Skill& sk, const arz::Record& rec, double d, const std::string& name) {
   // shortcut: Skill_BuffRadius cap read from buffSkillName — revisit when a buff skill at its cap disagrees.
   auto cap_of = [](const arz::Record& r) { return std::max(r.number("skillUltimateLevel"), r.number("skillMaxLevel")); };
@@ -119,7 +119,7 @@ Contribution attached(const Pass& ps, const snap::Skill& sk, std::string& proble
     }
     const SkillEffect m = level_effect(*mrec, ms->current_level, ms->current_level);
     if (!m.problem.empty()) problem = m.problem;
-    // AddModifierDefenseAttributes 0x494970: Skill_Modifier only (§11.8).
+    // AddModifierDefenseAttributes 0x494970: Skill_Modifier only.
     const bool any = std::any_of(m.at_from.begin(), m.at_from.end(), [](const auto& kv) { return kv.second != 0; });
     if (mrec->cls != "Skill_Modifier" && any) problem = "linked " + mrec->cls + " " + ms->record + " has stats";
     for (const auto& [k, v] : m.at_from) out[k] += v;
@@ -218,7 +218,7 @@ void apply_skill(Pass& ps, const snap::Skill& sk, const Grants& granted) {
     p.warnings.push_back("skill " + name + ": record not in the database");
     return;
   }
-  // The mastery bar takes no item bonus (§11.8).
+  // The mastery bar takes no item bonus.
   if (rec->cls == "Skill_Mastery") return;
   const std::optional<Levels> lv = levels(ps, sk, *rec, d, name);
   if (!lv || (lv->to == lv->from && removed == added)) return;

@@ -9,13 +9,15 @@
 #include <utility>
 #include <vector>
 
+#include "gdc/attribute_names.h"
 #include "gdc/sets.h"
 #include "gdc/stat_model.h"
 
 namespace gdc::model {
 
-constexpr int kPhysique = 1, kCunning = 2, kSpirit = 3, kLife = 4, kEnergy = 5, kRunSpeed = 14;
-constexpr int kArmor = 38, kAbsorption = 39, kProtection = 40;
+using char_attr::kPhysique, char_attr::kCunning, char_attr::kSpirit, char_attr::kLife, char_attr::kEnergy,
+    char_attr::kRunSpeed;
+using combat_attr::kArmor, combat_attr::kAbsorption, combat_attr::kProtection;
 
 // DefenseCap types: Process caps them at defense_cap + cap_bonus.
 inline bool cappable(int t) {
@@ -79,7 +81,7 @@ struct Hidden {
 void merge(Hidden& h, const sets::Bonus& b);
 Hidden hidden(const snap::Item* it, const arz::Database& db);
 
-// Skill and mastery grants that differ between sides (§13.27).
+// Skill and mastery grants that differ between sides.
 struct Grants {
   std::map<std::string, double> skills;  // after - before
   struct Mastery {
@@ -102,10 +104,10 @@ struct AllDeltas {
     for (const auto& [k, v] : c) {
       const auto [kind, type, modifier] = k;
       if (damage_only && kind != fields::Kind::Damage) continue;
-      if (kind == fields::Kind::Damage && (type == 58 || type == 60)) {
+      if (kind == fields::Kind::Damage && (type == combat_attr::kElemental || type == combat_attr::kAll)) {
         // Items arrive spread already (see swap()).
         for (int t : fields::spread(type, modifier)) (modifier ? dmg[t].second : dmg[t].first) += v;
-        if (type == 60 && !modifier) dmg[60].first += v;  // b002e_torso: row 60 direct only
+        if (type == combat_attr::kAll && !modifier) dmg[combat_attr::kAll].first += v;  // b002e_torso: row 60 direct only
         continue;
       }
       auto& d = kind == fields::Kind::Char ? chr[type] : kind == fields::Kind::Defense ? def[type] : dmg[type];

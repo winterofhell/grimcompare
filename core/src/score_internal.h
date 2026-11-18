@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "gdc/attribute_names.h"
 #include "gdc/classes.h"
 #include "gdc/combat_formulas.h"
 #include "gdc/enemy.h"
@@ -18,11 +19,16 @@
 
 namespace gdc::score {
 
-inline constexpr std::pair<std::string_view, int> kThreatTypes[] = {
-    {"physical", 2}, {"pierce", 4}, {"cold", 5},    {"fire", 6},   {"poison", 7},
-    {"lightning", 8}, {"vitality", 9}, {"chaos", 10}, {"aether", 11}, {"bleeding", 15}};
+using char_attr::kCunning, char_attr::kSpirit, char_attr::kTotalSpeed, char_attr::kAttackSpeed, char_attr::kCastSpeed;
+using combat_attr::kBasePhysical, combat_attr::kPhysical, combat_attr::kPierce, combat_attr::kCold, combat_attr::kFire,
+    combat_attr::kPoison, combat_attr::kLightning, combat_attr::kLife, combat_attr::kChaos, combat_attr::kAether,
+    combat_attr::kBleeding, combat_attr::kElemental, combat_attr::kCritDamage, combat_attr::kAll;
 
-// Types: re/CombatAttributeType.tsv. Game names differ from DB (ERRATA §0).
+inline constexpr std::pair<std::string_view, int> kThreatTypes[] = {
+    {"physical", kPhysical}, {"pierce", kPierce},       {"cold", kCold},   {"fire", kFire},     {"poison", kPoison},
+    {"lightning", kLightning}, {"vitality", kLife}, {"chaos", kChaos}, {"aether", kAether}, {"bleeding", kBleeding}};
+
+// Types: re/CombatAttributeType.tsv. Game names differ from DB (MECHANICS "DB names").
 struct DamageName {
   std::string_view key, label;
   int type;
@@ -38,10 +44,9 @@ inline constexpr DamageName kDamageNames[] = {
     {"vitality_decay", "Vitality Decay", 9, true}, {"chaos", "Chaos", 10, false},
     {"aether", "Aether", 11, false},      {"bleeding", "Bleeding", 15, true}};
 
-constexpr int kCunning = 2, kSpirit = 3, kTotalSpeed = 13, kAttackSpeed = 15, kCastSpeed = 16;
-constexpr int kBasePhysical = 1, kPhysical = 2, kBleeding = 15, kElemental = 58, kCritDamage = 59;
 constexpr const char* kDefaultAttack = "records/skills/default/defaultweaponattack.dbr";  // weaponDamagePct 100
-constexpr int kDamageTypes[] = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15, 58};
+constexpr int kDamageTypes[] = {kPhysical, kPierce, kCold,  kFire,   kPoison,  kLightning,
+                                 kLife,     kChaos,  kAether, kBleeding, kElemental};
 
 inline bool damage_type(int t) { return std::find(std::begin(kDamageTypes), std::end(kDamageTypes), t) != std::end(kDamageTypes); }
 

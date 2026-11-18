@@ -76,7 +76,7 @@ For development, `scripts/deploy.sh` builds and installs into `compat/`, and `sc
 
 ## Build
 
-Builds on Linux with `nix-shell`. The adapter is cross-compiled with clang-cl and xwin, setup in [docs/BUILD.md](docs/BUILD.md). Code layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Builds on Linux with `nix-shell`. The adapter is cross-compiled with clang-cl and xwin, setup in [docs/BUILD.md](docs/BUILD.md).
 
 ```sh
 nix-shell --run 'cmake --workflow --preset core'      # core library and tests

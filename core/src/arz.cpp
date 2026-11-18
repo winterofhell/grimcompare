@@ -84,7 +84,7 @@ std::vector<std::byte> lz4_block(std::span<const std::byte> src, std::size_t out
 
 namespace {
 
-// Cheap hash over length, head, middle and tail (§13.23).
+// Cheap hash over length, head, middle and tail.
 std::size_t key_hash(std::string_view s) {
   auto load = [&](std::size_t at) {
     std::uint64_t v;
@@ -252,7 +252,7 @@ File File::open(const std::filesystem::path& path) {
 }
 
 std::optional<Record> File::record(std::string_view name) const {
-  const auto it = index_.find(std::string(name));
+  const auto it = index_.find(name);
   if (it == index_.end()) return std::nullopt;
   const Entry& e = it->second;
   const auto raw = lz4_block(data_.subspan(kHeader + e.offset, e.compressed), e.decompressed);

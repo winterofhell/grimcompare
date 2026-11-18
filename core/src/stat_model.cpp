@@ -14,13 +14,13 @@ namespace {
 // combatformulas.dbr combatRegion*Chance by EquipLocations; waist adds its armor whole (fit).
 double region_weight(int location) {
   switch (location) {
-    case 7: return 0.15;   // Head: combatRegionHeadChance
-    case 9: return 0.15;   // Shoulders: combatRegionShouldersChance
-    case 8: return 0.26;   // Chest: combatRegionTorsoChance
-    case 10: return 0.12;  // Hands: combatRegionArmsChance
-    case 11: return 0.20;  // Legs: combatRegionLegsChance
-    case 12: return 0.12;  // Feet: combatRegionFeetChance
-    case 6: return 1.0;    // fit
+    case equip::kHead: return 0.15;       // combatRegionHeadChance
+    case equip::kShoulders: return 0.15;  // combatRegionShouldersChance
+    case equip::kChest: return 0.26;      // combatRegionTorsoChance
+    case equip::kHands: return 0.12;      // combatRegionArmsChance
+    case equip::kLegs: return 0.20;       // combatRegionLegsChance
+    case equip::kFeet: return 0.12;       // combatRegionFeetChance
+    case equip::kWaist: return 1.0;       // fit
     default: return 0.0;
   }
 }
@@ -51,9 +51,9 @@ std::vector<std::pair<double, double>> region_armor(const snap::Snapshot& s) {
   const double scale = 1 + (prot ? prot->defense_modifier : 0) / 100;
   double everywhere = 0;
   for (const auto& it : s.equipped)
-    if (it.location == 6) everywhere += item_armor(it);
+    if (it.location == equip::kWaist) everywhere += item_armor(it);
   std::vector<std::pair<double, double>> out;
-  for (const int location : {7, 9, 8, 10, 11, 12}) {
+  for (const int location : {equip::kHead, equip::kShoulders, equip::kChest, equip::kHands, equip::kLegs, equip::kFeet}) {
     double a = everywhere;
     for (const auto& it : s.equipped)
       if (it.location == location) a += item_armor(it);

@@ -25,7 +25,7 @@ bool timed(const arz::Record& r, std::uint32_t level, const arz::Database& db) {
          at_level(x, "skillActiveDuration", level) > 0;
 }
 
-// GameEngine::ContributePetBonus* sources (§11.7).
+// GameEngine::ContributePetBonus* sources.
 // shortcut: timed buff and set pet bonuses left out — revisit with a pet build.
 PetStats pet_bonuses(const snap::Snapshot& s, const arz::Database& db) {
   PetStats out;
@@ -87,7 +87,7 @@ std::vector<int> enemy_types(const Settings& p) {
   return t;
 }
 
-// Class Pet hit, experimental (§4, §11.7).
+// Class Pet hit, experimental (MECHANICS §4).
 // shortcut: player formulas, no crit / DoT / conversion — revisit with a pet build.
 void pet_scaling(const snap::Snapshot& s, const Settings& p, const arz::Database& db, const PetStats& bonus,
                  const effects::Effect& e, Side::Hit& h) {
@@ -127,7 +127,7 @@ effects::Rates side_rates(const snap::Snapshot& s, const std::vector<Skill>& ski
   return r;
 }
 
-// Gear ADCtH reaches weapon skills only, scaled (§11.7).
+// Gear ADCtH reaches weapon skills only, scaled.
 void weigh_life_leech(Side& out, const std::vector<Skill>& skills) {
   if (skills.empty()) return;
   double& leech = out.utility.items.keys["life_leech"];
@@ -150,7 +150,7 @@ void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Databas
     add_flat(db, *rec, lv, 1, a);
     if (a.empty())
       if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) add_flat(db, *buff, lv, 1, a);
-    // WPAttack counts only its excess over 100% (§11.7).
+    // WPAttack counts only its excess over 100%.
     // shortcut: replaced attack taken as the default attack — revisit with a weapon build.
     double weapon_pct = classes::is_a(rec->cls, "Character") ? 100 : at_level(*rec, "weaponDamagePct", lv);
     if (!e.pet && weapon_pct > 0 && rec->cls.starts_with("Skill_WPAttack_")) weapon_pct -= 100;

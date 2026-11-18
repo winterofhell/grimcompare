@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "effects_internal.h"
+#include "gdc/attribute_names.h"
 #include "gdc/classes.h"
 #include "gdc/sets.h"
 #include "gdc/stat_model.h"
@@ -40,7 +41,7 @@ constexpr Resist kDebuffFields[] = {
     {"defensivePhysical", 2}, {"defensivePierce", 4}, {"defensiveCold", 5},   {"defensiveFire", 6},
     {"defensivePoison", 7},   {"defensiveLightning", 8}, {"defensiveLife", 9}, {"defensiveChaos", 10},
     {"defensiveAether", 11},  {"defensiveBleeding", 15}, {"defensiveElementalResistance", 58}};
-constexpr int kElementalTypes[] = {5, 6, 8};
+constexpr int kElementalTypes[] = {combat_attr::kCold, combat_attr::kFire, combat_attr::kLightning};
 
 // `on`: 0 = every resist, 2 = Physical, 58 = Elemental.
 struct Offensive {
@@ -62,13 +63,13 @@ bool pet_summon(const arz::Record& r) { return r.cls == "Skill_SpawnPet" || r.cl
 void spread(std::map<int, double>& out, int type, double v, const std::vector<int>& all) {
   if (type == 0)
     for (int t : all) out[t] += v;
-  else if (type == 58)
+  else if (type == combat_attr::kElemental)
     for (int t : kElementalTypes) out[t] += v;
   else
     out[type] += v;
 }
 
-// A number or "itemLevel/4+1", floored, from the base item (§11.11).
+// A number or "itemLevel/4+1", floored, from the base item.
 std::uint32_t item_skill_level(std::string_view eq, const arz::Record& item, std::string& note) {
   std::uint32_t v = 0;
   const auto [end, ec] = std::from_chars(eq.data(), eq.data() + eq.size(), v);
@@ -168,7 +169,7 @@ std::vector<std::pair<double, double>> states(std::vector<std::pair<double, doub
 
 }  // namespace
 
-// Game.dll 0x4917E0, cooldown x (1 - CDR); see §11.11.
+// Game.dll 0x4917E0, cooldown x (1 - CDR).
 double Builder::recharge(double cooldown, bool own) const { return own ? cooldown * (1 - cdr) : cooldown; }
 
 std::string Builder::recharge_text(double cooldown, bool own) const {

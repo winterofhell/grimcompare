@@ -1,5 +1,5 @@
 #pragma once
-// Reads Steam KeyValues and launch options; never writes (§13.38).
+// Reads Steam KeyValues and launch options; never writes.
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -22,7 +22,7 @@ struct Vdf {
 };
 Vdf parse_vdf(std::string_view text);
 
-// present: game folder file names; DXVK_HDR dropped without RenoDX (§13.38).
+// present: game folder file names; DXVK_HDR dropped without RenoDX.
 std::string merge_launch_options(std::string_view opts, const std::set<std::string>* present = nullptr);
 std::string remove_launch_options(std::string_view opts);
 

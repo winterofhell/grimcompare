@@ -14,8 +14,8 @@ double absorption(const snap::Snapshot& s, const model::Sheet& sh, const arz::Da
   return sh.armor > 0 ? model::base_absorption(s, db) : 0;
 }
 
-constexpr int kBase[] = {4, 5, 6, 7, 8, 9, 10, 11, 15};
-// Overcap targets cover these 9 (build-ref/priorities.md §2).
+constexpr int kBase[] = {kPierce, kCold, kFire, kPoison, kLightning, kLife, kChaos, kAether, kBleeding};
+// Overcap targets cover these 9 base resists.
 bool base_resist(int type) { return std::find(std::begin(kBase), std::end(kBase), type) != std::end(kBase); }
 
 // Share scored under the next difficulty (MECHANICS §9 lookahead).

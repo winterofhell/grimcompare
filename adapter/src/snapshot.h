@@ -1,5 +1,5 @@
 #pragma once
-// docs/SNAPSHOT.md. Read-only: engine getters only.
+// Read-only: engine getters only.
 #include <cstdint>
 #include <functional>
 #include <string_view>

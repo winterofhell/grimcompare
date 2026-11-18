@@ -66,7 +66,7 @@ TEST_CASE("presets: plague-garden stages follow level and masteries (winterpoiso
   CHECK(p.weigh_by_points);
   CHECK(p.stages[0].settings.weigh_by_points);  // stages inherit the preset's settings
   CHECK(p.stages[0].settings.threat == score::Preset{}.threat);
-  // [other] from priorities.md: leech weighted high, retaliation not sought; stages inherit them.
+  // [other] from the guide's priorities: leech weighted high, retaliation not sought; stages inherit them.
   CHECK(p.other.at("life_leech").weight == 1.0);
   CHECK(p.stages[3].settings.other.at("retaliation").weight == 0);
   CHECK(p.other.at("pet_bonus").when == std::vector<std::string>{"pets"});
@@ -294,8 +294,8 @@ TEST_CASE("presets: F10 files are per save, so same-named characters never share
 // (Pierce 15, Fire 20, Cold 9, Lightning 9, Life +88, 7 armor) vs a Vigorous Chain Belt of Fortitude
 // (a05_waist001: 24 armor, Physique +28, Life +8%; stats as its tooltip shows them). Before: Pierce 25,
 // Cold 92, Fire 93, Lightning 106 uncapped (cap 80). After: Pierce 10, Fire 73 (7 below cap), Cold 83 and
-// Lightning 97 (overcap 3 / 17). The guide puts caps + 25-30 overcap first until the base is closed
-// (docs/build-ref/priorities.md §3), so the swap must score negative.
+// Lightning 97 (overcap 3 / 17). The guide puts caps + 25-30 overcap first until the base is closed,
+// so the swap must score negative.
 TEST_CASE("presets: plague-garden: +28 Physique / +8% Life does not beat 15 Pierce + 20 Fire res near cap (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) {

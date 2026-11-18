@@ -1,5 +1,5 @@
 #pragma once
-// ASCII only: game fonts have just U+0020..007E (§13.21).
+// ASCII only: game fonts have just U+0020..007E.
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -20,7 +20,7 @@ struct Line {
   bool operator==(const Line&) const = default;
 };
 
-// Slot -> item type, as ValidateItemType 0x288D30 (§13.21).
+// Slot -> item type, as ValidateItemType 0x288D30.
 std::vector<int> locations_for(int item_type);
 
 Line change(double percent, double negligible);
@@ -28,7 +28,7 @@ Line change(double percent, double negligible);
 std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after, const model::Prediction& p,
                           const Labels& labels = {}, const score::Result* scored = nullptr);
 
-// Escapes ^ & { } as ProcessCharacter would draw them (§13.21).
+// Escapes ^ & { } as ProcessCharacter would draw them.
 std::string escape(std::string_view text);
 
 // GraphicsEngine::GetUIScaleFactor and GetWidth, read at run time.
@@ -38,7 +38,7 @@ struct Screen {
   bool operator==(const Screen&) const = default;
 };
 
-// Tooltip width from a sample sentence in jura 16 (§13.21).
+// Tooltip width from a sample sentence in jura 16.
 bool fits(const Screen& screen, std::string_view line);
 // Breaks only between items; overlong items get their own line.
 std::vector<std::string> pack(const std::string& head, const std::string& indent, const std::vector<std::string>& items,

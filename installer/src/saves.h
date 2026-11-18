@@ -1,5 +1,5 @@
 #pragma once
-// Characters from player.gdc headers, read-only; format in MECHANICS §13.37.
+// Characters from player.gdc headers, read-only.
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -26,7 +26,7 @@ struct Character {
   std::string save;  // gdc::snap::save_key: "cloud/<account>/main/_Name" under Steam's userdata, else "local/..."
 };
 
-// Save roots: Steam Cloud, Proton prefix, Windows Documents (§13.37).
+// Save roots: Steam Cloud, Proton prefix, Windows Documents.
 std::vector<std::filesystem::path> save_roots(const std::vector<std::filesystem::path>& steam_roots,
                                               const std::vector<std::filesystem::path>& libraries);
 std::vector<Character> find_characters(const std::vector<std::filesystem::path>& save_roots);

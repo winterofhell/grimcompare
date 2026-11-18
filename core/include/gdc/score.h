@@ -1,5 +1,5 @@
 #pragma once
-// score = Damage^a x Survivability^b x Other^c (MECHANICS §5, §13.16).
+// score = Damage^a x Survivability^b x Other^c (MECHANICS §5).
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -17,13 +17,13 @@
 
 namespace gdc::score {
 
-// (CombatAttributeType, is duration); acid vs poison: ERRATA §0.
+// (CombatAttributeType, is duration); acid vs poison: MECHANICS "DB names".
 using DamageKey = std::pair<int, bool>;
 std::optional<DamageKey> damage_key(std::string_view name);
 std::string damage_label(DamageKey k);
 std::string damage_name(DamageKey k);  // its [match] damage name, "" if it has none
 
-// A record as main_skills' auto mode sees it (§13.16).
+// A record as main_skills' auto mode sees it.
 struct SkillKind {
   bool main = false, weapon = false;
   std::vector<DamageKey> types;
@@ -42,7 +42,7 @@ struct Settings {
   double damage_weight = 1.0, survival_weight = 1.0, other_weight = 0.25;  // a, b, c
   double negligible_percent = 0.1;
   double threshold_below = 1.0, threshold_above = 0.05, threshold_width = 0.05;
-  // Exponent of the shared base-resist threshold term (§13.16).
+  // Exponent of the shared base-resist threshold term.
   double threshold_resist_weight = 1.0;
   // recast_buffs: uptime from duration and recharge; else record uptime.
   bool recast_buffs = true, live_buffs = false;
@@ -58,11 +58,11 @@ struct Settings {
   double enemy_hit_per_level = 0;   // 0 = monster table
   double melee_share = 0.5;         // melee hits face dodge, the rest deflect
   double damage_reduction_uptime = 0.5;
-  // Enemy RR on base resists; empty = monster table (§13.16).
+  // Enemy RR on base resists; empty = monster table.
   std::optional<double> resist_reduction;
   int resist_reduction_from = 0;    // game difficulty (0..2) where the number starts; below: auto
   double boss_share = 0.15;         // incoming damage share from Quest / Boss / Nemesis / SuperBoss
-  // Also score next difficulty's penalty, ramping in (lookahead(), §13.16).
+  // Also score next difficulty's penalty, ramping in (lookahead()).
   bool difficulty_lookahead = true;
   double incoming_hits_per_sec = 2;
   double low_health_per_sec = 0.05;
@@ -72,7 +72,7 @@ struct Settings {
       {9, 0.10}, {10, 0.10}, {11, 0.10}, {15, 0.05}};
   std::map<std::string, Weight> other = default_other();
   std::string stage;
-  // Mean defensive<Type> of the 48 Boss records (§13.16).
+  // Mean defensive<Type> of the 48 Boss records.
   std::map<int, double> enemy_resist = {{2, 19}, {4, 22}, {5, 32}, {6, 15}, {7, 15},
                                         {8, 16}, {9, 30}, {10, 15}, {11, 17}, {15, 0}};
   std::map<std::string, double> uptime;
@@ -98,7 +98,7 @@ struct Preset : Settings {
   double match_share = 0.5;
   std::string match_character;
   std::vector<std::string> match_characters;  // always match, skipping every other check
-  // Save keys (snap::save_key); a named save binds that name (§13.16).
+  // Save keys (snap::save_key); a named save binds that name.
   std::vector<std::string> match_saves;
   std::string match_archetype;
   std::vector<Stage> stages;           // file order
@@ -130,7 +130,7 @@ bool binds(const Preset& p, std::string_view name, std::string_view save);
 // A build's own preset before an all-masteries template.
 bool tried_first(const Preset& a, const Preset& b);
 
-// Pet summons spawn a Class Pet; PetPlayerScaling ones aren't (§13.16).
+// Pet summons spawn a Class Pet; PetPlayerScaling ones aren't.
 struct Archetype {
   std::string name;
   std::string why;
@@ -151,7 +151,7 @@ struct Skill {
   double weight = 0;
 };
 
-// Smooth threshold, no step; formula in MECHANICS §13.16.
+// Smooth threshold, no step.
 double threshold_factor(double value, double target, const Settings& p);
 
 struct Conversion {
@@ -162,7 +162,7 @@ struct Conversion {
 std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const snap::Snapshot& after,
                                             const Settings& p, const std::vector<DamageKey>& targets,
                                             const arz::Database* db);
-// F10 file name for this character, ASCII only (§13.16).
+// F10 file name for this character, ASCII only.
 std::string frozen_file(const snap::Snapshot& s);
 // parse(freeze(...)) must give back the same settings.
 std::string freeze(const Preset& chosen, const snap::Snapshot& s, const arz::Database& db, const std::string& name,
@@ -223,7 +223,7 @@ struct Result {
   std::vector<Contribution> contributions;
 };
 
-// Mixes buff states (§13.16); memo's inputs must outlive it unchanged.
+// Mixes buff states; memo's inputs must outlive it unchanged.
 struct BeforeSide;
 using Memo = std::shared_ptr<const BeforeSide>;
 Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const std::vector<Skill>& skills,

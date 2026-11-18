@@ -1,5 +1,5 @@
 #pragma once
-// Install, update, repair, uninstall; ownership rules in MECHANICS §13.35.
+// Install, update, repair, uninstall; only files we installed and that are unchanged are ours.
 #include <filesystem>
 #include <map>
 #include <optional>

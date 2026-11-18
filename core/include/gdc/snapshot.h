@@ -1,5 +1,5 @@
 #pragma once
-// Adapter writes, core reads; engine getter values (docs/SNAPSHOT.md).
+// Adapter writes, core reads; engine getter values.
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -8,11 +8,11 @@
 
 namespace gdc::snap {
 
-// Schema history: docs/SNAPSHOT.md `schema` row and MECHANICS §13.18.
+// Schema written; from_json reads kMinSchema..kSchema.
 inline constexpr int kSchema = 14;
 inline constexpr int kMinSchema = 2;
 
-// Save key, as GameEngine::GetPlayerFolder builds it (§13.18).
+// Save key, as GameEngine::GetPlayerFolder builds it.
 std::string save_key(std::uint32_t steam_account, bool custom, std::string_view folder);
 // Name in a save key ("cloud/1/main/__Bob" -> "Bob"); empty otherwise.
 std::string save_key_name(std::string_view key);
@@ -69,7 +69,7 @@ struct Conversion {
   float percent = 0;
 };
 
-// Item+0x538 replica fields (docs/RECON.md §8).
+// Item+0x538 replica fields.
 struct Replica {
   std::string base, prefix, suffix, modifier, transmute, relic, relic_bonus, augment, ascendant,
       ascendant2h;
@@ -100,7 +100,7 @@ struct Requirements {
   int reductions[3][3] = {};                      // Physique +0xDF8/+0xDEC/+0xE04, Cunning +0xDFC/+0xDF0/+0xE08,
                                                   // Spirit +0xE00/+0xDF4/+0xE0C
   std::optional<bool> met;                        // ItemEquipment::AreRequirementsMet(player) when read
-  // Schema 11: the state that call ran against (§13.18).
+  // Schema 11: the state that call ran against.
   struct MetAt {
     std::uint32_t level = 0;
     int difficulty = -1;
@@ -155,7 +155,7 @@ struct ItemSkillModifier {
   std::optional<ItemStats> stats;  // Skill_Modifier::CollectModifier*
 };
 
-// Character+0x7A8 PTH table, combatformulas.dbr order (§13.18).
+// Character+0x7A8 PTH table, combatformulas.dbr order.
 struct PthTable {
   float minimum = 0;               // pthMinimum (+0x278)
   float crit_divisor_min = 0;      // +0x27C
@@ -163,7 +163,7 @@ struct PthTable {
   float damage_modifier[6] = {};   // pthDamageModifier1..6 (+0x284, stride 8)
 };
 
-// Schema 12: a live pet from the player's PetPen (§13.18).
+// Schema 12: a live pet from the player's PetPen.
 struct PetSkill {
   std::uint32_t id = 0;
   std::string record;
@@ -208,7 +208,7 @@ struct Snapshot {
   std::vector<CombatTotals> defense;           // Character::GetAllDefenseAttributes
   std::vector<CombatTotals> damage_modifiers;  // SkillManager::CollectAvailableOffensiveModifierAttributes
   std::vector<Conversion> conversions;         // SkillManager::CollectAvailableConversionAttributes
-  // Schema 9: CollectAvailableSkillAttributes 0x535BE0 totals (§13.18).
+  // Schema 9: CollectAvailableSkillAttributes 0x535BE0 totals.
   std::vector<SkillAttribute> skill_attributes;
   std::vector<Skill> skills;
   std::vector<ItemSkillModifier> item_skill_modifiers;

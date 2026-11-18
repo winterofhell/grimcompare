@@ -11,7 +11,7 @@ double value_at(const arz::Record& r, std::string_view key, std::uint32_t level)
   return at_level(it->second, level).value_or(it->second.numbers.empty() ? 0 : it->second.numbers.back());
 }
 
-// Timed buff classes (§13.26); toggles, auras, debuffs aren't.
+// Timed buff classes; toggles, auras, debuffs aren't.
 std::optional<BuffTiming> timing(const arz::Record& stats, std::uint32_t level) {
   if (!classes::is_a(stats.cls, "SkillBuff_Passive") && !classes::is_a(stats.cls, "Skill_BuffSelfDuration")) return std::nullopt;
   const double duration = value_at(stats, "skillActiveDuration", level);
@@ -57,7 +57,7 @@ std::optional<double> at_level(const arz::Field& f, std::uint32_t level) {
   return f.numbers[level - 1];
 }
 
-// Added via the skill's own collector (possession1 example, §13.26).
+// Added via the skill's own collector (e.g. possession1).
 SkillEffect modifier_effect(const std::string& record, const arz::Database& db) {
   SkillEffect e;
   const auto rec = db.record(record);

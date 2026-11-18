@@ -13,6 +13,7 @@
 #include <string>
 
 #include "game_db.h"
+#include "gdc/attribute_names.h"
 #include "gdc/components.h"
 #include "gdc/score.h"
 #include "gdc/stat_model.h"
@@ -70,22 +71,22 @@ const snap::Item* at(const snap::Snapshot& s, int location) {
 // Item::GetItemType of what a location holds (tooltip::locations_for backwards; hands by record class).
 int item_type(const snap::Item& it, int location, const arz::Database& db) {
   switch (location) {
-    case 0: return 9;
-    case 1: {
+    case equip::kRightHand: return item_types::kWeapon;
+    case equip::kLeftHand: {
       const arz::Record* r = db.record(it.record);
-      return r && r->cls.starts_with("WeaponArmor") ? 8 : 9;
+      return r && r->cls.starts_with("WeaponArmor") ? item_types::kOffHand : item_types::kWeapon;
     }
-    case 2: return 2;
-    case 3: return 15;
-    case 4: case 5: return 6;
-    case 6: return 13;
-    case 7: return 1;
-    case 8: return 3;
-    case 9: return 14;
-    case 10: return 7;
-    case 11: return 4;
-    case 12: return 5;
-    case 13: return 11;
+    case equip::kNeck: return item_types::kNeck;
+    case equip::kMedal: return item_types::kMedal;
+    case equip::kFinger1: case equip::kFinger2: return item_types::kRing;
+    case equip::kWaist: return item_types::kWaist;
+    case equip::kHead: return item_types::kHead;
+    case equip::kChest: return item_types::kChest;
+    case equip::kShoulders: return item_types::kShoulders;
+    case equip::kHands: return item_types::kHands;
+    case equip::kLegs: return item_types::kLegs;
+    case equip::kFeet: return item_types::kFeet;
+    case equip::kArtifact: return item_types::kArtifact;
     default: return 0;
   }
 }

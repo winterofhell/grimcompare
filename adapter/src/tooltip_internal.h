@@ -1,5 +1,5 @@
 #pragma once
-// Adapter tooltip internals; threads and layouts in MECHANICS §12.2.
+// Adapter tooltip internals; worker thread scores, game thread appends.
 #include <windows.h>
 
 #include <array>
@@ -27,7 +27,7 @@ namespace gdc::adapter::tip {
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
-// GameTextLine, Game.dll ctor 0x313030: 0x40 bytes (MECHANICS §12.2).
+// GameTextLine, Game.dll ctor 0x313030: 0x40 bytes.
 constexpr std::size_t kLine = 0x40, kMaxLines = 4096;
 static_assert(sizeof(std::u16string) == 0x20, "the GameTextLine ctor reads an MSVC x64 std::u16string");
 using CtorFn = void* (*)(void* self, u32 cls, const std::u16string* text, bool flag, const void* texture, float scale);

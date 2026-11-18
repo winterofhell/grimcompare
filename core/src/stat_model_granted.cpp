@@ -59,7 +59,7 @@ void drop_common(std::vector<Grant>& lost, std::vector<Grant>& gained) {
 
 std::string kind(const arz::Record* r) { return r ? r->cls : std::string("record not in the database"); }
 
-// GetCharAttributes 0x52F920 checks the level only (§11.10).
+// GetCharAttributes 0x52F920 checks the level only.
 void remove_passive(const snap::Skill& k, const arz::Record& rec, AllDeltas& out_d, Granted& g) {
   const bool on = (k.passive && (!k.passive->char_attributes.empty() || !k.passive->defense.empty())) ||
                   !fields::weapon_gated(rec);
@@ -133,7 +133,7 @@ Granted gain(const std::string& record, const std::string& eq, const snap::Item&
 
 }  // namespace
 
-// Procs, buffs, pets, weapon-gated passives: reported, not scored (§11.10).
+// Procs, buffs, pets, weapon-gated passives: reported, not scored.
 void apply_granted(const snap::Snapshot& s, const snap::Item* old, const snap::Item& cand, const arz::Database& db,
                    AllDeltas& out_d, Prediction& p) {
   auto lost = old ? item_grants(*old, db) : std::vector<Grant>{}, gained = item_grants(cand, db);
