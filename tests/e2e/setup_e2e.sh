@@ -121,7 +121,7 @@ flows() {
 
   # Through the launcher: install, then uninstall; the launcher waits for Enter at the end.
   run launcher-install 0 $'1\ny\nn\n\n5\n\n' "${LAUNCH[@]}"
-  check "launcher runs setup" has "GrimCompare 1.0.1 setup"
+  check "launcher runs setup" has "GrimCompare 1.0.2 setup"
   check "files match the package" manifest_ok "$TARGET"
   run launcher-uninstall 0 $'3\ny\n\n4\n\n' "${LAUNCH[@]}"
   check "uninstalled" test ! -e "$TARGET/GDCompare.installed"

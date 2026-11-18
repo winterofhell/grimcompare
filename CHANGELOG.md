@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2 (2026-11-18)
+
+- Damage scoring fixes. A main skill's weight counts the points in its learned modifiers and transmuter (Bloody Pox 1 + Black Death 12 = 13), and their damage counts toward the skill.
+- "Total Damage Modified by x%" (transmuters, item and set skill modifiers) now multiplies the skill's damage instead of adding to its % bonus.
+- Swaps that change attack or cast speed now move them in the prediction, so on-attack procs follow.
+- Procs and pets: their share of Damage no longer shifts when only a lightly weighted main skill changes.
+- Presets: `offtarget_weight` for damage types no conversion can turn into the build's type; second-tier survival targets (`threshold_secondary_weight`, `threshold_level`).
+- Cleaner code and smaller math fixes throughout.
+
 ## 1.0.1 (2026-11-17)
 
 - The mod is now called GrimCompare: tooltip heading, setup and the release zip (`GrimCompare-<version>.zip`). Installed file names stay `GDCompare.*`, so existing installs and presets keep working.
