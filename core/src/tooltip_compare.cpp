@@ -237,6 +237,7 @@ void slot_detail(const Context& ctx, Found& found, const snap::Item* old, const 
     if ((old && (old->relic || old->augment)) || ctx.candidate.relic || ctx.candidate.augment)
       slot.hovered = score::compare(ctx.s, hovered_swap.after, ctx.skills, ctx.preset, ctx.db, &found.memo);
     slot.detail = changes(vb.sheet, va.sheet, hovered_swap, ctx.labels, slot.hovered ? &*slot.hovered : &slot.base);
+    for (auto& l : modifier_lines(ctx.s, hovered_swap.after, old, ctx.candidate, ctx.skills, ctx.db, ctx.labels, ctx.screen)) slot.detail.push_back(std::move(l));
     slot.buffs = buff_lines(vb, va, ctx.labels, ctx.screen);
   }
   for (const auto& c : score::conversion_warnings(ctx.s, hovered_swap.after, ctx.preset, ctx.chosen.match_damage, ctx.db))

@@ -124,6 +124,10 @@ void apply_thresholds(const snap::Snapshot& s, const model::Sheet& sh, const Set
         if (name == "resist") out.thresholds["resist:" + std::to_string(t)] = ft;  // one part per resist
       }
     } else {
+      // Absorption is a percentage of armor, not an amount that grows with level.
+      const double scaled = p.threshold_level > 0 && s.level < p.threshold_level && name != "absorption"
+                                ? target * s.level / p.threshold_level
+                                : target;
       value = name == "physical_resist"     ? shown(kPhysical)
               : name == "absorption"        ? armor_absorb * 100
               : name == "armor"             ? sh.armor
@@ -133,11 +137,12 @@ void apply_thresholds(const snap::Snapshot& s, const model::Sheet& sh, const Set
               : name == "reflect_reduction" ? plain(57)
               : name == "life"              ? sh.life
                                             : sh.da;
-      f = threshold_factor(value, target, p);
+      f = std::pow(threshold_factor(value, scaled, p), p.threshold_secondary_weight);
+      out.targets[name] = scaled;
     }
     if (name != "resist") out.thresholds[name] = f;
     f_all *= f;
-    if (explain) terms += " " + name + " " + fmt(value) + "/" + fmt(target) + " x" + fmt(f, 3);
+    if (explain) terms += " " + name + " " + fmt(value) + "/" + fmt(out.targets.contains(name) ? out.targets[name] : target) + " x" + fmt(f, 3);
   }
   out.ehp *= f_all;
   if (explain) out.inputs += "; thresholds" + terms + " = x" + fmt(f_all, 3);

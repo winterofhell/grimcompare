@@ -72,6 +72,9 @@ default = 0.05                                # default
 # resist with a 10% threat share. Chosen so that 7 Fire + 15 Pierce under the cap outweigh +28 Physique and
 # +8% Life (the belt case, tests/test_presets.cpp) while a +2 skills medal that costs 10 Poison still wins.
 threshold_resist_weight = 4
+# Second-tier targets (all but the base resists) are the guide's endgame minimums: below level 94 they scale by
+# level / 94 (design choice: a level 39 character is not held to 75% stun resist). Absorption does not scale.
+threshold_level = 94
 
 [survival]
 # Incoming resistance reduction (enemy curses / debuffs) the base resists are scored under. "auto" = what the
@@ -127,16 +130,19 @@ requires = [
   "records/skills/playerclass06/_classtraining_class06.dbr",
   "records/skills/playerclass03/_classtraining_class03.dbr",
 ]
-[stage.thresholds]  # design choices: on the way to the 94+ values
-physical_resist = 10
+[stage.thresholds]  # the 94+ values, scaled by level / 94 ([score] threshold_level); absorption a design choice
+physical_resist = 20
 absorption = 90
-stun_resist = 50
+stun_resist = 75
 [stage.damage]
 skills = [
   "records/skills/playerclass06/graspingvines1.dbr",  # Grasping Vines
   "records/skills/playerclass03/pox1.dbr",            # Bloody Pox
   "records/skills/playerclass03/evileye1.dbr",        # Dreeg's Evil Eye
 ]
+# Bleeding (Bloody Pox, Wasting, Grasping Vines) can never become Acid / Poison: half weight once the conversion
+# gear takes over (design choice). Stages 1-35 keep the default 1.0: all real damage counts while levelling.
+offtarget_weight = 0.5
 
 # Level 94+: Worldkeeper's Garden and the endgame devotions. Same main skills; procs (devotions, item / set
 # procs) and the set's Living Bud / Blossom pets add their damage and RR (docs/MECHANICS.md §4, §5).
@@ -173,3 +179,4 @@ skills = [
   "records/skills/playerclass03/pox1.dbr",            # Bloody Pox
   "records/skills/playerclass03/evileye1.dbr",        # Dreeg's Evil Eye
 ]
+offtarget_weight = 0.2  # endgame: Bleeding is a side effect of the Acid / Poison build (design choice)

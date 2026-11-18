@@ -194,9 +194,10 @@ TEST_CASE("presets: freeze writes the settings in use, parse reads them back (in
   std::string error;
   const auto chosen = score::parse(
       "[preset]\nname = \"x\"\n[match]\nmasteries = [\"records/skills/playerclass06/_classtraining_class06.dbr\"]\n"
-      "damage = [\"acid\", \"poison\"]\nmin_share = 0.3\n[score]\nthreshold_width = 0.07\n[damage]\n"
+      "damage = [\"acid\", \"poison\"]\nmin_share = 0.3\n[score]\nthreshold_width = 0.07\nthreshold_secondary_weight = 0.3\n"
+      "threshold_level = 94\n[damage]\n"
       "conversion_warn = [\"vitality->*\", \"*->elemental\"]\n[enemy]\npoison = 33\n[uptime]\n\"records/a.dbr\" = 0.25\n"
-      "[[stage]]\nname = \"s\"\nmin_level = 30\n[stage.thresholds]\nresist = 80\nlife = 1234.5\n[stage.survival.threat]\nfire = 0.3\n"
+      "[[stage]]\nname = \"s\"\nmin_level = 30\n[stage.damage]\nofftarget_weight = 0.5\n[stage.thresholds]\nresist = 80\nlife = 1234.5\n[stage.survival.threat]\nfire = 0.3\n"
       "[stage.other]\npet_bonus = { weight = 0.7, when = [\"shield\", \"stage:s\"] }\nrun_speed = { weight = 0.4, when = \"stage:t\" }\n",
       error);
   REQUIRE_MESSAGE(chosen, error);
@@ -211,6 +212,7 @@ TEST_CASE("presets: freeze writes the settings in use, parse reads them back (in
   expected.other["run_speed"] = {};                   // "stage:t" does not -> weight 0
   CHECK(static_cast<const score::Settings&>(*back) == expected);
   CHECK(back->name == "frozen-winter");
+  CHECK(back->offtarget_weight == 0.5);
   CHECK(back->match_character == s.character_name);
   CHECK(back->masteries == std::vector<std::string>{mastery.record});
   CHECK(back->match_damage == chosen->match_damage);

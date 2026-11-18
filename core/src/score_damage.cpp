@@ -82,16 +82,11 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
 
 // shortcut: record DurMod values only — revisit with GetTotalDurationModifierType.
 std::map<int, double> dot_duration(const snap::Snapshot& s, const arz::Database& db) {
-  static constexpr std::pair<int, std::string_view> kFields[] = {
-      {2, "offensiveSlowPhysicalDurationModifier"},  {5, "offensiveSlowColdDurationModifier"},
-      {6, "offensiveSlowFireDurationModifier"},      {7, "offensiveSlowPoisonDurationModifier"},
-      {8, "offensiveSlowLightningDurationModifier"}, {9, "offensiveSlowLifeDurationModifier"},
-      {15, "offensiveSlowBleedingDurationModifier"}};
   std::map<int, double> out;
   for (const auto& it : s.equipped)
     for (const auto& r : model::item_records(it))
       if (const arz::Record* rec = db.record(r))
-        for (const auto& [type, field] : kFields)
+        for (const auto& [type, field] : kDotDuration)
           if (const double v = rec->number(field); v != 0) out[type] += v;
   return out;
 }
@@ -118,17 +113,27 @@ bool attack_speed(const Raw& raw) {
   return raw.speed == classes::Speed::kAttack || (raw.speed == classes::Speed::kNone && raw.weapon_pct > 0);
 }
 
-// Per type, after the skill's % and conversions.
-Amounts main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes) {
-  Amounts amounts = raw.flat;
-  if (raw.weapon_pct > 0)
-    for (const auto& [k, v] : g.flat) amounts[k] += v * raw.weapon_pct / 100;
+// Skill::CollectCombatParameters 0x499570 collects the skill's flat damage with its learned and item modifiers'
+// (CollectLocalOffensiveDamageAttributes 0x496440 → AddModifierOffensiveDamageAttributes 0x493480) and their %
+// (0x4964F0 → 0x4935B0), adds the % to each attribute (ModifyDamage 0x119280 at 0x499A87), converts, then adds the
+// character's % (SkillManager::CollectAvailableOffensiveModifierAttributes 0x535BC0, ModifyDamage at 0x499DB1).
+// Each attribute sums its % and applies it once (ModifyAbsoluteDamage 0x1138A0, CombatAttributeAbsDamage::Process
+// 0x113450): skill % and sheet % add.
+Pool pool(const Amounts& flat, const Raw& raw, const Conversions& global, std::vector<std::string>& notes) {
+  Amounts amounts = flat, bonus;
   split_elemental(amounts);  // raw.pct holds Elemental % spread already
-  for (auto& [k, v] : amounts) {  // skill % applies to the original type (MECHANICS §2.5)
-    const auto it = raw.pct.find(k);
-    if (it != raw.pct.end()) v *= 1 + it->second / 100;
-  }
-  return convert_pairs(amounts, raw.conversion, global, notes);
+  for (const auto& [k, v] : amounts)
+    if (const auto it = raw.pct.find(k); it != raw.pct.end()) bonus[k] = v * it->second / 100;
+  Pool out;
+  out.base = convert_pairs(amounts, raw.conversion, global, notes, &bonus, &out.bonus);
+  return out;
+}
+
+Amounts weapon_part(const Raw& raw, const Gear& g) {
+  Amounts out;
+  if (raw.weapon_pct > 0)
+    for (const auto& [k, v] : g.flat) out[k] += v * raw.weapon_pct / 100;
+  return out;
 }
 
 bool same(const std::vector<snap::Conversion>& a, const std::vector<snap::Conversion>& b) {
@@ -174,25 +179,91 @@ double use_rate(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw) 
   return s.cast_speed;
 }
 
-// `converted`: main_converted() already done for this snapshot's conversions.
-SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
-                         std::vector<std::string>& notes, Amounts* parts,
-                         const std::map<int, double>* resist, bool explain,
-                         const Amounts* converted) {
-  SkillDamage out;
-  if (sk.current_level == 0) return out;
-  const Amounts own = converted ? Amounts{} : main_converted(raw, g, global_pairs(s.conversions), notes);
+namespace {
+
+// A conversion keeps a part's DoT flag (Vitality Decay -> Poison) and never moves DoT into Pierce, Chaos or Aether
+// (ConvertDamage 0x119FE0). In the 1.3.1.1 database every damage type but Bleeding is some record's
+// conversionInType, each converts into every other, and none into Bleeding: Bleeding stays Bleeding.
+bool convertible(Key from, Key to) {
+  if (from == to) return true;
+  if (from.first == kBleeding || to.first == kBleeding || from.second != to.second) return false;
+  return !(from.second && (to.first == kPierce || to.first == kChaos || to.first == kAether));
+}
+
+}  // namespace
+
+double type_weight(const Settings& p, Key k) {
+  if (p.offtarget_weight == 1 || p.match_damage.empty()) return 1;
+  for (const auto& t : p.match_damage)
+    if (convertible(k, t)) return 1;
+  return p.offtarget_weight;
+}
+
+namespace {
+
+// Per final type: base × (1 + sheet % + attribute bonus) + the skill %'s part, × the skill's damage multiplier, DoT ×
+// duration, × enemy resist, × the type's weight.
+double final_damage(const snap::Snapshot& s, const Settings& p, const Raw& raw, const Gear& g, const Pool& in,
+                    const std::map<int, double>* resist, Amounts* parts) {
   double sum = 0;
-  for (const auto& [k, v] : converted ? *converted : own) {
+  for (const auto& [k, v] : in.base) {
     const auto* m = find(s.damage_modifiers, k.first);
     const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
-    double x = v * std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second));
-    if (k.second) x *= g.dot_scale(k.first);
+    const auto b = in.bonus.find(k);
+    double x = std::max(0.0, v * (1 + pct / 100 + attribute_bonus(s, k.first, k.second)) + (b != in.bonus.end() ? b->second : 0)) *
+               raw.mult * type_weight(p, k);
+    // shortcut: the skill's duration % taken by final type — revisit for a converted DoT with one.
+    if (k.second) {
+      const auto d = raw.duration.find(k.first);
+      x *= g.dot_scale(k.first, d != raw.duration.end() ? d->second : 0);
+    }
     if (resist)
       if (const auto r = resist->find(k.first); r != resist->end()) x *= std::max(0.0, r->second);
     sum += x;
     if (parts) (*parts)[k] += x;
   }
+  return sum;
+}
+
+std::string amounts_text(const Amounts& a) {
+  std::string out;
+  for (const auto& [k, v] : a)
+    if (std::abs(v) >= 0.5) out += (out.empty() ? "" : " ") + std::string(damage_label(k)) + " " + fmt(v);
+  return out.empty() ? "0" : out;
+}
+
+}  // namespace
+
+Pool main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes) {
+  Amounts amounts = raw.flat;
+  for (const auto& [k, v] : weapon_part(raw, g)) amounts[k] += v;
+  return pool(amounts, raw, global, notes);
+}
+
+// Per source: the skill's record, each modifier, the weapon part; they sum to the skill's damage per use.
+std::string skill_parts(const snap::Snapshot& s, const Settings& p, const Raw& raw, const Gear& g,
+                        const std::map<int, double>* resist, std::vector<std::string>& notes) {
+  const Conversions global = global_pairs(s.conversions);
+  std::string out;
+  auto add = [&](const std::string& name, const Amounts& flat) {
+    Amounts parts;
+    final_damage(s, p, raw, g, pool(flat, raw, global, notes), resist, &parts);
+    out += (out.empty() ? "" : ", ") + name + " " + amounts_text(parts);
+  };
+  for (const auto& [name, flat] : raw.sources) add(name, flat);
+  if (const Amounts w = weapon_part(raw, g); !w.empty()) add("weapon", w);
+  return out;
+}
+
+// `converted`: main_converted() already done for this snapshot's conversions.
+SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
+                         std::vector<std::string>& notes, Amounts* parts,
+                         const std::map<int, double>* resist, bool explain,
+                         const Pool* converted) {
+  SkillDamage out;
+  if (sk.current_level == 0) return out;
+  const Pool own = converted ? Pool{} : main_converted(raw, g, global_pairs(s.conversions), notes);
+  const double sum = final_damage(s, p, raw, g, converted ? *converted : own, resist, parts);
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double crit_bonus = (crit_row ? crit_row->damage_modifier : 0) + raw.crit / 100;
   double pth = 0;
@@ -220,6 +291,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   out.inputs = stem(sk.record) + " L" + std::to_string(sk.current_level) + " dmg " + fmt(sum) + " pth " + fmt(pth) +
                " hit " + fmt(h.chance, 2) + " crit " + fmt(h.crit_chance, 2) + "+" + fmt(crit_bonus, 2) + " x" +
                fmt(h.multiplier, 3) + pace + " = " + fmt(out.value);
+  if (raw.sources.size() > 1) out.inputs += " (dmg by source: " + skill_parts(s, p, raw, g, resist, notes) + ")";
   return out;
 }
 
@@ -232,7 +304,7 @@ const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vect
   Converted c{s.conversions, {}, {}};
   const Conversions global = global_pairs(s.conversions);
   for (const auto& m : x.mains)
-    c.mains.push_back(m.skill && m.skill->current_level != 0 ? main_converted(m.raw, x.gear, global, notes) : Amounts{});
+    c.mains.push_back(m.skill && m.skill->current_level != 0 ? main_converted(m.raw, x.gear, global, notes) : Pool{});
   for (const auto& e : x.hits) c.hits.push_back(e.pet ? Amounts{} : convert_pairs(e.flat, {}, global, notes));
   if (!memo) return own.emplace(std::move(c));
   memo->push_back(std::move(c));
@@ -251,14 +323,14 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bo
     const auto& e = x.hits[i];
     double per_use = 0;
     if (e.pet) {
-      for (const auto& [k, v] : e.flat) per_use += v * resist(k.first);
+      for (const auto& [k, v] : e.flat) per_use += v * resist(k.first) * type_weight(p, k);
       per_use *= e.pet_hit;
     } else {
       for (const auto& [k, v] : conv.hits[i]) {
         const auto* m = find(s.damage_modifiers, k.first);
         const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
         per_use += v * std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second)) * resist(k.first) *
-                   (k.second ? x.gear.dot_scale(k.first) : 1.0);
+                   (k.second ? x.gear.dot_scale(k.first) : 1.0) * type_weight(p, k);
       }
       per_use *= hit;
     }

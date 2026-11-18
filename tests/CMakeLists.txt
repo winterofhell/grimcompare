@@ -31,7 +31,7 @@ add_executable(gdc_tests
   test_golden.cpp
 )
 target_link_libraries(gdc_tests PRIVATE gdc_core gdc_setup)
-target_include_directories(gdc_tests PRIVATE ${PROJECT_SOURCE_DIR}/third_party)
+target_include_directories(gdc_tests PRIVATE ${PROJECT_SOURCE_DIR}/third_party ${PROJECT_SOURCE_DIR}/core/src)
 target_compile_definitions(gdc_tests PRIVATE GDC_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_test(NAME gdc_tests COMMAND gdc_tests)
 

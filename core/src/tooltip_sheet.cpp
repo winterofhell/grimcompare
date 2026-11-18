@@ -88,6 +88,7 @@ struct Row {
   bool damage = false;
   const char* unscored = "";
   std::string name = {};
+  bool kept = false;  // listed only for its score part
 };
 
 // No spaces inside a value, so it never wraps.
@@ -100,7 +101,7 @@ void sheet_rows(std::vector<Row>& out, const model::Sheet& b, const model::Sheet
                       s.name + " " + pair(s.before, s.after, s.decimals) + s.unit + " (" + signed_num(s.delta(), s.decimals) + ")"},
                      s.stat, 0, s.via, s.damage, "", s.name});
     else if (keep.contains(s.stat))
-      out.push_back({{Tone::Plain, s.name + " " + num(s.after, s.decimals) + s.unit}, s.stat, 0, s.via, s.damage, "", s.name});
+      out.push_back({{Tone::Plain, s.name + " " + num(s.after, s.decimals) + s.unit}, s.stat, 0, s.via, s.damage, "", s.name, true});
   }
   for (int t : resist_types(b, a)) {
     // The cap does not change with a missing row.
@@ -120,7 +121,8 @@ void sheet_rows(std::vector<Row>& out, const model::Sheet& b, const model::Sheet
       text += " (" + behind + ")";
     if (max.changed()) text += " max " + pair(x.max, y.max, 0);
     const double d = shown.changed() ? shown.delta() : raw.delta();
-    out.push_back({{d > 0 ? Tone::Better : d < 0 ? Tone::Worse : Tone::Plain, text}, stat, 0, "", false, "", resist_name(t, labels)});
+    const bool kept = !shown.changed() && !raw.changed() && !max.changed();
+    out.push_back({{d > 0 ? Tone::Better : d < 0 ? Tone::Worse : Tone::Plain, text}, stat, 0, "", false, "", resist_name(t, labels), kept});
   }
 }
 
@@ -257,6 +259,63 @@ Row other_row(const score::OtherChange& o) {
 
 }  // namespace
 
+namespace {
+
+// (modified skill, modifier) pairs of an item's records, for skills the character has not learned: the engine
+// attaches modifiers to learned skills only (Skill+0x158).
+std::multiset<std::pair<std::string, std::string>> unlearned_modifiers(const snap::Snapshot& s, const snap::Item* it,
+                                                                       const arz::Database& db) {
+  std::multiset<std::pair<std::string, std::string>> out;
+  if (!it) return out;
+  for (const auto& name : model::item_records(*it))
+    if (const arz::Record* r = db.record(name))
+      for (const auto& [key, field] : r->fields) {
+        if (!key.starts_with("modifierSkillName") || field.strings.empty() || field.strings[0].empty()) continue;
+        const std::string skill(r->string("modifiedSkillName" + key.substr(17)));
+        const bool learned = std::any_of(s.skills.begin(), s.skills.end(), [&](const snap::Skill& k) {
+          return k.record == skill && k.current_level > 0;
+        });
+        if (!skill.empty() && !learned) out.emplace(skill, field.strings[0]);
+      }
+  return out;
+}
+
+}  // namespace
+
+// Item skill modifiers the swap adds (green) or removes (red), one line per skill, numbers as the item tooltip.
+std::vector<Line> modifier_lines(const snap::Snapshot& before, const snap::Snapshot& after, const snap::Item* old,
+                                 const snap::Item& candidate, const std::vector<score::Skill>& skills,
+                                 const arz::Database* db, const Labels& labels, const Screen& screen) {
+  std::vector<Line> out;
+  if (!db) return out;
+  auto line = [&](const std::string& skill, const std::string& modifier, bool lost, bool learned) {
+    const arz::Record* r = db->record(modifier);
+    if (!r) return;
+    const bool main = std::any_of(skills.begin(), skills.end(), [&](const score::Skill& k) { return k.record == skill; });
+    std::vector<std::string> items;
+    for (const auto& part : score::modifier_parts(before, *r, main))
+      items.push_back(signed_num(lost ? -part.value : part.value, std::abs(part.value) < 10 && part.value != std::round(part.value) ? 1 : 0) + part.unit +
+                      (part.scored && learned ? "" : " (not scored)"));
+    if (items.empty()) return;
+    for (auto& l : pack(labels.skill(skill) + (learned ? " (item): " : " (item, not learned): "), "  ", items, screen))
+      out.push_back({lost ? Tone::Worse : Tone::Better, std::move(l)});
+  };
+  auto has = [](const snap::Snapshot& s, const snap::ItemSkillModifier& m) {
+    return std::any_of(s.item_skill_modifiers.begin(), s.item_skill_modifiers.end(), [&](const snap::ItemSkillModifier& x) {
+      return x.skill_record == m.skill_record && x.modifier_record == m.modifier_record;
+    });
+  };
+  for (const auto* side : {&before, &after})
+    for (const auto& m : side->item_skill_modifiers)
+      if (!has(side == &before ? after : before, m)) line(m.skill_record, m.modifier_record, side == &before, true);
+  const auto was = unlearned_modifiers(before, old, *db), now = unlearned_modifiers(before, &candidate, *db);
+  for (const auto& p : was)
+    if (!now.contains(p)) line(p.first, p.second, true, false);
+  for (const auto& p : now)
+    if (!was.contains(p)) line(p.first, p.second, false, false);
+  return out;
+}
+
 std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after, const model::Prediction& p,
                           const Labels& labels, const score::Result* scored) {
   auto shows = [](double points) { return num(points, 1) != "0.0"; };
@@ -286,7 +345,9 @@ std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after,
       }
       if (part.empty()) continue;
       for (const auto& c : scored->contributions)
-        if (c.stat == part) r.points += c.points;
+        if (c.stat == part || (r.stat == "armor" && c.stat == "armor")) r.points += c.points;
+      const auto target = scored->targets.find(r.stat);
+      const std::string at = target != scored->targets.end() ? " target " + num(target->second, 0) : "";
       const auto o = std::find_if(scored->other_changes.begin(), scored->other_changes.end(),
                                   [&](const score::OtherChange& x) { return x.key == r.stat; });
       if (o != scored->other_changes.end() && o->weight == 0) r.line.text += " [w0]";
@@ -294,8 +355,10 @@ std::vector<Line> changes(const model::Sheet& before, const model::Sheet& after,
         against.push_back({{r.points > 0 ? Tone::Better : Tone::Worse, r.name + ": other effects [" + signed_num(r.points, 1) + "]"},
                            "", std::exchange(r.points, 0)});
       else if (shows(r.points))
-        r.line.text += " [" + signed_num(r.points, 1) + (o != scored->other_changes.end() ? " w" + sig(o->weight) : "") + "]";
+        r.line.text += " [" + signed_num(r.points, 1) + (o != scored->other_changes.end() ? " w" + sig(o->weight) : "") + at + "]";
     }
+    // A row kept for a part that went to another line (Physical's to Armor) says nothing.
+    std::erase_if(rows, [&](const Row& r) { return r.kept && !shows(r.points); });
     rows.insert(rows.end(), against.begin(), against.end());
     std::stable_sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return std::abs(a.points) > std::abs(b.points); });
   }

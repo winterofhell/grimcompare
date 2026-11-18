@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <cctype>
 #include <numeric>
+#include <set>
 #include <tuple>
 
 #include "gdc/attribute_names.h"
@@ -38,6 +40,15 @@ const FlatParts& flat_parts(const arz::Database& db, const arz::Record& r, std::
 
 bool main_class(std::string_view cls) { return attack_class(cls) || classes::is_a(cls, "SkillActivatedWeaponPool"); }
 
+// Points spent in a skill and its learned modifiers and transmuter (Skill+0x140): Bloody Pox 1 + Black Death 12.
+std::uint32_t points(const snap::Snapshot& s, const snap::Skill& sk) {
+  std::uint32_t out = sk.level;
+  for (const std::uint32_t id : sk.modifier_ids)
+    for (const auto& m : s.skills)
+      if (m.id == id) out += m.level;
+  return out;
+}
+
 }  // namespace
 
 void add_flat(const arz::Database& db, const arz::Record& r, std::uint32_t level, double scale, Amounts& out) {
@@ -55,8 +66,14 @@ bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   return !flat_parts(db, r, level).empty() || at_level(r, "weaponDamagePct", level) > 0;
 }
 
-void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out) {
-  add_flat(db, r, level, 1, out.flat);
+// `source`: names the record's flat damage in Raw::sources.
+void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out, std::string_view source) {
+  Amounts own;
+  add_flat(db, r, level, 1, own);
+  for (const auto& [k, v] : own) out.flat[k] += v;
+  if (!own.empty() && !source.empty()) out.sources.emplace_back(source, std::move(own));
+  for (const auto& [type, field] : kDotDuration)
+    if (const double v = at_level(r, field, level); v != 0) out.duration[type] += v;
   for (const auto& [field, t] : fields::damage_modifiers()) {
     const double v = at_level(r, field, level);
     if (v == 0) continue;
@@ -64,6 +81,12 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
       for (int x : fields::spread(t.type, t.modifier)) out.pct[{x, t.modifier}] += v;
     else out.pct[{t.type, t.modifier}] += v;
   }
+  // DamageAttributeAbsMod_DamageMultiplier::AddModifierToAccumulator 0x19D200: one entry per record, type 0x3D,
+  // value × 0.01. ModifyDamage 0x119280 runs every additive modifier first, then each multiplier entry on its own
+  // (CombatAttribute_DamageMultiplier::Execute 0x117E50: every damage type, max(0, 1 + value) × 100 to ScaleDamage
+  // 0x113930 / 0x114360, which scales the damage fields and leaves the % sum). So entries compound and multiply
+  // the skill's damage after its additive %.
+  if (const double m = at_level(r, "offensiveDamageMultModifier", level); m != 0) out.mult *= std::max(0.0, 1 + m / 100);
   out.weapon_pct += at_level(r, "weaponDamagePct", level);
   out.crit += at_level(r, "offensiveCritDamageModifier", level);
   out.cooldown += at_level(r, "skillCooldownTime", level);
@@ -84,17 +107,92 @@ Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Databas
   raw.speed = classes::speed(rec->cls);
   if (!has_damage(db, *rec, sk.current_level))
     if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) rec = buff;
-  add_record(db, *rec, sk.current_level, raw);
+  add_record(db, *rec, sk.current_level, raw, stem(sk.record));
   for (const std::uint32_t id : sk.modifier_ids)
     for (const auto& m : s.skills)
       if (m.id == id && m.current_level > 0)
-        if (const arz::Record* mr = db.record(m.record)) add_record(db, *mr, m.current_level, raw);
+        if (const arz::Record* mr = db.record(m.record)) add_record(db, *mr, m.current_level, raw, stem(m.record));
   for (const auto& m : s.item_skill_modifiers)
     if (m.skill_id == sk.id && !m.modifier_record.empty()) {
-      if (const arz::Record* mr = db.record(m.modifier_record)) add_record(db, *mr, 1, raw);
+      if (const arz::Record* mr = db.record(m.modifier_record)) add_record(db, *mr, 1, raw, stem(m.modifier_record) + " (item)");
       else notes.push_back("item skill modifier " + stem(m.modifier_record) + " not in the database");
     }
   return raw;
+}
+
+namespace {
+
+// " Offensive Ability", "% Offensive Ability", " Vitality Resist": in-game damage names, else engine names spaced.
+std::string stat_unit(const fields::Target& t) {
+  const std::string_view label = t.kind == fields::Kind::Defense ? damage_label(t.type, false) : std::string_view{};
+  std::string_view name = !label.empty() ? label : t.kind == fields::Kind::Char ? names::char_attribute(t.type) : names::combat_attribute(t.type);
+  const bool pct = t.modifier || name.ends_with("Modifier");  // e.g. OffensiveAbilityModifier: a %, not flat
+  if (name.ends_with("Modifier")) name.remove_suffix(8);
+  std::string out = pct ? "%" : "";
+  for (const char c : name) {
+    if (std::isupper(static_cast<unsigned char>(c))) out += ' ';
+    out += c;
+  }
+  return t.kind == fields::Kind::Defense ? out + " Resist" : out;
+}
+
+}  // namespace
+
+std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill) {
+  std::vector<ModifierPart> out;
+  std::set<std::string_view> done{"skillMaxLevel"};
+  for (const auto& f : fields::flat_damage()) {
+    done.insert({f.min, f.max, f.duration, f.chance});
+    const double min = at_level(r, f.min, 1);
+    if (min == 0) continue;
+    double v = (min + std::max(min, at_level(r, f.max, 1))) / 2;
+    if (const double chance = at_level(r, f.chance, 1); chance > 0 && chance < 100) v *= chance / 100;
+    const bool dot = !f.duration.empty();
+    if (const auto* m = find(s.damage_modifiers, f.type); m && f.type != kElemental)
+      v *= std::max(0.0, 1 + (dot ? m->dot_modifier : m->damage_modifier) / 100 + attribute_bonus(char_total(s, kCunning), char_total(s, kSpirit), f.type, dot));
+    const double seconds = dot ? at_level(r, f.duration, 1) : 0;
+    out.push_back({v, " " + std::string(damage_label(f.type, dot)) + (dot ? "/s" : "") +
+                          (dot && seconds != 1 ? " for " + fmt(seconds, 1) + "s" : ""), main_skill});
+  }
+  for (const auto& [in, to, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
+                                    std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
+    done.insert({in, to, pct});
+    const int a = damage_type_named(r.string(in)), b = damage_type_named(r.string(to));
+    if (const double v = at_level(r, pct, 1); a && b && v > 0)
+      out.push_back({v, "% " + std::string(damage_label(a, false)) + " converted to " + std::string(damage_label(b, false)), main_skill});
+  }
+  static constexpr std::pair<std::string_view, std::string_view> kNamed[] = {
+      {"weaponDamagePct", "% weapon damage"},       {"offensiveCritDamageModifier", "% crit damage"},
+      {"offensiveDamageMultModifier", "% total damage modified"},
+      {"skillCooldownTime", "s cooldown"},          {"offensiveLifeLeechMin", "% damage converted to health"},
+      {"petLimit", " pet limit"},                   {"spawnObjectsTimeToLive", "s pet duration"},
+      {"skillActiveDuration", "s duration"}};
+  for (const auto& [key, field] : r.fields) {
+    if (field.kind == arz::Field::Kind::Bool || field.numbers.empty() || field.numbers[0] == 0 || done.contains(key) ||
+        fields::weapon_flag(key))
+      continue;
+    const double v = field.numbers[0];
+    double scale = 1;
+    const auto named = std::find_if(std::begin(kNamed), std::end(kNamed), [&](const auto& n) { return n.first == key; });
+    if (const fields::Target* t = fields::damage_modifier(key))
+      out.push_back({v, "% " + std::string(damage_label(t->type, t->modifier)) + " damage", main_skill});
+    else if (const auto d = std::find_if(std::begin(kDotDuration), std::end(kDotDuration), [&](const auto& x) { return x.second == key; });
+             d != std::end(kDotDuration))
+      out.push_back({v, "% " + std::string(damage_label(d->first, true)) + " duration", main_skill});
+    // shortcut: cooldown counts for any skill (buff and debuff uptime read it too) — revisit when a cooldown
+    // modifier on a skill without damage, buff or debuff shows up.
+    else if (named != std::end(kNamed))
+      out.push_back({v, std::string(named->second),
+                     key == "skillCooldownTime" || key == "petLimit" || key == "spawnObjectsTimeToLive" ||
+                         (main_skill && key != "skillActiveDuration")});  // a modifier's duration is not read
+    else if (key.find("ResistanceReduction") != std::string::npos)
+      out.push_back({v, key.ends_with("DurationMin") ? "s resist reduction" : key.find("Percent") != std::string::npos ? "% resist reduction" : " resist reduction", true});
+    else if (const fields::Target* t = fields::lookup(key, scale))
+      out.push_back({v * scale, stat_unit(*t), true});  // sheet or buff stats
+    else
+      out.push_back({v, " " + key, false});
+  }
+  return out;
 }
 
 bool skill_on(const snap::Skill& sk, const arz::Record& r) {
@@ -136,7 +234,7 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
   if (!db) return out;
   for (const auto& r : p.skills)
     if (const auto* sk = skill_by_record(s, r); sk && sk->current_level > 0)
-      out.push_back({r, p.weigh_by_points ? std::max<double>(sk->level, 1) : 1.0});
+      out.push_back({r, p.weigh_by_points ? std::max<double>(points(s, *sk), 1) : 1.0});
   // No listed skill learned yet: pick as auto does.
   const bool picked = out.empty();
   if (picked) {
@@ -149,7 +247,7 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
       const arz::Record* d = r;
       if (!has_damage(*db, *d, sk.current_level)) d = db->record(r->string("buffSkillName"));
       if (!d || !has_damage(*db, *d, sk.current_level)) continue;
-      found.emplace_back(sk.level, sk.record);
+      found.emplace_back(points(s, sk), sk.record);
     }
     std::sort(found.begin(), found.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first > b.first : a.second < b.second; });
     if (found.size() > static_cast<std::size_t>(p.auto_skills)) found.resize(static_cast<std::size_t>(p.auto_skills));
@@ -171,7 +269,7 @@ std::vector<Skill> main_skills(const snap::Snapshot& s, const Settings& p, const
   return out;
 }
 
-std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db) {
+std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db, bool global_conversions) {
   Settings auto_pick;
   auto_pick.filler_weight = 0;
   std::map<DamageKey, double> out;
@@ -180,7 +278,9 @@ std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::D
   for (const auto& k : main_skills(s, auto_pick, &db)) {
     Amounts parts;
     const snap::Skill& sk = *skill_by_record(s, k.record);
-    skill_damage(s, sk, skill_raw(s, sk, db, notes), g, auto_pick, notes, &parts);
+    const Raw raw = skill_raw(s, sk, db, notes);
+    const Pool own = global_conversions ? Pool{} : main_converted(raw, g, {}, notes);
+    skill_damage(s, sk, raw, g, auto_pick, notes, &parts, nullptr, false, global_conversions ? nullptr : &own);
     const double total = std::accumulate(parts.begin(), parts.end(), 0.0, [](double a, const auto& kv) { return a + kv.second; });
     if (total <= 0) continue;
     for (const auto& [key, v] : parts) out[key] += k.weight * v / total;

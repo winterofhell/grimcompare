@@ -3,6 +3,7 @@
 // (c015_medal). Needs the installed game for the records; skips without it.
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -223,4 +224,139 @@ TEST_CASE("regress: enemy hits and OA follow the snapshot's difficulty") {
   }
   s.difficulty = 0, s.difficulty_ramp = 0;
   CHECK(read(0, 0, "% hit ") == doctest::Approx(enemy::at(27, 0).hit_physical).epsilon(0.01));
+}
+
+namespace {
+
+// The item the snapshot was taken hovering, as a bag candidate.
+snap::Item hovered(const snap::Snapshot& s, std::string_view record) {
+  for (const auto& t : s.tooltip_items)
+    if (t.record.find(record) != std::string::npos) {
+      snap::Item it = t;
+      it.location = -1;
+      it.id += 1000000;
+      return it;
+    }
+  FAIL("not hovered");
+  return {};
+}
+
+const tooltip::Line* line(const Shown& s, std::string_view start) {
+  for (const auto& l : s.lines)
+    if (l.text.starts_with(start)) return &l;
+  return nullptr;
+}
+
+double part(const std::string& log, std::string_view name) {
+  const auto at = log.find(name);
+  return at == std::string::npos ? 1e9 : std::stod(log.substr(at + name.size()));
+}
+
+}  // namespace
+
+// winterpoison level 39, plague-garden 35-93, F9 snapshots 2026-11-18. Issue: Galeslice for Bloodfeast scored
+// Damage +0.1% and "procs and pets +5.7" while losing the Bloody Pox modifier (Vitality and Bleeding, which
+// nothing converts; the Pox damage that matters is Black Death's Poison).
+TEST_CASE("regress: losing an item skill modifier costs that modifier's share of the skill") {
+  if (!game_db()) {
+    MESSAGE("game not found; skipped");
+    return;
+  }
+  const auto s = fixture("lvl39-wp-medal-hover.json");
+  const auto p = plague_garden();
+  REQUIRE(score::stage(p, s)->name == "35-93");
+  const Shown shown = hover(s, hovered(s, "b203b_medal"), 15, "vs Medal", p);
+  std::string base, before, after;
+  for (const auto& l : shown.log) {
+    if (l.starts_with("vs Medal base: ")) base = l;
+    if (before.empty() && l.starts_with("  before: ")) before = l;
+    if (after.empty() && l.starts_with("  after:  ")) after = l;
+  }
+  // Bloody Pox by source: the modifier's flat damage is in the skill's pool and leaves with the medal.
+  const double pox_before = part(before, "pox1 L1 dmg "), pox_after = part(after, "pox1 L1 dmg ");
+  const double vit = part(before, "medal_b013_bloodypox (item) Vitality "), bleed = part(before, "(item) Vitality " + std::to_string(static_cast<int>(vit)) + " Bleeding ");
+  CHECK(after.find("medal_b013_bloodypox") == std::string::npos);
+  CHECK(pox_after / pox_before == doctest::Approx(1 - (vit + bleed) / pox_before).epsilon(0.02));
+  // Damage: Bloody Pox's weight (1 + Black Death 12 of 29 points: 0.45) x that loss (~37%), not ~0.
+  CHECK(before.find(" w 0.45;") != std::string::npos);
+  const double damage = part(base, "(Damage ");
+  CHECK(damage < -12);
+  CHECK(damage > -22);
+  CHECK(line(shown, "  top:")->text.find("procs and pets") == std::string::npos);
+  // Shift: the modifiers per skill, the item tooltip's numbers, lost in red (no game text here: record names).
+  const auto* pox = line(shown, "    pox1 (item): -443 Vitality,");
+  REQUIRE(pox);
+  CHECK(pox->tone == tooltip::Tone::Worse);
+  std::string all;
+  for (const auto& l : shown.lines) all += l.text + "\n";
+  CHECK(all.find("-391 Bleeding/s") != std::string::npos);
+  CHECK(all.find("    bladetrap1 (item, not learned): -344 Vitality (not scored),\n      -2s duration (not scored)") != std::string::npos);
+  // Bloody Pox learned but not a main skill: nothing reads its modifier's damage.
+  auto eye = p;
+  eye.skills = {"records/skills/playerclass03/evileye1.dbr"};
+  for (auto& st : eye.stages) st.settings.skills = eye.skills;
+  const Shown other = hover(s, hovered(s, "b203b_medal"), 15, "vs Medal", eye);
+  REQUIRE(line(other, "    pox1 (item): -443 Vitality (not scored),"));
+  all.clear();
+  for (const auto& l : other.lines) all += l.text + "\n";
+  CHECK(all.find("-391 Bleeding/s (not scored)") != std::string::npos);
+}
+
+// Same character: Bloody Pox 1 / Wasting 0 / Black Death 12, Evil Eye 12 + 3 modifiers, Grasping Vines 1.
+TEST_CASE("regress: a skill's modifiers and transmuter count toward its weight and its damage") {
+  const arz::Database* db = game_db();
+  if (!db) {
+    MESSAGE("game not found; skipped");
+    return;
+  }
+  const auto s = fixture("lvl39-wp-medal-hover.json");
+  const auto preset = plague_garden();
+  const score::Settings& p = score::settings(preset, s);
+  auto with = [&](const char* stem, std::uint32_t points, std::uint32_t current) {
+    auto out = s;
+    for (auto& k : out.skills)
+      if (k.record.ends_with(stem)) k.level = points, k.current_level = current;
+    return out;
+  };
+  auto pox = [](const std::string& log) { return part(log, "pox1 L1 dmg "); };
+  // Weight: points in the skill and its modifiers, 1 + 12 of 29.
+  const auto skills = score::main_skills(s, p, db);
+  const auto it = std::find_if(skills.begin(), skills.end(), [](const auto& k) { return k.record.ends_with("/pox1.dbr"); });
+  REQUIRE(it != skills.end());
+  CHECK(it->weight == doctest::Approx(13.0 / 29));
+  // Wasting: 1 point, then +3 levels from gear, scores through Bloody Pox.
+  const auto one = with("/pox2.dbr", 1, 1);
+  const auto wasting = score::compare(one, with("/pox2.dbr", 1, 4), score::main_skills(one, p, db), p, db);
+  CHECK(pox(wasting.after) > pox(wasting.before));
+  CHECK(wasting.ratio.damage > 1);
+  // The transmuter: "Total Damage Modified by 60%" on all of Bloody Pox's damage, after the % sum.
+  const auto transmuted = score::compare(s, with("/pox1b.dbr", 1, 1), skills, p, db);
+  CHECK(pox(transmuted.after) / pox(transmuted.before) == doctest::Approx(1.6).epsilon(0.002));
+}
+
+// Same character. Issue: the belt scored +7.7%: "top: Target stun resist +24.0, Lightning Resist -12.3, Life -6.1"
+// for 12% stun resist toward an endgame 80% target against Lightning 79 -> 63, under the cap.
+TEST_CASE("regress: a base resist dropping under the cap outweighs crowd-control resist") {
+  if (!game_db()) {
+    MESSAGE("game not found; skipped");
+    return;
+  }
+  const auto s = fixture("lvl39-wp-belt-hover.json");
+  const Shown shown = hover(s, hovered(s, "a07_waist001"), 13, "vs Waist", plague_garden());
+  CHECK(shown.percent < 0);
+  const auto* top = line(shown, "  top: ");
+  REQUIRE(top);
+  CHECK(top->text.starts_with("  top: Lightning Resist -"));
+  const auto* lightning = line(shown, "    Lightning 79->63%");
+  const auto* stun = line(shown, "    Stun 26->38%");  // "Reduced Stun Duration" with game text
+  REQUIRE(lightning);
+  REQUIRE(stun);
+  CHECK(points(stun->text) > 0);
+  CHECK(points(stun->text) < -points(lightning->text) / 4);
+  CHECK(stun->text.find(" target 31]") != std::string::npos);  // 75 x 39 / 94
+  for (const auto& l : shown.lines) {
+    CAPTURE(l.text);
+    CHECK_FALSE(l.text.find("Target ") != std::string::npos);
+    CHECK_FALSE(l.text == "    Physical 14%");  // unchanged and no points: not shown
+  }
 }

@@ -25,14 +25,18 @@ Conversions global_pairs(const std::vector<snap::Conversion>& global) {
 }
 
 // convert() with gear and buff pairs prepared once.
+// `bonus` (damage × skill %, per type) follows its damage: CombatAttributeAccumulator::ConvertDamage 0x119C90 copies
+// the attribute with its % (ConvertCombatAttributes 0x1197B0, vt+0x108) and scales both damage and % by each part's
+// share (ScaleDamage 0x113930, ScaleModifiers 0x113970), so a part f of it keeps f² of the bonus.
 Amounts convert_pairs(const Amounts& input, const Conversions& skill_pct, const Conversions& g,
-                      std::vector<std::string>& notes) {
+                      std::vector<std::string>& notes, const Amounts* bonus, Amounts* bonus_out) {
   auto no_dot = [](int t) { return t == 4 || t == 10 || t == 11; };
-  Amounts in = input;
+  Amounts in = input, in_bonus = bonus ? *bonus : Amounts{};
   split_elemental(in);
-  Amounts out;
+  split_elemental(in_bonus);
+  Amounts out, out_bonus;
   for (const auto& [key, amount] : in) {
-    double left = amount;
+    double left = amount, left_bonus = in_bonus.contains(key) ? in_bonus.at(key) : 0;
     const bool element = key.first == 5 || key.first == 6 || key.first == 8;
     for (const Conversions* level : {&skill_pct, static_cast<const Conversions*>(&g)})
       for (const auto& [from, tos] : *level) {
@@ -42,18 +46,26 @@ Amounts convert_pairs(const Amounts& input, const Conversions& skill_pct, const 
         if (total <= 0) continue;
         const double scale = total > 100 ? 100 / total : 1;
         if (total > 100.01) notes.push_back("conversion > 100% from " + std::string(names::combat_attribute(from)) + " (weighed)");
-        double moved = 0;
+        double moved = 0, share = 0;
         for (const auto& [to, pct] : tos) {
           if (pct <= 0 || (key.second && no_dot(to))) continue;
-          const double part = left * pct * scale / 100;
+          const double part = left * pct * scale / 100, f = pct * scale / 100;
           out[{to, key.second}] += part;
           moved += part;
+          share += f;
+          if (left_bonus == 0) continue;
+          if (to == kElemental)  // a third each, each scaled by its own share (0x1199F0)
+            for (int t : fields::spread(kElemental, false)) out_bonus[{t, key.second}] += left_bonus * (f / 3) * (f / 3);
+          else out_bonus[{to, key.second}] += left_bonus * f * f;
         }
         left -= moved;
+        left_bonus *= (1 - share) * (1 - share);
       }
     out[key] += left;
+    if (left_bonus != 0) out_bonus[key] += left_bonus;
   }
   split_elemental(out);
+  if (bonus_out) *bonus_out = std::move(out_bonus);
   return out;
 }
 
@@ -75,20 +87,16 @@ std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const 
   if (p.conversion_warn.empty()) return out;
   // Build types: >= 10% of main damage, design choice.
   // shortcut: skill conversion output counts as source — revisit if it over-warns.
-  auto types = [&](const snap::Snapshot& s) {
+  auto types = [&](bool global_conversions) {
     std::set<int> t;
     if (db)
-      for (const auto& [k, share] : damage_profile(s, *db))
+      for (const auto& [k, share] : damage_profile(before, *db, global_conversions))
         if (share >= 0.1) t.insert(k.first);
     return t;
   };
   std::optional<std::set<int>> source, dealt;
   auto deals = [&](int type) {
-    if (!source) {
-      snap::Snapshot native = before;
-      native.conversions.clear();
-      source = types(native);
-    }
+    if (!source) source = types(false);
     if (source->empty()) return true;
     if (type == kElemental) return source->contains(5) || source->contains(6) || source->contains(8);
     if (type == kPhysical) return source->contains(kPhysical) || source->contains(kBasePhysical);
@@ -102,7 +110,7 @@ std::vector<Conversion> conversion_warnings(const snap::Snapshot& before, const 
     });
     if (!listed || !deals(from)) return false;
     if (!targets.empty()) return true;  // a preset's [match] types are the build's
-    if (!dealt) dealt = types(before);
+    if (!dealt) dealt = types(true);
     return to == kElemental || dealt->empty() || !dealt->contains(to);
   };
   std::map<std::pair<int, int>, double> was, now;

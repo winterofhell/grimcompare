@@ -112,6 +112,8 @@ void write_score(std::string& o, const Settings& from) {
   line(o, "threshold_above", number(from.threshold_above));
   line(o, "threshold_width", number(from.threshold_width));
   line(o, "threshold_resist_weight", number(from.threshold_resist_weight));
+  line(o, "threshold_secondary_weight", number(from.threshold_secondary_weight));
+  line(o, "threshold_level", number(from.threshold_level));
   line(o, "recast_buffs", from.recast_buffs ? "true" : "false");
   line(o, "buff_mode", from.live_buffs ? "\"live\"" : "\"average\"");
 }
@@ -129,6 +131,7 @@ void write_damage(std::string& o, const Settings& from, const std::vector<Skill>
   line(o, "enemy_da_per_level", number(from.enemy_da_per_level));
   line(o, "pet_attack_rate", number(from.pet_attack_rate));
   line(o, "kills_per_sec", number(from.kills_per_sec));
+  line(o, "offtarget_weight", number(from.offtarget_weight));
   std::string cw;
   for (const auto& [a, b] : from.conversion_warn) cw += (cw.empty() ? "" : ", ") + toml_string(conversion_name(a) + "->" + conversion_name(b));
   line(o, "conversion_warn", "[" + cw + "]");

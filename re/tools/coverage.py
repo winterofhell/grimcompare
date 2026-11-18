@@ -173,3 +173,107 @@ print('| Field | Records | Scored how |\n|---|---|---|')
 for f, status, text in rows:
     recs = ' '.join('%s%d' % ('ICARXS'[g], n) for g, n in sorted(use[f].items()))
     print('| `%s` | %s | %s |' % (f, recs, ('**%s**' % text) if status == 'no' else text))
+
+# Item skill modifiers: the records items and sets name in modifierSkillName<N>. Field lists come from the core
+# tables they mirror (db_fields.cpp, score_internal.h, effects.cpp); the rules mirror score_skills.cpp add_record,
+# stat_model_effects.cpp modifier_effect, effects.cpp / effects_pets.cpp.
+src = os.path.join(here, '..', '..', 'core', 'src')
+def cpp_names(path, array):
+    text = open(os.path.join(src, path)).read()
+    body = text[text.index(array + '[] = {'):]
+    return set(re.findall(r'"(\w+)"', body[:body.index('};')]))
+SHEET = cpp_names('db_fields.cpp', 'kTable')
+PCT = cpp_names('db_fields.cpp', 'kDamageMods')
+FLAT = cpp_names('db_fields.cpp', 'kFlat')
+DOT_DURATION = cpp_names('score_internal.h', 'kDotDuration')
+RR = cpp_names('effects.cpp', 'kOffensiveFields')
+DEBUFF = cpp_names('effects.cpp', 'kDebuffFields')
+VISUAL = re.compile(r'^(templateName|Class|skillMaxLevel|characterBaseAttackSpeedTag|charFxPakOtherNames|fxChanges|'
+                    r'\w*(FX|Fx|FxPak|Effect\d?)Override|lightningOverride|particleEffect\d+Override|shapeshiftMesh\w+|'
+                    r'warmUpEffectName|skillSpecialAnimationName|skillTier|skillUltimateLevel)$')
+WEAPON_FLAGS = {'Axe', 'Axe2h', 'Dagger', 'Mace', 'Mace2h', 'Offhand', 'Ranged1h', 'Ranged2h', 'Scepter', 'Shield',
+                'Spear', 'Spear2h', 'Staff', 'Sword', 'Sword2h', 'dualRangedOrAllRangedOnly'}
+MAIN = 'Damage, main skills only: '
+def mod_how(f):
+    if f in FLAT and f.endswith('Chance'):
+        return 'scored', MAIN + 'chance of the flat damage it belongs to (expected value)'
+    if f in FLAT and f.endswith('DurationMin'):
+        return 'scored', MAIN + 'DoT duration of the flat damage it belongs to (damage per second x seconds)'
+    if f in FLAT:
+        return 'scored', MAIN + 'flat damage in the skill\'s own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480)'
+    if f in PCT:
+        return 'scored', MAIN + 'skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0)'
+    if f in DOT_DURATION:
+        return 'scored', MAIN + '+% DoT duration of that final type, added to the gear\'s'
+    if re.match(r'conversion(InType|OutType|Percentage)2?$', f):
+        return 'scored', MAIN + 'skill conversion, before the global one'
+    if f in ('weaponDamagePct', 'offensiveCritDamageModifier', 'skillCooldownTime'):
+        return 'scored', MAIN + {'weaponDamagePct': '% weapon damage', 'offensiveCritDamageModifier': 'crit damage',
+                                 'skillCooldownTime': 'cooldown (uses per second); procs\' recharge too'}[f]
+    if f == 'offensiveLifeLeechMin':
+        return 'scored', 'Other `life_leech`, main skills only'
+    if f in RR:
+        return 'scored', 'Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only)'
+    if f in DEBUFF:
+        return 'scored', 'Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active'
+    if f in SHEET:
+        return 'scored', 'sheet stat while the modified skill is active (passive, toggle, running buff); stat model'
+    if f in ('petLimit', 'spawnObjectsTimeToLive'):
+        return 'scored', 'Damage: pets alive (GetSpawnObjectTimeToLive 0x493660)'
+    if re.match(r'modSpawnObjects\d*$|modSpawnObjectsTimeToLive$', f):
+        return 'scored', 'Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0)'
+    if f == 'petSkillName':
+        return 'scored', 'Damage: pet skill added to the pet (SkillSecondary_PetModifier)'
+    if f in WEAPON_FLAGS:
+        return 'zero', '0 by design: weapon requirement of the modified skill (the character already uses it)'
+    if f == 'skillActiveDuration':
+        return 'no', 'not scored: buff / debuff duration of a modifier is not read (uptimes use the skill record)'
+    if re.match(r'(refreshCooldown|refreshDuration)\w+$', f):
+        return 'no', 'not scored: triggered cooldown / duration refresh is not modeled'
+    if re.match(r'(projectile\w+|skillTarget\w+|beam\w+|wave\w+|explosionRadius|spark\w+|targetingMode|'
+                r'overwriteBaseSkill|petBurstSpawn|petChanges|skillChanceWeight|skillComboCharge\w+)$', f):
+        return 'no', 'not scored: area, targets, projectiles or behaviour; the model is one target, one use'
+    if f == 'offensiveDamageMultModifier':
+        return 'scored', MAIN + '"Total Damage Modified by": multiplies the skill\'s damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50)'
+    if f in ('skillLifePercent', 'skillLifeBonusBuffDuration', 'skillLifePercentBuffDuration'):
+        return 'no', 'not scored: heals are read from the skill record only'
+    if f in ('skillCooldownReduction', 'skillCooldownReductionChance', 'skillManaCostReduction') or f.startswith('racialBonus'):
+        return 'no', 'not scored: read from items only'
+    if f in ('cooldownCharges', 'cooldownTime'):
+        return 'no', 'not scored: skill charges are not modeled'
+    if f.startswith(('defensive', 'character')) or f == 'damageAbsorptionPercent':
+        return 'no', 'not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled")'
+    if f.startswith('retaliation'):
+        return 'no', 'not scored: retaliation from a skill modifier is not read'
+    if re.match(r'offensive\w+', f):
+        return 'no', 'not scored: crowd control / debuff of the skill without a damage or RR model'
+    return 'no', 'not scored: not read for skill modifiers'
+
+owners = collections.Counter()
+for name in index:
+    if not name.startswith(('records/items', 'records/sets')): continue
+    for k, v in arz.fields(dbs[index[name]], name)[1].items():
+        if k.startswith('modifierSkillName'):
+            for x in (v if isinstance(v, list) else [v]):
+                if isinstance(x, str) and x: owners[x.lower()] += 1
+mod_use = collections.Counter()
+classes = collections.Counter()
+for m in owners:
+    if m not in index: continue
+    r = arz.fields(dbs[index[m]], m)
+    classes[r[0]] += 1
+    for k, v in r[1].items():
+        vals = v if isinstance(v, list) else [v]
+        if any(x not in (0, 0.0, '', '0', '0.0') for x in vals) and not VISUAL.match(k): mod_use[k] += 1
+mrows = sorted(((f,) + mod_how(f) for f in mod_use), key=lambda r: ({'no': 0, 'zero': 1, 'scored': 2}[r[1]], r[0]))
+mcount = collections.Counter(r[1] for r in mrows)
+print('\n## Item skill modifier fields\n')
+print('Every field set on at least one record that an item or set names in `modifierSkillName<N>` (%s). Visual and' %
+      ', '.join('%d %s' % (n, c) for c, n in sorted(classes.items())))
+print('identity fields are left out. "Main skills only": a learned skill that is not a main skill adds no damage of its')
+print('own, so its modifier\'s damage is not scored. The Shift view lists each changed modifier per skill and marks')
+print('parts not scored.\n')
+print('%d fields: %d scored, %d zero by design, %d not scored.\n' % (len(mrows), mcount['scored'], mcount['zero'], mcount['no']))
+print('| Field | Records | Scored how |\n|---|---|---|')
+for f, status, text in mrows:
+    print('| `%s` | %d | %s |' % (f, mod_use[f], text))

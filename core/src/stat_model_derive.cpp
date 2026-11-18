@@ -68,10 +68,28 @@ void derive_defense(const snap::Snapshot& s, const arz::Database* db, const Delt
   }
 }
 
+// The captured speeds (uses per second for procs on attack and the speed cap, docs/MECHANICS.md §5) move by the
+// same factor as the score's speed term: 1 + (AttackSpeed 15 or SpellCastSpeed 16 % + TotalSpeed 13 %) / 100.
+// The weapon's base speed stays the before side's.
+void derive_speeds(const snap::Snapshot& s, Prediction& p) {
+  auto factor = [](const snap::Snapshot& x, int type) {
+    double pct = 0;
+    for (const auto& a : x.char_attributes)
+      if (a.type == type || a.type == char_attr::kTotalSpeed) pct += a.modifier;
+    return 1 + pct / 100;
+  };
+  for (const auto& [speed, type] : {std::pair{&snap::Snapshot::attack_speed, char_attr::kAttackSpeed},
+                                    std::pair{&snap::Snapshot::cast_speed, char_attr::kCastSpeed}}) {
+    const double b = factor(s, type), a = factor(p.after, type);
+    if (b > 0 && a > 0) p.after.*speed = static_cast<float>(s.*speed * a / b);
+  }
+}
+
 }  // namespace
 
 void derive(const snap::Snapshot& s, const arz::Database* db, AllDeltas& all, Prediction& p) {
   derive_attributes(all.chr, p);
+  derive_speeds(s, p);
   derive_defense(s, db, all.def, p);
   for (const auto& [t, v] : all.dmg) {
     if (v.first == 0 && v.second == 0) continue;

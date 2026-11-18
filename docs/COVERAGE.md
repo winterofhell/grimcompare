@@ -396,3 +396,238 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `sword` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `sword2h` | C35 A83 | component / augment slot fit ("your <component> moved" / "does not fit") |
 | `waist` | C11 A39 | component / augment slot fit ("your <component> moved" / "does not fit") |
+
+## Item skill modifier fields
+
+Every field set on at least one record that an item or set names in `modifierSkillName<N>` (287 SkillSecondary_PetModifier, 3136 Skill_Modifier). Visual and
+identity fields are left out. "Main skills only": a learned skill that is not a main skill adds no damage of its
+own, so its modifier's damage is not scored. The Shift view lists each changed modifier per skill and marks
+parts not scored.
+
+223 fields: 122 scored, 14 zero by design, 87 not scored.
+
+| Field | Records | Scored how |
+|---|---|---|
+| `beamAngle` | 6 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `beamNumber` | 6 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `cooldownCharges` | 74 | not scored: skill charges are not modeled |
+| `cooldownTime` | 10 | not scored: skill charges are not modeled |
+| `damageAbsorptionPercent` | 13 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensiveAllResistance` | 51 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensiveBleedingDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensiveBlockAmountModifier` | 7 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensiveBlockModifier` | 12 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensivePoisonDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `defensiveProtection` | 2 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
+| `explosionRadius` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `offensiveFreezeChance` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveFreezeMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveFumbleDurationMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveFumbleMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensivePetrifyChance` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensivePetrifyMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveProjectileFumbleDurationMin` | 6 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveProjectileFumbleMin` | 6 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowAttackSpeedDurationMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowAttackSpeedMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowDefensiveAbilityDurationMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowDefensiveAbilityMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowOffensiveAbilityDurationMin` | 2 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowOffensiveAbilityMin` | 2 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowRunSpeedDurationMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowRunSpeedMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowTotalSpeedDurationMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveSlowTotalSpeedMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveStunMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveTauntMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveTotalDamageReductionPercentDurationMin` | 18 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `offensiveTotalDamageReductionPercentMin` | 18 | not scored: crowd control / debuff of the skill without a damage or RR model |
+| `overwriteBaseSkill` | 28 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `petBurstSpawn` | 68 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `petChanges` | 46 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `projectileFragmentsOverride` | 18 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `projectileLaunchNumber` | 35 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `projectileLaunchRotation` | 20 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `projectileOverride` | 135 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `projectilePiercing` | 41 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `racialBonusPercentDamage` | 1 | not scored: read from items only |
+| `racialBonusRace` | 1 | not scored: read from items only |
+| `refreshCooldownAmount` | 146 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshCooldownChance` | 146 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshCooldownSkill` | 146 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshCooldownTrigger` | 927 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshDurationAmount` | 77 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshDurationChance` | 77 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshDurationMax` | 64 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshDurationSkill` | 77 | not scored: triggered cooldown / duration refresh is not modeled |
+| `refreshDurationTrigger` | 881 | not scored: triggered cooldown / duration refresh is not modeled |
+| `retaliationColdMin` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationDamageMultModifier` | 3 | not scored: retaliation from a skill modifier is not read |
+| `retaliationDamagePct` | 109 | not scored: retaliation from a skill modifier is not read |
+| `retaliationElementalMin` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationFearMin` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationFireMin` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationFireModifier` | 2 | not scored: retaliation from a skill modifier is not read |
+| `retaliationLightningMax` | 2 | not scored: retaliation from a skill modifier is not read |
+| `retaliationLightningMin` | 4 | not scored: retaliation from a skill modifier is not read |
+| `retaliationLightningModifier` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationPhysicalMin` | 3 | not scored: retaliation from a skill modifier is not read |
+| `retaliationPhysicalModifier` | 1 | not scored: retaliation from a skill modifier is not read |
+| `retaliationPoisonMin` | 2 | not scored: retaliation from a skill modifier is not read |
+| `retaliationPoisonModifier` | 2 | not scored: retaliation from a skill modifier is not read |
+| `retaliationTotalDamageModifier` | 17 | not scored: retaliation from a skill modifier is not read |
+| `skillActiveDuration` | 122 | not scored: buff / debuff duration of a modifier is not read (uptimes use the skill record) |
+| `skillChanceWeight` | 279 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `skillComboChargeDuration` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `skillComboChargeLevel` | 31 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `skillCooldownReduction` | 21 | not scored: read from items only |
+| `skillCooldownReductionChance` | 16 | not scored: read from items only |
+| `skillLifeBonusBuffDuration` | 17 | not scored: heals are read from the skill record only |
+| `skillLifePercent` | 20 | not scored: heals are read from the skill record only |
+| `skillLifePercentBuffDuration` | 28 | not scored: heals are read from the skill record only |
+| `skillManaCostReduction` | 78 | not scored: read from items only |
+| `skillTargetAngle` | 60 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `skillTargetNumber` | 62 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `skillTargetRadius` | 58 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `sparkChance` | 9 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `sparkMaxNumber` | 9 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `targetingMode` | 844 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `waveDistance` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `waveEndWidth` | 7 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `waveStartWidth` | 5 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `Axe` | 2 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Axe2h` | 3 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Dagger` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Mace` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Mace2h` | 3 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Offhand` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Ranged1h` | 2 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Ranged2h` | 4 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Scepter` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Shield` | 7 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Spear2h` | 6 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Sword` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `Sword2h` | 7 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `dualRangedOrAllRangedOnly` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `characterAttackSpeedMaxModifier` | 62 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterAttackSpeedModifier` | 101 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterDefensiveAbility` | 65 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterDefensiveAbilityModifier` | 32 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterDefensiveBlockRecoveryReduction` | 14 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterEnergyAbsorptionPercent` | 1 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterHealIncreasePercent` | 4 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterLife` | 15 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterLifeModifier` | 32 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterLifeRegen` | 5 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterLifeRegenModifier` | 13 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterManaRegen` | 3 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterOffensiveAbility` | 30 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterOffensiveAbilityModifier` | 44 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterRunSpeedMaxModifier` | 6 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterRunSpeedModifier` | 1 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterSpellCastSpeedMaxModifier` | 29 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterSpellCastSpeedModifier` | 39 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `characterTotalSpeedModifier` | 13 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `conversionInType` | 798 | Damage, main skills only: skill conversion, before the global one |
+| `conversionInType2` | 208 | Damage, main skills only: skill conversion, before the global one |
+| `conversionOutType` | 797 | Damage, main skills only: skill conversion, before the global one |
+| `conversionOutType2` | 209 | Damage, main skills only: skill conversion, before the global one |
+| `conversionPercentage` | 794 | Damage, main skills only: skill conversion, before the global one |
+| `conversionPercentage2` | 208 | Damage, main skills only: skill conversion, before the global one |
+| `defensiveAether` | 27 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveBleeding` | 37 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveChaos` | 25 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveCold` | 24 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveCrowdControl` | 12 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveElementalResistance` | 13 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveFire` | 18 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveFreeze` | 5 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveLife` | 41 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveLightning` | 11 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensivePetrify` | 2 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensivePhysical` | 38 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensivePierce` | 21 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensivePoison` | 27 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveProtectionModifier` | 7 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveSlowLifeLeach` | 3 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveStun` | 4 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveTotalSpeedResistance` | 2 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveTrap` | 1 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `modSpawnObjects` | 6 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
+| `modSpawnObjects2` | 4 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
+| `modSpawnObjects3` | 4 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
+| `modSpawnObjects4` | 4 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
+| `offensiveAetherMax` | 1 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveAetherMin` | 121 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveAetherModifier` | 19 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveChaosMax` | 46 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveChaosMin` | 131 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveChaosModifier` | 21 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveColdMax` | 2 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveColdMin` | 176 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveColdModifier` | 24 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveCritDamageModifier` | 159 | Damage, main skills only: crit damage |
+| `offensiveDamageMultModifier` | 88 | Damage, main skills only: "Total Damage Modified by": multiplies the skill's damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50) |
+| `offensiveElementalChance` | 1 | Damage, main skills only: chance of the flat damage it belongs to (expected value) |
+| `offensiveElementalMin` | 57 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveElementalModifier` | 12 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveElementalResistanceReductionAbsoluteDurationMin` | 1 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveElementalResistanceReductionAbsoluteMin` | 1 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveElementalResistanceReductionPercentDurationMin` | 2 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveElementalResistanceReductionPercentMin` | 2 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveFireMax` | 2 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveFireMin` | 158 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveFireModifier` | 15 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveLifeLeechMin` | 131 | Other `life_leech`, main skills only |
+| `offensiveLifeMax` | 1 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveLifeMin` | 142 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveLifeModifier` | 19 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveLightningMax` | 44 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveLightningMin` | 107 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveLightningModifier` | 12 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensivePhysicalMax` | 1 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensivePhysicalMin` | 100 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensivePhysicalModifier` | 15 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensivePierceMin` | 70 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensivePierceModifier` | 10 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensivePoisonMin` | 93 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensivePoisonModifier` | 15 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowBleedingDurationMin` | 180 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowBleedingDurationModifier` | 8 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowBleedingMin` | 180 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowBleedingModifier` | 18 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowColdDurationMin` | 56 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowColdDurationModifier` | 6 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowColdMin` | 56 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowColdModifier` | 17 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowFireDurationMin` | 75 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowFireDurationModifier` | 8 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowFireMin` | 75 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowFireModifier` | 17 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowLifeDurationMin` | 42 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowLifeDurationModifier` | 2 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowLifeMin` | 42 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowLifeModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowLightningDurationMin` | 54 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowLightningDurationModifier` | 3 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowLightningMin` | 54 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowLightningModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowPhysicalDurationMin` | 51 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowPhysicalDurationModifier` | 3 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowPhysicalMin` | 51 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowPhysicalModifier` | 17 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowPoisonChance` | 1 | Damage, main skills only: chance of the flat damage it belongs to (expected value) |
+| `offensiveSlowPoisonDurationMin` | 58 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
+| `offensiveSlowPoisonDurationModifier` | 4 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
+| `offensiveSlowPoisonMin` | 56 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
+| `offensiveSlowPoisonModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveTotalDamageModifier` | 27 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveTotalResistanceReductionAbsoluteDurationMin` | 31 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveTotalResistanceReductionAbsoluteMin` | 31 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveTotalResistanceReductionPercentDurationMin` | 3 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `offensiveTotalResistanceReductionPercentMin` | 3 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
+| `petLimit` | 83 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
+| `petSkillName` | 287 | Damage: pet skill added to the pet (SkillSecondary_PetModifier) |
+| `skillCooldownTime` | 294 | Damage, main skills only: cooldown (uses per second); procs' recharge too |
+| `spawnObjectsTimeToLive` | 16 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
+| `weaponDamagePct` | 540 | Damage, main skills only: % weapon damage |

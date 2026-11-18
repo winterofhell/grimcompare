@@ -14,6 +14,7 @@
 #include "gdc/components.h"
 #include "gdc/enemy.h"
 #include "gdc/score.h"
+#include "score_internal.h"
 
 using namespace gdc;
 namespace fs = std::filesystem;
@@ -396,14 +397,14 @@ TEST_CASE("components and score on the installed game (skips if absent)") {
   CHECK_FALSE(components::fits(ichor, "", 8, *db));
   CHECK_FALSE(components::fits(ichor, "", 1, *db));
 
-  // lvl96 Witch Hunter: Shadow Strike (16 points), Doom Bolt (12). Not counted: Curse of Frailty (its buff record
+  // lvl96 Witch Hunter: Shadow Strike (16 points + 12 in its modifier shadowstrike_mod1 = 28), Doom Bolt (12). Not counted: Curse of Frailty (its buff record
   // has no damage), weapon pool attacks (Skill_WPAttack_BasicAttack, not an attack skill class).
   const auto s = snap::from_json(read(fs::path(GDC_SOURCE_DIR) / "tests/fixtures/snapshots/lvl96-s5-before-ring-c031.json"));
   const auto skills = score::main_skills(s, score::Preset{}, db);
   // Both have cooldowns: the default weapon attack fills in with half the weight.
   REQUIRE(skills.size() == 3);
   CHECK(skills[0].record == "records/skills/playerclass04/shadowstrike.dbr");
-  CHECK(skills[0].weight == doctest::Approx(0.5 * 16 / 28));
+  CHECK(skills[0].weight == doctest::Approx(0.5 * 28 / 40));
   CHECK(skills[1].record == "records/skills/playerclass03/doombolt1.dbr");
   CHECK(skills[2].record == "records/skills/default/defaultweaponattack.dbr");
   CHECK(skills[2].weight == doctest::Approx(0.5));
@@ -501,6 +502,98 @@ TEST_CASE("score: thresholds weigh a resist gain below the target more than abov
   const double with = score::compare(before, plus(before, 9, 10), {}, p, nullptr).ratio.survival;
   const double without = score::compare(before, plus(before, 9, 10), {}, none, nullptr).ratio.survival;
   CHECK(with > without);  // 60 -> 70 Vitality is below the 80 target: extra weight
+}
+
+// Two tiers: a base resist under the cap outweighs any crowd-control resist; the second tier is bounded.
+TEST_CASE("score: second-tier thresholds are bounded and their targets scale with level") {
+  auto p = threat({{8, 1}});
+  p.thresholds = {{"resist", 80}, {"stun_resist", 75}};
+  snap::Snapshot b = base(39), a = base(39);
+  defense(b, 8, 80);
+  defense(a, 8, 64);  // Lightning 16 under the cap
+  defense(b, 42, 26);
+  defense(a, 42, 38);  // stun resist +12, far under 75
+  const auto r = score::compare(b, a, {}, p, nullptr);
+  CHECK(r.ratio.survival < 1);
+  auto steep = p;
+  steep.threshold_secondary_weight = 1;  // the old full-weight term
+  CHECK(score::compare(b, a, {}, steep, nullptr).ratio.survival > r.ratio.survival);
+  // 0 -> 75 alone: at most about 10%.
+  snap::Snapshot none = base(39), full = base(39);
+  defense(none, 8, 80);
+  defense(full, 8, 80);
+  defense(full, 42, 75);
+  const double gain = score::compare(none, full, {}, p, nullptr).ratio.survival;
+  CHECK(gain > 1);
+  CHECK(gain < 1.12);
+  // threshold_level: target x level / threshold_level below it; absorption keeps its value.
+  auto lv = p;
+  lv.threshold_level = 94;
+  lv.thresholds["absorption"] = 90;
+  const auto scaled = score::compare(b, a, {}, lv, nullptr);
+  CHECK(scaled.targets.at("stun_resist") == doctest::Approx(75.0 * 39 / 94));
+  CHECK(scaled.targets.at("absorption") == 90);
+  CHECK_FALSE(scaled.targets.contains(""));
+  snap::Snapshot b94 = b, a94 = a;
+  b94.level = a94.level = 94;
+  CHECK(score::compare(b94, a94, {}, lv, nullptr).targets.at("stun_resist") == 75);
+  std::string error;
+  const auto parsed = score::parse("[score]\nthreshold_secondary_weight = 0.3\nthreshold_level = 94\n", error);
+  REQUIRE_MESSAGE(parsed, error);
+  CHECK(parsed->threshold_secondary_weight == 0.3);
+  CHECK(parsed->threshold_level == 94);
+  CHECK_FALSE(score::parse("[score]\nthreshold_level = 101\n", error));
+  CHECK_FALSE(score::parse("[score]\nthreshold_secondary_weight = -1\n", error));
+}
+
+// ConvertCombatAttributes 0x1197B0: the copy's damage and its % are both scaled by the share.
+TEST_CASE("score: conversion carries a part's skill % scaled by its share squared") {
+  std::vector<std::string> notes;
+  using A = score::Amounts;
+  const A bonus{{{6, false}, 40}};  // 100 Fire with +40% skill %: +40
+  A out_bonus;
+  const A out = score::convert_pairs({{{6, false}, 100}}, {}, {{6, {{5, 50.0}}}}, notes, &bonus, &out_bonus);
+  CHECK(out.at({5, false}) == doctest::Approx(50));
+  CHECK(out.at({6, false}) == doctest::Approx(50));
+  CHECK(out_bonus.at({5, false}) == doctest::Approx(10));  // 40 x 0.5^2
+  CHECK(out_bonus.at({6, false}) == doctest::Approx(10));
+  A elemental;
+  score::convert_pairs({{{2, false}, 90}}, {}, {{2, {{58, 30.0}}}}, notes, &bonus, &elemental);
+  CHECK(elemental.empty());  // the bonus is Fire's; Physical had none
+  const A phys{{{2, false}, 90}};
+  score::convert_pairs({{{2, false}, 90}}, {}, {{2, {{58, 30.0}}}}, notes, &phys, &elemental);
+  CHECK(elemental.at({5, false}) == doctest::Approx(90 * 0.1 * 0.1));  // a third of 30%: (0.1)^2 each
+  CHECK(elemental.at({2, false}) == doctest::Approx(90 * 0.7 * 0.7));
+}
+
+TEST_CASE("score: offtarget_weight scales the types that are not and cannot become [match] damage") {
+  using namespace combat_attr;
+  score::Settings p;
+  p.offtarget_weight = 0.2;
+  CHECK(score::type_weight(p, {kBleeding, true}) == 1);  // no [match] damage: every type is the target
+  p.match_damage = {{kPoison, false}, {kPoison, true}};  // Acid, Poison
+  CHECK(score::type_weight(p, {kBleeding, true}) == 0.2);  // nothing converts into or out of Bleeding
+  CHECK(score::type_weight(p, {kBleeding, false}) == 0.2);
+  CHECK(score::type_weight(p, {kLife, true}) == 1);  // Vitality Decay -> Poison
+  CHECK(score::type_weight(p, {kFire, false}) == 1);
+  CHECK(score::type_weight(p, {kPoison, true}) == 1);
+  p.match_damage = {{kChaos, false}};
+  CHECK(score::type_weight(p, {kFire, true}) == 0.2);  // DoT stays DoT and never becomes Chaos
+  CHECK(score::type_weight(p, {kFire, false}) == 1);
+  p.offtarget_weight = 1;
+  CHECK(score::type_weight(p, {kFire, true}) == 1);
+
+  // plague-garden: 1.0 while levelling, 0.5 from 35, 0.2 from 94; every stage keeps [match] damage.
+  std::string error;
+  const auto pg = score::parse(read(fs::path(GDC_SOURCE_DIR) / "presets/plague-garden.toml"), error);
+  REQUIRE_MESSAGE(pg, error);
+  CHECK(pg->offtarget_weight == 1);
+  for (const auto& st : pg->stages) {
+    CAPTURE(st.name);
+    CHECK(st.settings.match_damage == pg->match_damage);
+    CHECK(st.settings.offtarget_weight == (st.name == "35-93" ? 0.5 : st.name == "94+" ? 0.2 : 1.0));
+  }
+  CHECK_FALSE(score::parse("[damage]\nofftarget_weight = 1.5\n", error));
 }
 
 TEST_CASE("score: a shield's base damage is not weapon damage (installed game; skips if absent)") {

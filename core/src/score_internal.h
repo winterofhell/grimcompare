@@ -44,6 +44,12 @@ inline constexpr DamageName kDamageNames[] = {
     {"vitality_decay", "Vitality Decay", 9, true}, {"chaos", "Chaos", 10, false},
     {"aether", "Aether", 11, false},      {"bleeding", "Bleeding", 15, true}};
 
+inline constexpr std::pair<int, std::string_view> kDotDuration[] = {
+    {2, "offensiveSlowPhysicalDurationModifier"},  {5, "offensiveSlowColdDurationModifier"},
+    {6, "offensiveSlowFireDurationModifier"},      {7, "offensiveSlowPoisonDurationModifier"},
+    {8, "offensiveSlowLightningDurationModifier"}, {9, "offensiveSlowLifeDurationModifier"},
+    {15, "offensiveSlowBleedingDurationModifier"}};
+
 constexpr const char* kDefaultAttack = "records/skills/default/defaultweaponattack.dbr";  // weaponDamagePct 100
 constexpr int kDamageTypes[] = {kPhysical, kPierce, kCold,  kFire,   kPoison,  kLightning,
                                  kLife,     kChaos,  kAether, kBleeding, kElemental};
@@ -124,6 +130,9 @@ using Amounts = std::map<Key, double>;
 struct Raw {
   Amounts flat;            // dot: per second x duration
   Amounts pct;             // 58 / 60 spread
+  std::map<int, double> duration;  // DoT duration %, by type
+  std::vector<std::pair<std::string, Amounts>> sources;  // flat per record: the skill, then its modifiers
+  double mult = 1;  // "Total Damage Modified by": Π (1 + offensiveDamageMultModifier / 100) of its records
   double weapon_pct = 0;
   classes::Speed speed = classes::Speed::kNone;  // of the skill's own record
   double crit = 0;
@@ -135,9 +144,10 @@ struct Raw {
 struct Gear {
   Amounts flat;
   std::map<int, double> dot;
-  double dot_scale(int type) const {
+  // DurDamage::Process 0x114206: duration × (1 + Σ duration % / 100), skill and gear % in one sum.
+  double dot_scale(int type, double skill_pct = 0) const {
     const auto it = dot.find(type);
-    return it != dot.end() ? 1 + it->second / 100 : 1.0;
+    return 1 + ((it != dot.end() ? it->second : 0) + skill_pct) / 100;
   }
 };
 
@@ -177,6 +187,7 @@ struct Survival {
   double procs = 0;
   std::map<int, double> taken;
   std::map<std::string, double> thresholds;
+  std::map<std::string, double> targets;  // second tier, as scaled
 };
 
 struct Other {
@@ -220,10 +231,16 @@ struct Extra {
   std::string inputs;
 };
 
+// A main skill's damage after conversion, per final type: `base` takes the sheet % and attribute bonus, `bonus` is
+// what the skill's own % adds (damage × skill % / 100, carried through conversion).
+struct Pool {
+  Amounts base, bonus;
+};
+
 // Converted once per conversion set; buff states mostly share one.
 struct Converted {
   std::vector<snap::Conversion> conversions;
-  std::vector<Amounts> mains;  // per Side::mains entry, empty for one not learned
+  std::vector<Pool> mains;     // per Side::mains entry, empty for one not learned
   std::vector<Amounts> hits;   // per Side::hits entry, empty for a pet's
 };
 
@@ -261,7 +278,8 @@ struct Scored {
 void add_flat(const arz::Database& db, const arz::Record& r, std::uint32_t level, double scale, Amounts& out);
 void add_pair(Conversions& c, int from, int to, double pct);
 bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t level);
-void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out);
+void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out,
+                std::string_view source = {});
 Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Database& db, std::vector<std::string>& notes);
 bool skill_on(const snap::Skill& sk, const arz::Record& r);
 bool attack_class(std::string_view cls);
@@ -270,17 +288,23 @@ bool attack_class(std::string_view cls);
 void split_elemental(Amounts& a);
 Conversions global_pairs(const std::vector<snap::Conversion>& global);
 Amounts convert_pairs(const Amounts& input, const Conversions& skill_pct, const Conversions& g,
-                      std::vector<std::string>& notes);
+                      std::vector<std::string>& notes, const Amounts* bonus = nullptr, Amounts* bonus_out = nullptr);
 
 // score_damage.cpp
 Amounts shared_base(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database& db);
 Gear gear(const snap::Snapshot& s, const arz::Database& db, const Amounts& base);
+// The skill's flat and weapon damage after its own and the global conversions.
+Pool main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes);
 double attribute_bonus(double cunning, double spirit, int type, bool dot);
 double use_rate(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw);
 SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const Raw& raw, const Gear& g, const Settings& p,
                          std::vector<std::string>& notes, Amounts* parts = nullptr,
                          const std::map<int, double>* resist = nullptr, bool explain = true,
-                         const Amounts* converted = nullptr);
+                         const Pool* converted = nullptr);
+std::string skill_parts(const snap::Snapshot& s, const Settings& p, const Raw& raw, const Gear& g,
+                        const std::map<int, double>* resist, std::vector<std::string>& notes);
+// Settings::offtarget_weight for a type no conversion can turn into one of the build's, else 1.
+double type_weight(const Settings& p, Key k);
 const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
                                std::optional<Converted>& own, std::vector<std::string>& notes);
 Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv);

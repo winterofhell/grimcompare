@@ -117,7 +117,9 @@ Contribution attached(const Pass& ps, const snap::Skill& sk, std::string& proble
       problem = "modifier skill " + std::to_string(id) + " not in the snapshot or the database";
       continue;
     }
-    const SkillEffect m = level_effect(*mrec, ms->current_level, ms->current_level);
+    const SkillEffect& m = ps.db.derived<SkillEffect>(*mrec, ms->current_level, [&] {
+      return level_effect(*mrec, ms->current_level, ms->current_level);
+    });
     if (!m.problem.empty()) problem = m.problem;
     // AddModifierDefenseAttributes 0x494970: Skill_Modifier only.
     const bool any = std::any_of(m.at_from.begin(), m.at_from.end(), [](const auto& kv) { return kv.second != 0; });

@@ -76,12 +76,15 @@ constexpr NumberKey kScoreNumbers[] = {
     {"threshold_above", 0, 100, &Settings::threshold_above},
     {"threshold_width", 0.001, 1, &Settings::threshold_width},
     {"threshold_resist_weight", 0, 9, &Settings::threshold_resist_weight},
+    {"threshold_secondary_weight", 0, 9, &Settings::threshold_secondary_weight},
+    {"threshold_level", 0, 100, &Settings::threshold_level},
 };
 constexpr NumberKey kDamageNumbers[] = {
     {"enemy_da_per_level", 0, 1000, &Settings::enemy_da_per_level},
     {"filler_weight", 0, 1, &Settings::filler_weight},
     {"pet_attack_rate", 0, 100, &Settings::pet_attack_rate},
     {"kills_per_sec", 0, 100, &Settings::kills_per_sec},
+    {"offtarget_weight", 0, 1, &Settings::offtarget_weight},
 };
 constexpr NumberKey kSurvivalNumbers[] = {
     {"enemy_oa_per_level", 0, 1000, &Settings::enemy_oa_per_level},

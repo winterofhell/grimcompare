@@ -28,6 +28,13 @@ threshold_width = 0.05
 # other threshold (a point under the target on one resist costs 1/9 of the slope above), 9 = each resist counts
 # like one.
 threshold_resist_weight = 1.0
+# Exponent of every other [thresholds] term (physical resist, absorption, armor, crowd-control resists, life, DA):
+# second tier. 0.1 = far under its target one costs at most ~10% Survivability, so it can tip a close call but
+# never outweighs a base resist dropping under its cap.
+threshold_secondary_weight = 0.1
+# > 0: below this character level, second-tier targets (but absorption) are scaled by level / threshold_level,
+# so a stage can state endgame targets. 0 = targets as written.
+threshold_level = 0
 # Timed buffs you cast (Blood of Dreeg): true = recast whenever the recharge allows, up
 # min(1, duration / (recharge x (1 - cooldown reduction))) of the time (rank values from the database, your
 # total cooldown reduction). false = the [uptime] entry of the skill's record where there is one.
@@ -38,12 +45,18 @@ buff_mode = "average"
 
 [damage]
 # Skill records to score; empty = auto: the 3 learned class attack skills with the most points spent,
-# weighted by points. Listed skills without points are skipped; none learned yet = auto.
+# weighted by points. A skill's points include its learned modifiers and transmuter (Bloody Pox 1 + Black
+# Death 12 = 13). Listed skills without points are skipped; none learned yet = auto.
 # Example: skills = ["records/skills/playerclass04/shadowstrike.dbr"]
 skills = []
-# Weights of `skills`: "equal", or "points" (by points spent in each).
+# Weights of `skills`: "equal", or "points" (by points spent in each, modifiers and transmuter included).
 skill_weights = "equal"
 auto_skills = 3
+# Damage of an off-target type counts x this (0..1): a type that is not one of [match] damage and that no
+# conversion can turn into one (Bleeding for any target but Bleeding: no conversion takes or makes it; DoT never
+# converts into Pierce, Chaos or Aether). Applies to flat damage and % bonuses of that type, in main skills, procs
+# and pets. 1 = all damage counts. Without [match] damage nothing is off-target.
+offtarget_weight = 1.0
 # Auto only: when every auto skill has a cooldown, the default weapon attack (at attack speed) gets this
 # share of Damage, the skills the rest.
 filler_weight = 0.5

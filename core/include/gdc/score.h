@@ -23,6 +23,16 @@ std::optional<DamageKey> damage_key(std::string_view name);
 std::string damage_label(DamageKey k);
 std::string damage_name(DamageKey k);  // its [match] damage name, "" if it has none
 
+// One stat of an item skill modifier record, as its item tooltip states it: flat damage with s's % and attribute
+// bonus (per second for DoT). `scored`: some part of the score reads the field (which part depends on the skill).
+// The skill's own damage (flat, %, conversion, crit, multipliers, leech) is read for main skills only.
+struct ModifierPart {
+  double value = 0;
+  std::string unit;  // after the number: " Vitality", "s duration"
+  bool scored = false;
+};
+std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill);
+
 // A record as main_skills' auto mode sees it.
 struct SkillKind {
   bool main = false, weapon = false;
@@ -44,10 +54,18 @@ struct Settings {
   double threshold_below = 1.0, threshold_above = 0.05, threshold_width = 0.05;
   // Exponent of the shared base-resist threshold term.
   double threshold_resist_weight = 1.0;
+  // Exponent of every other threshold term: second tier, so one never outweighs a base resist under its cap.
+  double threshold_secondary_weight = 0.1;
+  // > 0: below this level, second-tier targets (but absorption) are scaled by level / threshold_level.
+  double threshold_level = 0;
   // recast_buffs: uptime from duration and recharge; else record uptime.
   bool recast_buffs = true, live_buffs = false;
   std::vector<std::string> skills;  // empty = auto
   bool weigh_by_points = false;
+  // [match] damage: the build's final damage types. A Settings field so stages keep it.
+  std::vector<DamageKey> match_damage;
+  // Damage of a type that is not one of match_damage and that no conversion can turn into one counts x this.
+  double offtarget_weight = 1.0;
   int auto_skills = 3;
   double filler_weight = 0.5;
   double enemy_da_per_level = 0;    // 0 = monster table (gdc/enemy.h)
@@ -94,7 +112,6 @@ struct Preset : Settings {
   std::string name;
   bool auto_select = true;
   std::vector<std::string> masteries;
-  std::vector<DamageKey> match_damage;
   double match_share = 0.5;
   std::string match_character;
   std::vector<std::string> match_characters;  // always match, skipping every other check
@@ -137,7 +154,9 @@ struct Archetype {
 };
 Archetype archetype(const snap::Snapshot& s, const arz::Database& db);
 
-std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db);
+// Each final damage type's share of the main skills' damage. `global_conversions` false: without the
+// character's conversions (the types the skills deal themselves).
+std::map<DamageKey, double> damage_profile(const snap::Snapshot& s, const arz::Database& db, bool global_conversions = true);
 
 // Source type -> (to -> percent), in engine first-seen order.
 using Conversions = std::vector<std::pair<int, std::map<int, double>>>;
@@ -219,8 +238,9 @@ struct Result {
   bool pets = false;  // Class Pet damage is in Damage (experimental estimate, docs/MECHANICS.md §4)
   std::vector<effects::Reduction> rr_lost, rr_gained;
   std::vector<OtherChange> other_changes;
-  // Each term's ln ratio split over parts, scaled by exponent.
+  // Each term's ln ratio split over parts, scaled by exponent; one part per stat.
   std::vector<Contribution> contributions;
+  std::map<std::string, double> targets;  // stat -> threshold target in effect
 };
 
 // Mixes buff states; memo's inputs must outlive it unchanged.

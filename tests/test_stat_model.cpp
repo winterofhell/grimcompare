@@ -120,6 +120,29 @@ TEST_CASE("swap model: synthetic attribute, resist, absorption and set bookkeepi
   CHECK(ab2->defense == 0);
 }
 
+TEST_CASE("swap model: captured attack / cast speed move with the speed % (procs on attack, speed cap)") {
+  snap::Snapshot s;
+  s.attack_speed = 2.0f;
+  s.cast_speed = 1.5f;
+  s.char_attributes = {{13, 0, 10, 0, 0}, {15, 0, 40, 0, 0}, {16, 0, 20, 0, 0}};  // TotalSpeed, AttackSpeed, CastSpeed %
+  snap::Item old;
+  old.location = 4;
+  old.record = "records/a.dbr";
+  old.stats = snap::ItemStats{};
+  old.stats->char_attributes = {{15, 0, 30}};
+  s.equipped = {old};
+  snap::Item cand;
+  cand.record = "records/b.dbr";
+  cand.stats = snap::ItemStats{};
+  cand.stats->char_attributes = {{13, 0, 5}};
+  const auto p = model::swap(s, cand, 4, nullptr);
+  CHECK(p.after.attack_speed == doctest::Approx(2.0 * 1.25 / 1.5));  // 40 + 10 -> 10 + 15
+  CHECK(p.after.cast_speed == doctest::Approx(1.5 * 1.35 / 1.3));    // 20 + 10 -> 20 + 15
+  const auto back = model::swap(p.after, old, 4, nullptr);
+  CHECK(back.after.attack_speed == doctest::Approx(2.0));
+  CHECK(back.after.cast_speed == doctest::Approx(1.5));
+}
+
 TEST_CASE("swap model: the first absorption modifier gets the engine's per-entry absorption") {
   // Low-level snapshot: armor but no type-39 row (winterpoison store). An item adding +10% absorption.
   snap::Snapshot s;

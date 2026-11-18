@@ -1,6 +1,7 @@
 #include "gdc/score.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <set>
 
@@ -101,7 +102,9 @@ double main_per_sec(const Eval& e, const std::vector<Skill>& skills) {
   return on_cooldown + (spam_weight > 0 ? spam / spam_weight : 0);
 }
 
-// D = geomean Π value^weight × (1 + extra/main)
+// D = G + k × extra, G = Π value^weight, k = √(G / main of before's shown state × the same of after's): procs and
+// pets add their damage per second in the units of G, so a swap that changes main skills only leaves their part
+// unchanged; one k for both sides keeps a swap and its reverse reciprocal.
 void main_damage_ratio(const Scored& before, const Scored& after, const std::vector<Skill>& skills, const Settings& p,
                        std::vector<std::string>& notes_b, std::vector<std::string>& notes_a, Result& out) {
   const Side &sb = before.side, &sa = after.side;
@@ -118,27 +121,30 @@ void main_damage_ratio(const Scored& before, const Scored& after, const std::vec
       extra = extra || e.extra.per_sec > 0;
       mains = mains && main(e) > 0;
     }
-  auto share = [&](const Eval& e) { return extra && mains ? 1 + e.extra.per_sec / main(e) : 1.0; };
-  auto damage = [&](const Eval& e) {
+  auto geo = [&](const Eval& e) {
     double ln = 0;
     for (std::size_t k = 0; k < skills.size(); ++k)
       if (both[k]) ln += skills[k].weight * std::log(e.skills[k].value);
-    return std::exp(ln) * share(e);
+    return std::exp(ln);
   };
+  const double scale = extra && mains ? std::sqrt(geo(b0) / main(b0) * geo(a0) / main(a0)) : 0;
+  auto damage = [&](const Eval& e) { return geo(e) + scale * e.extra.per_sec; };
   std::vector<Contribution> parts;
   for (std::size_t k = 0; k < skills.size(); ++k) {
     out.before += b0.skills[k].inputs + " w " + fmt(skills[k].weight, 2) + "; ";
     out.after += a0.skills[k].inputs + "; ";
     if (!both[k]) out.notes.push_back(stem(skills[k].record) + ": no damage computed");
     auto value = [&](const Eval& e) { return e.skills[k].value; };
-    parts.push_back({"", skills[k].record, both[k] ? skills[k].weight * (after.ln_mean(value) - before.ln_mean(value)) : 0, ""});
+    const double ln = both[k] ? skills[k].weight * (after.ln_mean(value) - before.ln_mean(value)) : 0;
+    parts.push_back({"", skills[k].record, scale > 0 ? geo(b0) * ln : ln, ""});
   }
   const double ratio = std::exp(after.ln_mean(damage) - before.ln_mean(damage));
   const Extra &eb = b0.extra, &ea = a0.extra;
   if (extra && mains) {
     out.before += "main " + fmt(main(b0)) + "/s, procs+pets " + fmt(eb.per_sec) + "/s:" + eb.inputs + "; ";
     out.after += "main " + fmt(main(a0)) + "/s, procs+pets " + fmt(ea.per_sec) + "/s:" + ea.inputs + "; ";
-    parts.push_back({"procs and pets", "", after.ln_mean(share) - before.ln_mean(share), ""});
+    auto per_sec = [](const Eval& e) { return e.extra.per_sec; };
+    parts.push_back({"procs and pets", "", scale * (after.mean(per_sec) - before.mean(per_sec)), ""});
     add_hits(before, after, out);
   } else if (extra) {
     out.notes.push_back("main skills' damage per second unknown (no attack / cast speed): procs and pets not scored");
@@ -151,6 +157,25 @@ void main_damage_ratio(const Scored& before, const Scored& after, const std::vec
   for (auto* notes : {&notes_b, &notes_a})
     for (auto& n : *notes)
       if (std::find(out.notes.begin(), out.notes.end(), n) == out.notes.end()) out.notes.push_back(std::move(n));
+}
+
+// The sheet line a threshold's part joins (tooltip changes()); absorption has none.
+std::pair<const char*, const char*> threshold_part(const std::string& name) {
+  static constexpr std::array<std::array<const char*, 3>, 10> kParts = {{
+      {"physical_resist", "Physical taken (resist, armor)", "resist:2"},
+      {"absorption", "Armor absorption", "absorption"},
+      {"armor", "Armor", "armor"},
+      {"stun_resist", "stun_resist", "stun_resist"},
+      {"freeze_resist", "freeze_resist", "freeze_resist"},
+      {"slow_resist", "slow_resist", "slow_resist"},
+      {"reflect_reduction", "reflect_reduction", "reflect_reduction"},
+      {"life", "Life", "life"},
+      {"da", "DA (enemy hits and crits)", "da"},
+      {"resist_overcap", "Resist overcap", ""},
+  }};
+  for (const auto& [n, label, stat] : kParts)
+    if (name == n) return {label, stat};
+  return {"", ""};
 }
 
 // Survivability ratio and parts; a resist's target joins its line.
@@ -178,7 +203,9 @@ void survival_ratio(const Survival& sb, const Survival& sa, const Settings& p, R
     const auto it = sa.thresholds.find(name);
     if (it == sa.thresholds.end()) continue;
     if (!name.starts_with("resist:")) {
-      factor(("target " + name).c_str(), f, it->second);
+      const auto [label, stat] = threshold_part(name);
+      if (*stat && sb.targets.contains(name)) out.targets[stat] = sb.targets.at(name);
+      factor(label, f, it->second, stat);
       continue;
     }
     const auto part = std::find_if(out.contributions.begin(), out.contributions.end(),
@@ -245,6 +272,18 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
   survival_ratio(sb, sa, p, out);
   const Other ob = mixed_other(scored_before), oa = mixed_other(scored_after);
   other_ratio(ob, oa, p, out);
+  // One part per stat: a threshold's joins the stat's other parts.
+  for (auto c = out.contributions.begin(); c != out.contributions.end(); ++c) {
+    if (c->stat.empty()) continue;
+    for (auto d = std::next(c); d != out.contributions.end();) {
+      if (d->stat != c->stat) {
+        ++d;
+        continue;
+      }
+      c->points += d->points;
+      d = out.contributions.erase(d);
+    }
+  }
   std::sort(out.contributions.begin(), out.contributions.end(),
             [](const Contribution& a, const Contribution& b) { return std::abs(a.points) > std::abs(b.points); });
   out.before += sb.inputs + "; " + ob.inputs;
