@@ -140,6 +140,11 @@ void bind_skill_dps(const Resolve& r) {
                      opt(api.dur_duration, "CombatAttributeDurDamage::GetDuration") &&
                      opt(dur_vft, "CombatAttributeDurDamage::vftable") && rd<const void*>(dur_vft, 0xF0) == api.dur_duration;
   if (!api.skill_dps_ok) log::write("snapshot: CalculateSkillDps not verified; engine damage check off");
+  api.reduction_ok = api.skill_dps_ok && opt(api.dur_mgr, "Character::GetDurationDamageMgr") &&
+                     opt(api.fixed_damage, "DurationDamageManager::GetFixedDamage") &&
+                     opt(api.dur_mgr_vft, "DurationDamageManager::vftable") &&
+                     rd<const void*>(api.dur_mgr_vft, kSlotFixedDamage) == reinterpret_cast<const void*>(api.fixed_damage);
+  if (api.skill_dps_ok && !api.reduction_ok) log::write("snapshot: damage reductions on the character not verified; not read");
 }
 
 bool bind_accumulators(const Resolve& r) {

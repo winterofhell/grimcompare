@@ -237,6 +237,7 @@ SkillDps read_skill_dps(const J& j) {
   get(j, "skill_id", d.skill_id);
   get(j, "record", d.record);
   get(j, "default_attack", d.default_attack);
+  get(j, "dual_wield", d.dual_wield);
   get(j, "dps", d.dps);
   get_list(j, "main_hand", d.main_hand, read_damage);
   get_list(j, "off_hand", d.off_hand, read_damage);
@@ -310,6 +311,13 @@ Snapshot from_json(std::string_view text) {
     get_list(j, "inventory", s.inventory, read_item);
     get_list(j, "pets", s.pets, read_pet);
     get_list(j, "skill_dps", s.skill_dps, read_skill_dps);
+    if (const auto d = j.find("damage_reduction"); d != j.end()) {
+      DamageReduction& r = s.damage_reduction.emplace();
+      get(*d, "absolute", r.absolute);
+      get(*d, "percent", r.percent);
+      get(*d, "physical_percent", r.physical_percent);
+      get(*d, "elemental_percent", r.elemental_percent);
+    }
     return s;
   } catch (const nlohmann::json::exception& e) {
     throw std::runtime_error(std::string("snapshot JSON: ") + e.what());

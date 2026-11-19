@@ -237,6 +237,7 @@ J skill_dps(const SkillDps& d) {
   J j{{"skill_id", d.skill_id}};
   put(j, "record", d.record);
   put(j, "default_attack", d.default_attack);
+  put(j, "dual_wield", d.dual_wield);
   put(j, "dps", d.dps);
   put_list(j, "main_hand", d.main_hand, damage);
   put_list(j, "off_hand", d.off_hand, damage);
@@ -304,6 +305,14 @@ std::string to_json(const Snapshot& s, int indent) {
   put_list(j, "inventory", s.inventory, item);
   put_list(j, "pets", s.pets, pet);
   put_list(j, "skill_dps", s.skill_dps, skill_dps);
+  if (const auto& r = s.damage_reduction) {
+    J d = J::object();
+    put(d, "absolute", r->absolute);
+    put(d, "percent", r->percent);
+    put(d, "physical_percent", r->physical_percent);
+    put(d, "elemental_percent", r->elemental_percent);
+    j["damage_reduction"] = std::move(d);
+  }
   return indent < 0 ? j.dump() : j.dump(indent) + "\n";
 }
 

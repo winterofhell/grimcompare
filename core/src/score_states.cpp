@@ -125,7 +125,7 @@ std::vector<const Buff*> open_buffs(const std::vector<Buff>& learned, const std:
 }  // namespace
 
 Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database* db,
-                  const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured) {
+                  const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured) {
   Scored out;
   if (!db) {
     out.side.utility = utility_of(s, p, db);

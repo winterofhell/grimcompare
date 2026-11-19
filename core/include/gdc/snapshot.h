@@ -9,7 +9,7 @@
 namespace gdc::snap {
 
 // Schema written; from_json reads kMinSchema..kSchema.
-inline constexpr int kSchema = 15;
+inline constexpr int kSchema = 16;
 inline constexpr int kMinSchema = 2;
 
 // Save key, as GameEngine::GetPlayerFolder builds it.
@@ -187,10 +187,23 @@ struct SkillDps {
   std::string record;
   // The skill cannot be used with the current weapons: the engine computed the default attack instead.
   bool default_attack = false;
+  // Schema 16: SkillAttackInfo+0x28, set for a weapon in the L Hand that is not a shield or caster off-hand. Then
+  // `off_hand` is the L weapon's own pass; otherwise the sheet leaves `off_hand` out.
+  bool dual_wield = false;
   float dps = 0;
   // Processed entries (all %, conversions and multipliers applied): per use, a DoT per second with `duration` after
   // its duration %. Chance entries at expected value.
   std::vector<Damage> main_hand, off_hand;
+};
+
+// Schema 16: DurationDamageManager::GetFixedDamage 0x2795C0 of Character::GetDurationDamageMgr (Character+0x540): the
+// damage reductions on the character (enemy debuffs), as Skill::CollectCombatParameters 0x499570 reads them for every
+// damage entry it processes. Percent values in %.
+struct DamageReduction {
+  float absolute = 0;           // 29 TotalDamageReductionAbsolute
+  float percent = 0;            // 28 TotalDamageReductionPercent
+  float physical_percent = 0;   // 30 PhysicalReductionPercent
+  float elemental_percent = 0;  // 31 ElementalReductionPercent
 };
 
 struct Snapshot {
@@ -233,6 +246,7 @@ struct Snapshot {
   std::vector<Item> inventory;
   std::vector<Pet> pets;
   std::vector<SkillDps> skill_dps;
+  std::optional<DamageReduction> damage_reduction;  // schema 16, with skill_dps; absent: not read
 };
 
 std::string to_json(const Snapshot& s, int indent = 2);

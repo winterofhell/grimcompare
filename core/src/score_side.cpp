@@ -187,6 +187,7 @@ void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Databas
       out.hits_unknown.emplace(e.record, e.basis);
       continue;
     }
+    // shortcut: a proc's weapon damage takes the R Hand pass while dual wielding — revisit with a traced proc hit.
     if (weapon_pct != 0)
       for (const auto& [k, v] : e.pet ? pet_weapon : out.gear.flat) a[k] += v * weapon_pct / 100;
     Side::Hit h;
@@ -207,7 +208,7 @@ void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Databas
 
 // `captured`: the snapshot s was predicted from (null: s itself).
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
-          const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured) {
+          const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured) {
   Side out;
   for (const auto& k : skills) {
     const snap::Skill* sk = skill_by_record(s, k.record);

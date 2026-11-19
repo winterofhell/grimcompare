@@ -26,28 +26,59 @@ Amounts hand_base(const snap::Item& it, const arz::Database& db) {
   return out;
 }
 
-// Flat damage applies to weapon attacks only (community).
-Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amounts& base) {
-  Amounts out = base;
+const snap::Item* in_hand(const snap::Snapshot& s, int location) {
+  for (const auto& it : s.equipped)
+    if (it.location == location) return &it;
+  return nullptr;
+}
+
+std::string_view hand_class(const snap::Item* it, const arz::Database& db) {
+  const arz::Record* r = it ? db.record(it->record) : nullptr;
+  return r ? std::string_view(r->cls) : std::string_view{};
+}
+
+// A weapon in each hand: CalculateSkillDps 0x3E0156 flags a Weapon in the L Hand unless GetWeaponType is 0xB / 0xC
+// (shield, caster off-hand), both WeaponArmor_* classes.
+bool dual_wield(const snap::Snapshot& s, const arz::Database& db) {
+  return weapon_class(hand_class(in_hand(s, equip::kRightHand), db)) && weapon_class(hand_class(in_hand(s, equip::kLeftHand), db));
+}
+
+// The item's flat damage less its own base (BasePhysical, and elemental base out of the flat of its type).
+Amounts item_flat(const snap::Item& it, const arz::Database& db, bool hand) {
+  Amounts mine;
+  for (const auto& d : it.stats->offensive_damage) {
+    if (d.type == kBasePhysical && hand) continue;
+    const int t = d.type == kBasePhysical ? kPhysical : d.type;
+    if (!damage_type(t)) continue;
+    // shortcut: item DoT min/max taken as per second, x duration — unverified.
+    mine[{t, d.dot}] += (d.min + d.max) / 2.0 * (d.dot ? d.duration : 1.0f);
+  }
+  if (hand)
+    for (const auto& [k, v] : hand_base(it, db))
+      if (k.first != kPhysical) {
+        double& x = mine[k];
+        x = std::max(0.0, x - v);
+      }
+  return mine;
+}
+
+void add(Amounts& to, const Amounts& a) {
+  for (const auto& [k, v] : a) to[k] += v;
+}
+
+// Flat damage applies to weapon attacks only (community). `common`: what every pass takes; `right` / `left`: each
+// hand item's own, less its base.
+struct HandFlat {
+  Amounts common, right, left;
+};
+HandFlat weapon_flat(const snap::Snapshot& s, const arz::Database& db) {
+  HandFlat out;
   for (const auto& it : s.equipped) {
     if (!it.stats) continue;
-    const bool hand = it.location == equip::kRightHand || it.location == equip::kLeftHand;
-    Amounts mine;
-    for (const auto& d : it.stats->offensive_damage) {
-      if (d.type == kBasePhysical && hand) continue;
-      const int t = d.type == kBasePhysical ? kPhysical : d.type;
-      if (!damage_type(t)) continue;
-      // shortcut: item DoT min/max taken as per second, x duration — unverified.
-      mine[{t, d.dot}] += (d.min + d.max) / 2.0 * (d.dot ? d.duration : 1.0f);
-    }
-    if (hand)
-      for (const auto& [k, v] : hand_base(it, db))
-        if (k.first != kPhysical) {  // elemental base: out of the flat damage of its type
-          double& x = mine[k];
-          x = std::max(0.0, x - v);
-        }
-    for (const auto& [k, v] : mine) out[k] += v;
+    const bool right = it.location == equip::kRightHand, left = it.location == equip::kLeftHand;
+    add(right ? out.right : left ? out.left : out.common, item_flat(it, db, right || left));
   }
+  Amounts& common = out.common;
   for (const auto& sk : s.skills) {
     if (sk.level == 0 || sk.current_level == 0 || sk.devotion_max_level != 0) continue;
     const arz::Record* r = db.record(sk.record);
@@ -62,7 +93,7 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
       if (const arz::Record* buff = db.record(r->string("buffSkillName"));
           buff && classes::is_a(buff->cls, "SkillBuff_Passive"))  // not a debuff record
         stats = buff;
-    add_flat(db, *stats, sk.current_level, 1, out);
+    add_flat(db, *stats, sk.current_level, 1, common);
   }
   for (const auto& sk : s.item_skills) {
     if (sk.current_level == 0) continue;
@@ -70,13 +101,13 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
     if (!r || r->cls != "Skill_Passive") continue;
     const bool on = (sk.passive && (!sk.passive->char_attributes.empty() || !sk.passive->defense.empty())) ||
                     !fields::weapon_gated(*r);
-    if (on) add_flat(db, *r, sk.current_level, 1, out);
+    if (on) add_flat(db, *r, sk.current_level, 1, common);
   }
   // Character::ContributeMiscOffensiveDamageAttributes 0x6AA80.
   for (const auto& [set, n] : sets::counts(s))
     if (const arz::Record* r = db.record(set))
       for (const auto& d : sets::bonus(*r, n).flat)
-        out[{d.type, d.dot}] += (d.min + d.max) / 2.0 * (d.dot ? d.duration : 1.0f);
+        common[{d.type, d.dot}] += (d.min + d.max) / 2.0 * (d.dot ? d.duration : 1.0f);
   return out;
 }
 
@@ -168,10 +199,10 @@ Pool pool(const Amounts& flat, const Raw& raw, const Conversions& global, std::v
   return out;
 }
 
-Amounts weapon_part(const Raw& raw, const Gear& g) {
+Amounts weapon_part(const Raw& raw, const Amounts& flat) {
   Amounts out;
   if (raw.weapon_pct > 0)
-    for (const auto& [k, v] : g.flat) out[k] += v * raw.weapon_pct / 100;
+    for (const auto& [k, v] : flat) out[k] += v * raw.weapon_pct / 100;
   return out;
 }
 
@@ -183,17 +214,19 @@ bool same(const std::vector<snap::Conversion>& a, const std::vector<snap::Conver
 
 }  // namespace
 
-// Both sides share the mean weapon base, so swaps stay symmetric.
-// shortcut: second dual-wield base ignored — revisit with a dual-wield build.
-Amounts shared_base(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database& db) {
-  Amounts out;
-  for (const auto* s : {&before, &after})
-    for (const auto& it : s->equipped) {
-      if (it.location != equip::kRightHand) continue;
-      const arz::Record* r = db.record(it.record);
-      if (!r || !weapon_class(r->cls)) continue;
-      for (const auto& [k, v] : hand_base(it, db)) out[k] += v / 2;
-    }
+// Both sides share the mean weapon base, so swaps stay symmetric: the R Hand weapon's over both sides, the L Hand
+// weapon's over the sides that dual wield.
+Bases shared_base(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database& db) {
+  Bases out;
+  int dual = 0;
+  for (const auto* s : {&before, &after}) {
+    if (const snap::Item* it = in_hand(*s, equip::kRightHand); it && weapon_class(hand_class(it, db)))
+      for (const auto& [k, v] : hand_base(*it, db)) out.right[k] += v / 2;
+    if (!dual_wield(*s, db)) continue;
+    ++dual;
+    for (const auto& [k, v] : hand_base(*in_hand(*s, equip::kLeftHand), db)) out.left[k] += v;
+  }
+  for (auto& [k, v] : out.left) v /= dual;
   return out;
 }
 
@@ -207,8 +240,24 @@ double attribute_bonus(const snap::Snapshot& s, int type, bool dot) {
   return attribute_bonus(char_total(s, kCunning), char_total(s, kSpirit), type, dot);
 }
 
-Gear gear(const snap::Snapshot& s, const arz::Database& db, const Amounts& base) {
-  return {weapon_flat(s, db, base), dot_duration(s, db), {}};
+// GetWeaponIdsForCallback 0x49F2E0 hands the L item to the R Hand pass only as a caster off-hand; a shield's pass
+// (0, shield) runs but SkillActivatedWeapon::CalculateDPS reads it only for a cooldown skill.
+// shortcut: that cooldown-skill sheet sum (R pass + shield pass) is not counted — a display quirk, revisit if combat
+// shows the shield pass hitting.
+Gear gear(const snap::Snapshot& s, const arz::Database& db, const Bases& base) {
+  const HandFlat f = weapon_flat(s, db);
+  Gear g{f.common, {}, dot_duration(s, db), {}};
+  add(g.flat, f.right);
+  add(g.flat, base.right);
+  const std::string_view left = hand_class(in_hand(s, equip::kLeftHand), db);
+  if (dual_wield(s, db)) {
+    g.off = f.common;
+    add(g.off, f.left);
+    add(g.off, base.left);
+  } else if (left == "WeaponArmor_Offhand") {
+    add(g.flat, f.left);
+  }
+  return g;
 }
 
 // Max uses per second; animation-based for spells.
@@ -242,7 +291,7 @@ namespace {
 
 // Per final type: base × (1 + sheet % + attribute bonus) + the skill %'s part, × the skill's damage multiplier, DoT ×
 // duration, × enemy resist, × the type's weight.
-double final_damage(const snap::Snapshot& s, const Settings& p, const Raw& raw, const Gear& g, const Pool& in,
+double final_damage(const snap::Snapshot& s, const Settings& p, const Raw& raw, const Gear& g, const Pass& in,
                     const std::map<int, double>* resist, Amounts* parts) {
   double sum = 0;
   for (const auto& [k, v] : in.base) {
@@ -273,10 +322,21 @@ std::string amounts_text(const Amounts& a) {
 
 }  // namespace
 
+// Player::CalculateSkillDps 0x3E040A..0x3E05E1: a weapon skill (SkillActivatedWeapon / WeaponPool,
+// Skill_AttackRadiusSpin) of a dual wielder runs a second pass with the L weapon alone (0x3E05B2); the skill's own flat
+// damage is in both.
+// shortcut: other classes run one pass with both weapons (dwWeaponDamageFactor 1.0, gameengine.dbr) — the L weapon is
+// left out of their weapon damage; revisit for a dual-wield spell with weaponDamagePct.
 Pool main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes) {
   Amounts amounts = raw.flat;
-  for (const auto& [k, v] : weapon_part(raw, g)) amounts[k] += v;
-  return pool(amounts, raw, global, notes);
+  add(amounts, weapon_part(raw, g.flat));
+  Pool out = pool(amounts, raw, global, notes);
+  if (!g.off.empty() && raw.speed == classes::Speed::kAttack) {
+    Amounts off = raw.flat;
+    add(off, weapon_part(raw, g.off));
+    out.off.emplace(pool(off, raw, global, notes));
+  }
+  return out;
 }
 
 // Per source: the skill's record, each modifier, the weapon part; they sum to the skill's damage per use.
@@ -290,7 +350,7 @@ std::string skill_parts(const snap::Snapshot& s, const Settings& p, const Raw& r
     out += (out.empty() ? "" : ", ") + name + " " + amounts_text(parts);
   };
   for (const auto& [name, flat] : raw.sources) add(name, flat);
-  if (const Amounts w = weapon_part(raw, g); !w.empty()) add("weapon", w);
+  if (const Amounts w = weapon_part(raw, g.flat); !w.empty()) add("weapon", w);
   return out;
 }
 
@@ -303,7 +363,28 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   if (sk.current_level == 0) return out;
   const Pool own = converted ? Pool{} : main_converted(raw, g, global_pairs(s.conversions), notes);
   const Pool& pool = converted ? *converted : own;
-  const double sum = final_damage(s, p, raw, g, pool, resist, parts) + pool.retaliation;
+  double sum = 0;
+  std::string hands;
+  if (!pool.off) {
+    sum = final_damage(s, p, raw, g, pool, resist, parts) + pool.retaliation;
+  } else {
+    // SkillActivatedWeapon::CalculateDPS 0x51A7F0, dual wield (SkillAttackInfo+0x28): per use 0.75 x (R pass + L pass)
+    // (0x51A879..0x51A8D4), both in full for a cooldown skill (0x51A844). CalculateSkillDps first folds each L pass DoT
+    // into the R pass one of the same source (FilterSameSource 0x11AE40, CombatAttributeDurDamage::FilterForSameSource
+    // 0x114420: the larger stays); direct damage never folds (CombatAttribute's returns false).
+    Amounts r, l;
+    const double rs = final_damage(s, p, raw, g, pool, resist, &r), ls = final_damage(s, p, raw, g, *pool.off, resist, &l);
+    for (auto& [k, v] : l)
+      if (const auto it = r.find(k); k.second && it != r.end()) it->second = std::max(it->second, v), v = 0;
+    const double f = raw.cooldown > 0 ? 1.0 : 0.75;
+    for (const auto* a : {&r, &l})
+      for (const auto& [k, v] : *a) {
+        sum += v * f;
+        if (parts) (*parts)[k] += v * f;
+      }
+    sum += 2 * pool.retaliation * f;
+    if (explain) hands = " (dual wield: R " + fmt(rs + pool.retaliation) + " + L " + fmt(ls + pool.retaliation) + " x" + fmt(f, 2) + ")";
+  }
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double crit_bonus = (crit_row ? crit_row->damage_modifier : 0) + raw.crit / 100;
   double pth = 0;
@@ -328,7 +409,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   if (!attack_speed(raw) && has_anim(sk))
     pace += " (anim " + std::to_string(sk.anim_frames) + "f@" + std::to_string(sk.anim_frame_rate) + " -> " +
             fmt(out.rate, 2) + "/s)";
-  out.inputs = stem(sk.record) + " L" + std::to_string(sk.current_level) + " dmg " + fmt(sum) + " pth " + fmt(pth) +
+  out.inputs = stem(sk.record) + " L" + std::to_string(sk.current_level) + " dmg " + fmt(sum) + hands + " pth " + fmt(pth) +
                " hit " + fmt(h.chance, 2) + " crit " + fmt(h.crit_chance, 2) + "+" + fmt(crit_bonus, 2) + " x" +
                fmt(h.multiplier, 3) + pace + " = " + fmt(out.value);
   if (raw.sources.size() > 1) out.inputs += " (dmg by source: " + skill_parts(s, p, raw, g, resist, notes) + ")";

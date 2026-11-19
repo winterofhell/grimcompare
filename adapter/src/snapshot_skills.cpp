@@ -101,7 +101,12 @@ struct NameString {
   u64 capacity;
 };
 constexpr std::size_t kNameBytes = 256, kAttackInfoBytes = 0x100;  // SkillAttackInfo: CalculateSkillDps writes to +0x38
+// CalculateSkillDps 0x3E0156: 1 for a Weapon in the L Hand, back to 0 for GetWeaponType 0xB / 0xC (shield, caster
+// off-hand); SkillActivatedWeapon::CalculateDPS 0x51A879 reads it.
+constexpr std::size_t kAttackInfoDualWield = 0x28;
 constexpr std::size_t kMaxSkillDps = 48;
+// Engine code on the game thread: past this the remaining skills are left out of the snapshot.
+constexpr long long kSkillDpsBudgetUs = 2000;
 
 // One skill through Player::CalculateSkillDps; false: the call faulted.
 bool read_skill_dps(Ctx& c, u32 id, snap::SkillDps& out) {
@@ -130,6 +135,7 @@ bool read_skill_dps(Ctx& c, u32 id, snap::SkillDps& out) {
   out.skill_id = id;
   out.dps = dps;
   out.default_attack = str.size != 0;
+  out.dual_wield = info[kAttackInfoDualWield] != 0;
   if (ok && dropped) return true;
   // The other sections stay valid: the snapshot is still complete.
   const seh::Fault& e = ok ? g : f;
@@ -141,14 +147,47 @@ bool read_skill_dps(Ctx& c, u32 id, snap::SkillDps& out) {
   return false;
 }
 
+// Types 28..31 through the object's own slot, checked against the bound one. A fault turns the read off.
+void read_damage_reduction(Ctx& c) {
+  snap::DamageReduction r;
+  auto read = [&] {
+    const void* m = api.dur_mgr(c.player);
+    if (!m || rd<const void*>(m) != api.dur_mgr_vft) return;
+    using Fn = float (*)(const void*, int);
+    const Fn fixed = rd<Fn>(rd<const void*>(m), kSlotFixedDamage);
+    if (fixed != api.fixed_damage) return;
+    r.percent = fixed(m, 28);
+    r.absolute = fixed(m, 29);
+    r.physical_percent = fixed(m, 30);
+    r.elemental_percent = fixed(m, 31);
+    c.s.damage_reduction = r;
+  };
+  seh::Fault f;
+  if (seh::run(read, f)) return;
+  api.reduction_ok = false;
+  c.s.damage_reduction.reset();
+  log::printf("snapshot: damage reduction FAULT 0x%08lX at 0x%016llX; not read for the session", f.code,
+              static_cast<unsigned long long>(f.addr));
+}
+
 }  // namespace
 
 // Learned activated skills (modifiers count through their skill). A fault turns the check off for the session.
 void sec_skill_dps(Ctx& c) {
+  if (api.reduction_ok) read_damage_reduction(c);
   const void* sm = api.skill_manager(c.player);
+  LARGE_INTEGER t0, now;
+  QueryPerformanceCounter(&t0);
+  static bool budget_logged = false;
   for (const void* list : {api.skill_list(sm), api.item_skill_list(sm)}) {
     const Span skills = vec(list, sizeof(void*));
     for (std::size_t i = 0; i < skills.count && c.s.skill_dps.size() < kMaxSkillDps; ++i) {
+      QueryPerformanceCounter(&now);
+      if (log::elapsed_us(t0, now) > kSkillDpsBudgetUs) {
+        if (!budget_logged) log::printf("snapshot: skill_dps over %lld us after %zu skills; the rest left out", kSkillDpsBudgetUs, c.s.skill_dps.size());
+        budget_logged = true;
+        return;
+      }
       const void* sk = rd<const void*>(skills.begin, i * sizeof(void*));
       if (!sk || api.current_level(sk) == 0) continue;
       const void* ci = class_info(sk);

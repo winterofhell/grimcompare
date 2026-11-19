@@ -110,8 +110,6 @@ void hand_warnings(const Context& ctx, Found& found, const Plan& plan, const sna
   const bool changes = hand_class(old, ctx.db) != hand_class(&ctx.candidate, ctx.db) || off;
   if (const std::string g = changes ? gated_skill(ctx) : std::string{}; !g.empty())
     add_unique(found.warnings, "weapon type changes: " + g + " needs a weapon type (not re-checked)");
-  if (weapon(at(ctx.s, equip::kLeftHand), ctx.db) || (loc == equip::kLeftHand && weapon(&ctx.candidate, ctx.db)))
-    add_unique(found.warnings, "dual wield: the L Hand weapon's base damage is not modeled");
 }
 
 // A prediction's warnings, unused skill points, inactive skills.

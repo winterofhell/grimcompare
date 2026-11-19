@@ -151,8 +151,19 @@ struct Raw {
   Retaliation retaliation;
 };
 
+// Weapon base damage both sides share (shared_base()): never compared, only carried.
+struct Bases {
+  Amounts right, left;  // left: the L Hand weapon of a side that dual wields
+  bool operator==(const Bases&) const = default;
+};
+
 struct Gear {
-  Amounts flat;
+  // Player::CalculateSkillDps 0x3DFD30 and SkillManager::CollectAvailableOffensiveDamageAttributes 0x535910: the
+  // non-weapon items' flat damage (Character::GetEquipArmorDamageAttributes, EquipManager::GetAllNonWeapons), skills
+  // and sets, plus the own damage (vt+0x4A8) of the weapons the pass is given. A shield is in no pass the sheet
+  // uses.
+  Amounts flat;  // the R Hand pass (with a caster off-hand, which shares it)
+  Amounts off;   // dual wield: the L Hand weapon's pass; empty otherwise
   std::map<int, double> dot;
   effects::Shred enemy_da;  // the side's debuffs; none for the auto skill pick
   // DurDamage::Process 0x114206: duration × (1 + Σ duration % / 100), skill and gear % in one sum.
@@ -281,9 +292,12 @@ struct Extra {
 
 // A main skill's damage after conversion, per final type: `base` takes the sheet % and attribute bonus, `bonus` is
 // what the skill's own % adds (damage × skill % / 100, carried through conversion).
-struct Pool {
+struct Pass {
   Amounts base, bonus;
-  double retaliation = 0;  // Raw::retaliation final, before the hit roll
+};
+struct Pool : Pass {
+  double retaliation = 0;  // Raw::retaliation final, before the hit roll; each hand's pass adds it
+  std::optional<Pass> off;  // dual wield, weapon skills: the L Hand pass
 };
 
 // Converted once per conversion set; buff states mostly share one.
@@ -363,8 +377,8 @@ Amounts convert_pairs(const Amounts& input, const Conversions& skill_pct, const 
                       std::vector<std::string>& notes, const Amounts* bonus = nullptr, Amounts* bonus_out = nullptr);
 
 // score_damage.cpp
-Amounts shared_base(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database& db);
-Gear gear(const snap::Snapshot& s, const arz::Database& db, const Amounts& base);
+Bases shared_base(const snap::Snapshot& before, const snap::Snapshot& after, const arz::Database& db);
+Gear gear(const snap::Snapshot& s, const arz::Database& db, const Bases& base);
 // The skill's flat and weapon damage after its own and the global conversions.
 Pool main_converted(const Raw& raw, const Gear& g, const Conversions& global, std::vector<std::string>& notes);
 double attribute_bonus(double cunning, double spirit, int type, bool dot);
@@ -393,7 +407,7 @@ Other other(const snap::Snapshot& s, const Utility& u, const Settings& p, bool e
 
 // score_side.cpp
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
-          const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
+          const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
 
 // score_buffs.cpp
 // Cast buffs not in the totals at capture, and charged Skill_WeaponPool_ChargedScaling main skills of `side`.
@@ -406,7 +420,7 @@ double state(const snap::Snapshot& s, const Procs& pr, const std::vector<Buff>& 
 
 // score_states.cpp
 Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database* db,
-                  const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
+                  const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
 Survival mixed_survival(const Scored& sd);
 Other mixed_other(const Scored& sd);
 

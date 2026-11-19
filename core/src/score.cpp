@@ -238,7 +238,7 @@ void other_ratio(const Other& ob, const Other& oa, const Settings& p, Result& ou
 
 struct BeforeSide {
   const snap::Snapshot* snapshot;
-  Amounts base;
+  Bases base;
   Scored scored;
   std::vector<std::string> notes;
 };
@@ -247,7 +247,7 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
                const Settings& p, const arz::Database* db, Memo* memo) {
   Result out;
   std::vector<std::string> notes_b, notes_a;
-  const Amounts base = db ? shared_base(before, after, *db) : Amounts{};
+  const Bases base = db ? shared_base(before, after, *db) : Bases{};
   // model::swap predictions keep before's capture time and live pets.
   // shortcut: a predicted `before` (a stripped slot) keeps the capture's pet speeds unshifted, so a pet-bonus swap
   // and its reverse are off by about (Δ / (1 + m))² — revisit when predictions carry their pets' speeds.

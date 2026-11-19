@@ -8,6 +8,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <tuple>
 
 #include "game_db.h"
 #include "gdc/combat_formulas.h"
@@ -598,11 +599,12 @@ TEST_CASE("score: offtarget_weight scales the types that are not and cannot beco
   CHECK_FALSE(score::parse("[damage]\nofftarget_weight = 1.5\n", error));
 }
 
-TEST_CASE("score: a shield's base damage is not weapon damage (installed game; skips if absent)") {
+TEST_CASE("score: a shield's damage is in no weapon attack pass (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) return;
-  // c009_shield: offensiveBaseCold / Fire / LightningMin 58 (no Max: 58-58); its getter reports them as flat
-  // Cold / Fire / Lightning, plus an affix's +10 Fire. Only the +10 is flat damage for a weapon attack.
+  // c009_shield: offensiveBaseCold / Fire / LightningMin 58 plus an affix's +10 Fire. A shield is a Weapon
+  // (WeaponArmor_Shield < WeaponArmor < Weapon), so the sheet's GetAllNonWeapons leaves it out of every pass, and
+  // CalculateSkillDps runs no L Hand pass for GetWeaponType 0xB: neither its base nor its affix moves the attack.
   snap::Snapshot s = base(94);
   snap::Item shield;
   shield.location = 1;
@@ -625,10 +627,37 @@ TEST_CASE("score: a shield's base damage is not weapon damage (installed game; s
   score::Preset p;
   p.skills = {attack.record};
   const auto skills = score::main_skills(s, p, db);
-  CHECK(score::compare(without, s, skills, p, db).ratio.damage > 1);  // the +10 Fire
-  snap::Snapshot only_base = s;
-  only_base.equipped[1].stats->offensive_damage = {{5, false, 58, 58}, {6, false, 58, 58}, {8, false, 58, 58}, {1, false, 100, 120}};
-  CHECK(score::compare(without, only_base, skills, p, db).ratio.damage == doctest::Approx(1));
+  CHECK(score::compare(without, s, skills, p, db).ratio.damage == doctest::Approx(1));
+}
+
+TEST_CASE("score: dual wield is 0.75 x both hands per use, both in full for a cooldown skill (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  // SkillActivatedWeapon::CalculateDPS 0x51A7F0: with the dual-wield flag, 0.75 x (R + L) per use; a skill with a
+  // cooldown (R + L) / cooldown. Two equal swords: x1.5 and x2 over the R Hand alone.
+  snap::Snapshot one = base(94);
+  snap::Item sword;
+  sword.location = 0;
+  sword.record = "records/items/awakened/gearweapons/swords1h/c027_sword.dbr";
+  sword.stats = snap::ItemStats{};
+  sword.stats->offensive_damage = {{1, false, 100, 120}, {6, false, 10, 10}};
+  one.equipped = {sword};
+  snap::Snapshot two = one;
+  sword.location = 1;
+  two.equipped.push_back(sword);
+  for (const auto& [record, level, want] : {std::tuple{"records/skills/default/defaultweaponattack.dbr", 1u, 1.5},
+                                            std::tuple{"records/skills/playerclass04/shadowstrike.dbr", 10u, 2.0}}) {
+    CAPTURE(record);
+    snap::Skill k;
+    k.id = 1;
+    k.record = record;
+    k.level = k.current_level = level;
+    one.skills = two.skills = {k};
+    score::Preset p;
+    p.skills = {k.record};
+    const auto skills = score::main_skills(two, p, db);
+    CHECK(score::compare(one, two, skills, p, db).ratio.damage == doctest::Approx(want));
+  }
 }
 
 TEST_CASE("score: convert as the engine") {

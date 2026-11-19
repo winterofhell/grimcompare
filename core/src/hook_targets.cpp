@@ -361,6 +361,13 @@ constexpr Target kPlanned[] = {
      "?GetDuration@CombatAttributeDurDamage@GAME@@UEBAMXZ"},  // 0x1142a0
     {Module::Game, Kind::Data, false, "skill_dps", "CombatAttributeDurDamage::vftable",
      "??_7CombatAttributeDurDamage@GAME@@6B@"},  // 0x7334e0
+    // Damage reductions on the character (schema 16), as Skill::CollectCombatParameters 0x499570 reads them.
+    {Module::Game, Kind::Call, false, "skill_dps", "Character::GetDurationDamageMgr",
+     "?GetDurationDamageMgr@Character@GAME@@QEAAAEAVDurationDamageManager@2@XZ"},  // 0x6da90
+    {Module::Game, Kind::Call, false, "skill_dps", "DurationDamageManager::GetFixedDamage",
+     "?GetFixedDamage@DurationDamageManager@GAME@@UEBA?BMW4CombatAttributeType@2@@Z"},  // 0x2795c0
+    {Module::Game, Kind::Data, false, "skill_dps", "DurationDamageManager::vftable",
+     "??_7DurationDamageManager@GAME@@6B@"},  // 0x75dea8
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

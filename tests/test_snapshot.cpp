@@ -84,10 +84,12 @@ Snapshot sample() {
   dps.skill_id = 77;
   dps.record = "records/skills/a.dbr";
   dps.default_attack = true;
+  dps.dual_wield = true;
   dps.dps = 1234.5f;
   dps.main_hand = {{7, true, 50, 60, 5.5f}, {6, false, 100, 200}};
   dps.off_hand = {{2, false, 10, 20}};
   s.skill_dps = {dps};
+  s.damage_reduction = DamageReduction{0, 14, 0, 25};
   return s;
 }
 
@@ -168,6 +170,11 @@ TEST_CASE("snapshot JSON round-trips") {
   CHECK(b.skill_dps[0].main_hand[0].dot);
   CHECK(b.skill_dps[0].main_hand[0].duration == 5.5f);
   CHECK(b.skill_dps[0].off_hand[0].max == 20);
+  CHECK(b.skill_dps[0].dual_wield);
+  REQUIRE(b.damage_reduction);
+  CHECK(b.damage_reduction->percent == 14);
+  CHECK(b.damage_reduction->elemental_percent == 25);
+  CHECK(b.damage_reduction->absolute == 0);
 }
 
 TEST_CASE("snapshot JSON: names written, zeros omitted, floats short") {
@@ -190,7 +197,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 16})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 17})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),

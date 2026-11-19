@@ -6,6 +6,7 @@
 
 #include "gdc/calibrate.h"
 #include "gdc/classes.h"
+#include "gdc/stat_model.h"
 
 #include "score_internal.h"
 
@@ -25,13 +26,28 @@ void add_split(Amounts& out, Key k, double v) {
   if (score::damage_type(k.first)) out[k] += v;
 }
 
-// Per use: the mean roll, a DoT per second × its processed duration. False: a DoT of unknown duration.
-bool engine_amounts(const snap::SkillDps& d, Amounts& out, std::map<Key, double>& seconds) {
-  for (const auto& e : d.main_hand) {
+// Skill::CollectCombatParameters 0x499570 hands Process every entry the reductions on the character
+// (DurationDamageManager::GetFixedDamage 28 / 30 / 31). CombatAttributeAbsDamage::Process 0x113450 takes the larger of
+// the total % and Physical % for Physical (type 2), of the total % and Elemental % for Cold / Fire / Lightning;
+// CombatAttributeDurDamage::Process 0x113F30 the Physical one only. The flat one (29) comes off each entry.
+double reduction_pct(const snap::DamageReduction& r, int type, bool dot) {
+  double pct = r.percent;
+  if (type == score::kPhysical) pct = std::max<double>(pct, r.physical_percent);
+  if (!dot && (type == score::kCold || type == score::kFire || type == score::kLightning))
+    pct = std::max<double>(pct, r.elemental_percent);
+  return pct;
+}
+
+// Per use: the mean roll, a DoT per second × its processed duration, divided back by the reductions on the character.
+// False: a DoT of unknown duration.
+bool engine_amounts(const std::vector<snap::Damage>& list, const snap::DamageReduction& red, Amounts& out,
+                    std::map<Key, double>& seconds) {
+  for (const auto& e : list) {
     const double mean = (static_cast<double>(e.min) + e.max) / 2;
     if (mean == 0) continue;
     if (e.dot && !(e.duration > 0)) return false;
-    add_split(out, {e.type, e.dot}, e.dot ? mean * e.duration : mean);
+    const double kept = 1 - reduction_pct(red, e.type, e.dot) / 100;
+    add_split(out, {e.type, e.dot}, (e.dot ? mean * e.duration : mean) / kept);
     if (e.dot) {
       Key k{e.type == score::kBasePhysical ? score::kPhysical : e.type, true};
       if (k.first == score::kElemental)
@@ -49,6 +65,51 @@ const snap::SkillDps* engine_for(const snap::Snapshot& s, const snap::Skill& sk)
   return nullptr;
 }
 
+// The record holding a buff's own stats, as procs() takes it; null: not a buff.
+const arz::Record* buff_stats(const arz::Record& rec, const arz::Database& db) {
+  const arz::Record* buff = db.record(rec.string("buffSkillName"));
+  return buff && model::self_buff(*buff) ? buff : model::self_buff(rec) ? &rec : nullptr;
+}
+
+// Buffs up at capture that passives and toggles are not: their skill records count nowhere in the captured totals.
+template <class F>
+void each_active_buff(const snap::Snapshot& s, const arz::Database& db, F f) {
+  for (const auto* list : {&s.skills, &s.item_skills})
+    for (const auto& sk : *list) {
+      if (sk.buff_active != true || sk.current_level == 0) continue;
+      const arz::Record* rec = db.record(sk.record);
+      // Skill_BuffSelfDuration (timed) derives from Skill_BuffSelfToggled (re/GameClassTree.tsv).
+      if (!rec || classes::is_a(rec->cls, "Skill_Passive") || classes::is_a(rec->cls, "Skill_BuffRadiusToggled") ||
+          (classes::is_a(rec->cls, "Skill_BuffSelfToggled") && !classes::is_a(rec->cls, "Skill_BuffSelfDuration")))
+        continue;
+      if (const arz::Record* stats = buff_stats(*rec, db)) f(sk, *stats);
+    }
+}
+
+// "Total Damage Modified" of timed buffs up at capture: a character modifier (MECHANICS §2 rule 7) the sheet applies
+// with the others (ModifyDamage at 0x499DB1), in no captured total.
+double active_buff_mult(const snap::Snapshot& s, const arz::Database& db, std::string& names) {
+  double mult = 1;
+  each_active_buff(s, db, [&](const snap::Skill& sk, const arz::Record& stats) {
+    double m = std::max(0.0, 1 + score::at_level(stats, "offensiveDamageMultModifier", sk.current_level) / 100);
+    for (const auto& [mr, ml] : score::modifiers_of(s, sk))
+      if (const arz::Record* x = db.record(mr)) m *= std::max(0.0, 1 + score::at_level(*x, "offensiveDamageMultModifier", ml) / 100);
+    if (m == 1) return;
+    mult *= m;
+    names += (names.empty() ? "" : ", ") + score::stem(sk.record);
+  });
+  return mult;
+}
+
+// A timed buff's flat damage is left out of the model's gear (weapon_flat()).
+std::string active_buff_flat(const snap::Snapshot& s, const arz::Database& db) {
+  std::string out;
+  each_active_buff(s, db, [&](const snap::Skill& sk, const arz::Record& stats) {
+    if (out.empty() && score::has_damage(db, stats, sk.current_level)) out = score::stem(sk.record);
+  });
+  return out;
+}
+
 // Why a skill is not compared; empty: compare it.
 std::string skip_reason(const snap::Skill& sk, const snap::SkillDps& d, const arz::Database& db) {
   const arz::Record* r = db.record(sk.record);
@@ -59,6 +120,39 @@ std::string skip_reason(const snap::Skill& sk, const snap::SkillDps& d, const ar
     return "charged weapon pool skill: the engine shows the default attack at live charges";
   if (d.default_attack) return "not usable with these weapons: the engine shows the default attack";
   return {};
+}
+
+// For the whole snapshot; empty: compare.
+std::string snapshot_skip(const snap::Snapshot& s, const arz::Database& db) {
+  if (s.schema >= 16 && !s.damage_reduction) return "the damage reductions on the character were not read";
+  if (s.damage_reduction && s.damage_reduction->absolute != 0)
+    return "a flat damage reduction on the character at capture (taken off each engine entry)";
+  if (s.damage_reduction)
+    for (const auto pct : {s.damage_reduction->percent, s.damage_reduction->physical_percent, s.damage_reduction->elemental_percent})
+      if (pct >= 100) return "a damage reduction of 100% or more on the character at capture";
+  if (const std::string b = active_buff_flat(s, db); !b.empty())
+    return "a timed buff with flat damage up at capture (" + b + ")";
+  return {};
+}
+
+// Model and engine per type into `out`, the L Hand pass as `off_hand`.
+void compare(const Amounts& model, const Amounts& engine, const std::map<Key, double>& seconds, bool off_hand,
+             std::vector<TypeDiff>& out) {
+  std::set<Key> keys;
+  for (const auto* a : {&model, &engine})
+    for (const auto& [k, v] : *a)
+      if (std::abs(v) >= 0.5) keys.insert(k);
+  for (const Key& k : keys) {
+    const auto sec = seconds.find(k);
+    out.push_back({k, model.contains(k) ? model.at(k) : 0, engine.contains(k) ? engine.at(k) : 0,
+                   sec != seconds.end() ? sec->second : 0, off_hand});
+  }
+}
+
+std::string pct_text(double v) {
+  char buf[32];
+  std::snprintf(buf, sizeof buf, "%g%%", v);
+  return buf;
 }
 
 }  // namespace
@@ -76,13 +170,15 @@ std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Databas
   std::vector<SkillDamageCheck> out;
   std::vector<score::Skill> mains;
   std::vector<const snap::SkillDps*> engine;
+  const std::string whole = snapshot_skip(s, db);
   for (const auto& sk : s.skills) {
     if (sk.current_level == 0) continue;
     if (!records.empty() && std::find(records.begin(), records.end(), sk.record) == records.end()) continue;
     const snap::SkillDps* d = engine_for(s, sk);
     if (!d) continue;
     if (sk.record != score::kDefaultAttack && !score::skill_kind(db, sk.record, sk.current_level).main) continue;
-    SkillDamageCheck c{sk.record, skip_reason(sk, *d, db), {}};
+    SkillDamageCheck c{sk.record, skip_reason(sk, *d, db), {}, {}};
+    if (c.skipped.empty()) c.skipped = whole;
     if (c.skipped.empty()) {
       mains.push_back({sk.record, 1});
       engine.push_back(d);
@@ -99,30 +195,57 @@ std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Databas
   score::add_retaliation(s, p, db, procs, score::learned_buffs(s, x, p, db), x);
   x.resist.clear();
   const score::Conversions global = score::global_pairs(s.conversions);
+  const snap::DamageReduction red = s.damage_reduction.value_or(snap::DamageReduction{});
+  std::string buffs;
+  const double mult = active_buff_mult(s, db, buffs);
+  std::string note;
+  if (mult != 1) note = "model x" + score::fmt(mult, 3) + " for buffs up: " + buffs;
+  if (red.percent != 0 || red.physical_percent != 0 || red.elemental_percent != 0)
+    note += (note.empty() ? "" : "; ") + std::string("engine without the damage reductions on the character (") +
+            pct_text(red.percent) + " all, " + pct_text(red.physical_percent) + " physical, " +
+            pct_text(red.elemental_percent) + " elemental)";
   std::size_t next = 0;
   for (auto& c : out) {
     if (!c.skipped.empty()) continue;
     const std::size_t i = next++;
     const score::Main& m = x.mains[i];
-    Amounts model_parts, engine_parts, model;
+    const snap::SkillDps& d = *engine[i];
+    Amounts engine_r, engine_l;
     std::map<Key, double> seconds;
-    if (!engine_amounts(*engine[i], engine_parts, seconds)) {
+    if (!engine_amounts(d.main_hand, red, engine_r, seconds) ||
+        (d.dual_wield && !engine_amounts(d.off_hand, red, engine_l, seconds))) {
       c.skipped = "an engine DoT of unknown layout (no duration)";
       continue;
     }
     const score::Pool pool = score::main_converted(m.raw, x.gear, global, notes);
-    score::skill_damage(s, *m.skill, m.raw, x.gear, p, notes, &model_parts, nullptr, false, &pool);
-    score::retaliation_amount(m.raw.retaliation, m.raw.conversion, global, x, p, notes, &model_parts);
-    for (const auto& [k, v] : model_parts) add_split(model, k, v);
-    std::set<Key> keys;
-    for (const auto* a : {&model, &engine_parts})
-      for (const auto& [k, v] : *a)
-        if (std::abs(v) >= 0.5) keys.insert(k);
-    for (const Key& k : keys) {
-      const auto sec = seconds.find(k);
-      c.types.push_back({k, model.contains(k) ? model.at(k) : 0, engine_parts.contains(k) ? engine_parts.at(k) : 0,
-                         sec != seconds.end() ? sec->second : 0});
+    if (!x.gear.off.empty() && !pool.off && m.raw.weapon_pct > 0) {
+      c.skipped = "dual wield, a weapon damage skill outside the weapon classes: one pass with both weapons, not modeled";
+      continue;
     }
+    // Per hand: each pass with its retaliation, × the buffs' multiplier.
+    auto hand = [&](const score::Pool& one) {
+      Amounts parts, model;
+      score::skill_damage(s, *m.skill, m.raw, x.gear, p, notes, &parts, nullptr, false, &one);
+      score::retaliation_amount(m.raw.retaliation, m.raw.conversion, global, x, p, notes, &parts);
+      for (const auto& [k, v] : parts) add_split(model, k, v * mult);
+      return model;
+    };
+    score::Pool r = pool;
+    r.off.reset();
+    Amounts model_r = hand(r), model_l;
+    if (pool.off) {
+      score::Pool l;
+      static_cast<score::Pass&>(l) = *pool.off;
+      l.retaliation = pool.retaliation;
+      model_l = hand(l);
+      // CalculateSkillDps folds each L pass DoT into the R pass one of the same source (FilterSameSource 0x11AE40).
+      for (auto& [k, v] : model_l)
+        if (const auto it = model_r.find(k); k.second && it != model_r.end()) it->second = std::max(it->second, v), v = 0;
+    }
+    compare(model_r, engine_r, seconds, false, c.types);
+    // Without the flag (shield, caster off-hand, one weapon) the sheet leaves the L Hand list out.
+    if (d.dual_wield || pool.off) compare(model_l, d.dual_wield ? engine_l : Amounts{}, seconds, true, c.types);
+    c.note = note;
     if (c.types.empty()) c.skipped = "no damage on either side";
   }
   return out;
@@ -137,14 +260,16 @@ std::vector<std::string> damage_report(const std::vector<SkillDamageCheck>& chec
   };
   for (const auto& c : checks) {
     if (!c.skipped.empty()) {
-      if (verbose) out.push_back("SKIP DMG " + label + " " + score::stem(c.record) + " (" + c.skipped + ")");
+      out.push_back("SKIP DMG " + label + " " + score::stem(c.record) + " (" + c.skipped + ")");
       continue;
     }
     const bool pass = c.pass();
-    out.push_back(std::string(pass ? "PASS DMG " : "FAIL DMG ") + label + " " + score::stem(c.record));
+    out.push_back(std::string(pass ? "PASS DMG " : "FAIL DMG ") + label + " " + score::stem(c.record) +
+                  (c.note.empty() ? "" : " (" + c.note + ")"));
     if (pass && !verbose) continue;
     for (const auto& d : c.types) {
-      std::string line = "    " + score::damage_label(d.key) + ": model " + num(d.model) + ", engine " + num(d.engine);
+      std::string line = "    " + std::string(d.off_hand ? "L Hand " : "") + score::damage_label(d.key) + ": model " +
+                         num(d.model) + ", engine " + num(d.engine);
       if (d.engine_seconds > 0) line += " (" + num(d.engine_seconds) + " s)";
       if (damage_off(d)) line += " OFF";
       out.push_back(std::move(line));

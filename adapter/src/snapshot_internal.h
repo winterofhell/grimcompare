@@ -39,6 +39,8 @@ constexpr int kAbsorptionProtection = 38;  // CombatAttributeDefense_AbsorptionP
 constexpr std::size_t kSkillModifiers = 0x140;
 // Hit animation, called as Player::CalculateSkillDps does.
 constexpr std::size_t kSlotHitCallbackPoint = 0x6E0;
+// DurationDamageManager::GetFixedDamage, called through vt+0x10 by Skill::CollectCombatParameters 0x499570.
+constexpr std::size_t kSlotFixedDamage = 0x10;
 // GetItemType, slot 0x550 of the Object-subobject vftable.
 constexpr std::size_t kSlotItemType = 0x550;
 // Requirement getter slots and reduction ids, as AreRequirementsMet 0x343C30.
@@ -120,6 +122,11 @@ struct Api {
   void (*skill_dps)(void*, u32, void*, void*, float*, void*, void*, u32) = nullptr;
   const void* dur_duration = nullptr;  // CombatAttributeDurDamage::GetDuration, vt+0xF0 of its family
   bool skill_dps_ok = false;
+  // Optional (schema 16): the reductions on the character; GetFixedDamage is vt+0x10 of DurationDamageManager.
+  void* (*dur_mgr)(void*) = nullptr;
+  float (*fixed_damage)(const void*, int) = nullptr;
+  const void* dur_mgr_vft = nullptr;
+  bool reduction_ok = false;
 
   void* (*char_acc_ctor)(void*) = nullptr;
   void (*char_acc_dtor)(void*) = nullptr;
