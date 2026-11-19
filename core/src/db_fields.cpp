@@ -87,6 +87,9 @@ constexpr std::pair<std::string_view, Target> kTable[] = {
     {"defensiveAetherModifier", {kDefense, 11, true}},
     {"defensiveBleeding", {kDefense, 15, false}},
     {"defensiveBleedingModifier", {kDefense, 15, true}},
+    // DefenseAttributeMisc_Block*::AddToAccumulator 0x2016C0: one defense entry; utility::defense_raw sums both slots.
+    {"defensiveBlockAmountModifier", {kDefense, 56, false}},
+    {"defensiveBlockModifier", {kDefense, 55, false}},
     {"defensiveChaos", {kDefense, 10, false}},
     {"defensiveChaosModifier", {kDefense, 10, true}},
     {"defensiveCold", {kDefense, 5, false}},

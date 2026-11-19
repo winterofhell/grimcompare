@@ -1,3 +1,5 @@
+#include "gdc/sets.h"
+
 #include "stat_model_internal.h"
 
 namespace gdc::model {
@@ -246,6 +248,15 @@ void apply_skill(Pass& ps, const snap::Skill& sk, const Grants& granted) {
   engine_check(ps.s, sk, lv->from, attached_now, e);
   for (const auto& r : removed) add_modifier(ps, r, -1, e.delta, problem);
   for (const auto& r : added) add_modifier(ps, r, +1, e.delta, problem);
+  // A modifier's conversion on a skill whose stats hold (a toggle, Werewolf Form) converts all the character's damage
+  // while it holds, as a toggle's own stats do (Fenris 5/5: Werewolf Form Pierce and Physical to Cold).
+  // shortcut: community reading (buff-skill transmuters convert every skill), engine path not traced — revisit with
+  // a capture in and out of Werewolf Form.
+  for (const auto* list : {&removed, &added})
+    for (const auto& r : *list)
+      if (const arz::Record* mr = ps.db.record(r))
+        for (const auto& c : sets::conversions(*mr, 1))
+          add_conversion(p.after.conversions, c.from, c.to, (list == &removed ? -1 : 1) * c.percent);
   if (e.problem.empty()) e.problem = problem;
   if (!e.problem.empty()) {
     p.warnings.push_back("skill " + name + ": " + e.problem);

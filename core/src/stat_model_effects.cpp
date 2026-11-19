@@ -209,8 +209,16 @@ std::optional<BuffTiming> buff_timing(const snap::Skill& sk, const arz::Database
   return rec ? timing(stats_record(*rec, db), sk.current_level) : std::nullopt;
 }
 
+// Past a field's array end the last value holds, as effects::at and sets::bonus read it (item_murderousintent L3:
+// characterDefensiveAbility [-50, -60] gives -60).
 BuffEffect buff_effect(const arz::Record& stats, std::uint32_t level) {
-  BuffEffect out{level_effect(stats, level, level).at_from, {}, {}};
+  BuffEffect out;
+  for (const auto& [key, field] : stats.fields) {
+    if (field.kind != arz::Field::Kind::Int && field.kind != arz::Field::Kind::Float) continue;
+    double scale = 1;
+    if (const fields::Target* t = fields::lookup(key, scale))
+      if (const double v = value_at(stats, key, level); v != 0) out.stats[{t->kind, t->type, t->modifier}] += v * scale;
+  }
   add_unmodeled(stats, level, out);
   drop_zeros(out.stats);
   return out;

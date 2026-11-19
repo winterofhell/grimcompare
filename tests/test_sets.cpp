@@ -175,6 +175,7 @@ TEST_CASE("sets: score counts the set's flat damage at the equipped piece count"
   p.skills = {"records/skills/default/defaultweaponattack.dbr"};
   p.enemy_resist.clear();  // no enemy model: raw damage sums
   const auto r = score::compare(s, full, score::main_skills(s, p, db), p, db);
-  // 100 Physical vs 100 Physical + 500 Poison (attribute factors 1 at 0 Cunning / Spirit).
-  CHECK(r.ratio.damage == doctest::Approx(6.0).epsilon(0.01));
+  // 100 Physical vs 100 Physical + 500 Poison x 2.5 (the 3pc +150% Poison duration, offensiveSlowPoisonDurationModifier;
+  // attribute factors 1 at 0 Cunning / Spirit).
+  CHECK(r.ratio.damage == doctest::Approx(13.5).epsilon(0.01));
 }

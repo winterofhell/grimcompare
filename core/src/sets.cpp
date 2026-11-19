@@ -77,15 +77,6 @@ void skill_modifiers(const arz::Record& set, int n, Bonus& b) {
   }
 }
 
-void conversions(const arz::Record& set, int n, Bonus& b) {
-  for (const auto& [in, out, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
-                                     std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
-    const int from = damage_type_named(set.string(in)), to = damage_type_named(set.string(out));
-    const double v = at(set, pct, n);
-    if (from && to && v > 0) b.conversions.push_back({from, to, static_cast<float>(v / 100)});
-  }
-}
-
 void flat_damage(const arz::Record& set, int n, Bonus& b) {
   for (const auto& f : fields::flat_damage()) {
     const double min = at(set, f.min, n);
@@ -110,6 +101,17 @@ void flat_damage(const arz::Record& set, int n, Bonus& b) {
 
 }  // namespace
 
+std::vector<snap::Conversion> conversions(const arz::Record& r, int n) {
+  std::vector<snap::Conversion> out;
+  for (const auto& [in, to, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
+                                    std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
+    const int a = damage_type_named(r.string(in)), b = damage_type_named(r.string(to));
+    const double v = at(r, pct, n);
+    if (a && b && v > 0) out.push_back({a, b, static_cast<float>(v / 100)});
+  }
+  return out;
+}
+
 Bonus bonus(const arz::Record& set, int n) {
   Bonus b;
   if (n <= 0) return b;
@@ -124,7 +126,7 @@ Bonus bonus(const arz::Record& set, int n) {
     }
   }
   if (!set.string("petBonusName").empty()) b.unmodeled.push_back("petBonusName");
-  conversions(set, n, b);
+  b.conversions = conversions(set, n);
   flat_damage(set, n, b);
   return b;
 }

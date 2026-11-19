@@ -35,6 +35,8 @@ struct Bonus {
 };
 
 Bonus bonus(const arz::Record& set, int n);
+// A record's conversionInType / OutType / Percentage pairs (and the "2" set) at n (1-based, the last value holds).
+std::vector<snap::Conversion> conversions(const arz::Record& r, int n);
 double bonus_field(const arz::Record& set, std::string_view key, int n);
 
 }  // namespace gdc::sets

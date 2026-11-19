@@ -45,7 +45,8 @@ TEST_CASE("database field table matches the extracted engine tables") {
     const auto t = combat_type.find(cls);
     if (t == combat_type.end() || t->second == 58 || t->second == 60) continue;
     if (cls.starts_with("DefenseAttributeAbsMod_")) want.emplace_back(r[2], 1, t->second, true);
-    else if (cls.starts_with("DefenseAttributeAbs_")) want.emplace_back(r[2], 1, t->second, false);
+    else if (cls.starts_with("DefenseAttributeAbs_") || cls.starts_with("DefenseAttributeMisc_Block"))
+      want.emplace_back(r[2], 1, t->second, false);
   }
   for (const auto& r : rows("CharAttributeType.tsv")) {
     REQUIRE(r.size() >= 3);

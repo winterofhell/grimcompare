@@ -43,8 +43,8 @@ struct Builder {
   void proc(Effect& e, const arz::Record& skill, std::string_view controller_record, bool own);
   bool own_trigger(Effect& e, const arz::Record& skill, double chance, bool own);
   void cast(Effect& e, const arz::Record& skill, const char* how, bool own);
-  void granted(const std::string& skill, std::uint32_t level, std::string note, std::string_view controller,
-               const std::string& source);
+  std::optional<Effect> granted(const std::string& skill, std::uint32_t level, std::string note,
+                                std::string_view controller, const std::string& source);
   // effects_pets.cpp. `summon` by value: add() grows out.effects.
   void pets(const Effect summon, const arz::Record& skill);
   void add(Effect e);

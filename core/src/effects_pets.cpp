@@ -282,6 +282,27 @@ void Builder::pets(const Effect summon, const arz::Record& skill) {
     }
     add(std::move(e));
   }
+  // A pet's radius aura (Black Blood of Yugol's debuff) holds on the enemies near it while a pet lives.
+  // shortcut: the pets are taken to stand at the target — revisit when pet placement is modeled.
+  for (const auto& [name, lv] : skills) {
+    const arz::Record* r = db.record(name);
+    if (!r || !classes::is_a(r->cls, "Skill_BuffRadiusToggled") || alive <= 0) continue;
+    Effect e;
+    e.record = e.skill = name;
+    e.source = summon.skill;
+    e.level = lv;
+    e.pet = true;
+    e.player_scaled = scaled;
+    e.pets = alive;
+    e.pet_record = spawn.pet;
+    e.maintained = true;
+    e.origin = Origin::Derived;
+    e.basis = "aura while " + fmt(alive, 1) + " pets live (" + how + ")";
+    const std::size_t from = out.reductions.size();
+    add(std::move(e));
+    for (std::size_t i = from; i < out.reductions.size(); ++i)
+      if (out.reductions[i].origin != Origin::Preset) out.reductions[i].uptime *= std::min(1.0, alive);
+  }
 }
 
 std::optional<double> equation(std::string_view expr, double char_level) {

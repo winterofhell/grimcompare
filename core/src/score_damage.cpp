@@ -80,14 +80,53 @@ Amounts weapon_flat(const snap::Snapshot& s, const arz::Database& db, const Amou
   return out;
 }
 
-// shortcut: record DurMod values only — revisit with GetTotalDurationModifierType.
+// Items, set bonuses, and learned passives, toggles and devotion nodes with their modifiers. A modifier of any other
+// skill is that skill's own (Raw::duration).
+// shortcut: record DurMod values only, timed buffs left out — revisit with GetTotalDurationModifierType.
 std::map<int, double> dot_duration(const snap::Snapshot& s, const arz::Database& db) {
   std::map<int, double> out;
+  using Durations = std::vector<std::pair<int, double>>;
+  auto durations = [](const arz::Record& r, std::uint32_t level) {
+    Durations d;
+    for (const auto& [t, field] : kDotDuration)
+      if (const double x = at_level(r, field, level); x != 0) d.emplace_back(t, x);
+    return d;
+  };
+  auto add = [&](const Durations& d) {
+    for (const auto& [type, v] : d) out[type] += v;
+  };
+  auto take = [&](const arz::Record& r, std::uint32_t level) {
+    add(db.derived<Durations>(r, level, [&] { return durations(r, level); }));
+  };
   for (const auto& it : s.equipped)
     for (const auto& r : model::item_records(it))
-      if (const arz::Record* rec = db.record(r))
-        for (const auto& [type, field] : kDotDuration)
-          if (const double v = rec->number(field); v != 0) out[type] += v;
+      if (const arz::Record* rec = db.record(r)) take(*rec, 1);
+  for (const auto& [set, n] : sets::counts(s))
+    if (const arz::Record* rec = db.record(set)) take(*rec, static_cast<std::uint32_t>(n));
+  for (const auto& sk : s.skills) {
+    if (sk.current_level == 0 || (sk.level == 0 && sk.devotion_max_level == 0)) continue;
+    const arz::Record* rec = db.record(sk.record);
+    if (!rec) continue;
+    // Absent for other classes. Skill_BuffSelfDuration (timed buffs, oils) derives from Skill_BuffSelfToggled
+    // (re/GameClassTree.tsv).
+    const auto& own = db.derived<std::optional<Durations>>(*rec, sk.current_level, [&]() -> std::optional<Durations> {
+      if (classes::is_a(rec->cls, "Skill_Passive") ||
+          (classes::is_a(rec->cls, "Skill_BuffSelfToggled") && !classes::is_a(rec->cls, "Skill_BuffSelfDuration")))
+        return durations(*rec, sk.current_level);
+      return std::nullopt;
+    });
+    if (!own) continue;
+    // Passives and devotion nodes always hold; a toggle only while on (flagged, or its collectors in the capture).
+    if (!classes::is_a(rec->cls, "Skill_Passive") && sk.buff_active != true && !skill_on(sk, *rec)) continue;
+    add(*own);
+    for (const std::uint32_t id : sk.modifier_ids)
+      for (const auto& m : s.skills)
+        if (m.id == id && m.current_level > 0)
+          if (const arz::Record* mr = db.record(m.record)) take(*mr, m.current_level);
+    for (const auto& m : s.item_skill_modifiers)
+      if (m.skill_id == sk.id)
+        if (const arz::Record* mr = db.record(m.modifier_record)) take(*mr, 1);
+  }
   return out;
 }
 
@@ -169,7 +208,7 @@ double attribute_bonus(const snap::Snapshot& s, int type, bool dot) {
 }
 
 Gear gear(const snap::Snapshot& s, const arz::Database& db, const Amounts& base) {
-  return {weapon_flat(s, db, base), dot_duration(s, db)};
+  return {weapon_flat(s, db, base), dot_duration(s, db), {}};
 }
 
 // Max uses per second; animation-based for spells.
@@ -267,7 +306,7 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double crit_bonus = (crit_row ? crit_row->damage_modifier : 0) + raw.crit / 100;
   double pth = 0;
-  const formulas::Hit h = attack(s, p, crit_bonus, &pth);
+  const formulas::Hit h = attack(s, p, crit_bonus, g.enemy_da, &pth);
   out.per_use = sum * h.multiplier;
   out.cooldown = raw.cooldown;
   out.rate = use_rate(s, sk, raw);
@@ -311,13 +350,26 @@ const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vect
   return memo->back();
 }
 
-Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv) {
+Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv,
+                   double mult) {
   Extra out;
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
-  const double hit = attack(s, p, crit_row ? crit_row->damage_modifier : 0).multiplier;
+  const double hit = attack(s, p, crit_row ? crit_row->damage_modifier : 0, x.gear.enemy_da).multiplier;
   auto resist = [&](int type) {
     const auto r = x.resist.find(type);
     return r != x.resist.end() ? std::max(0.0, r->second) : 1.0;
+  };
+  // Per damage kind, the same for every hit: worked out once.
+  std::vector<std::pair<std::pair<int, bool>, double>> scales;
+  auto scale = [&](const std::pair<int, bool>& k) {
+    for (const auto& [key, v] : scales)
+      if (key == k) return v;
+    const auto* m = find(s.damage_modifiers, k.first);
+    const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
+    const double v = std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second)) * resist(k.first) *
+                     (k.second ? x.gear.dot_scale(k.first) : 1.0) * type_weight(p, k);
+    scales.emplace_back(k, v);
+    return v;
   };
   for (std::size_t i = 0; i < x.hits.size(); ++i) {
     const auto& e = x.hits[i];
@@ -326,13 +378,8 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bo
       for (const auto& [k, v] : e.flat) per_use += v * resist(k.first) * type_weight(p, k);
       per_use *= e.pet_hit;
     } else {
-      for (const auto& [k, v] : conv.hits[i]) {
-        const auto* m = find(s.damage_modifiers, k.first);
-        const double pct = m ? (k.second ? m->dot_modifier : m->damage_modifier) : 0;
-        per_use += v * std::max(0.0, 1 + pct / 100 + attribute_bonus(s, k.first, k.second)) * resist(k.first) *
-                   (k.second ? x.gear.dot_scale(k.first) : 1.0) * type_weight(p, k);
-      }
-      per_use *= hit;
+      for (const auto& [k, v] : conv.hits[i]) per_use += v * scale(k);
+      per_use *= hit * mult;
     }
     out.per_sec += e.per_sec * per_use;
     if (explain)

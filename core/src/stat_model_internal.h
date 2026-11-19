@@ -105,9 +105,12 @@ struct AllDeltas {
       const auto [kind, type, modifier] = k;
       if (damage_only && kind != fields::Kind::Damage) continue;
       if (kind == fields::Kind::Damage && (type == combat_attr::kElemental || type == combat_attr::kAll)) {
-        // Items arrive spread already (see swap()).
+        // Items arrive spread already (see swap()). +% All Damage reaches both kinds, as b002e_torso's rows.
         for (int t : fields::spread(type, modifier)) (modifier ? dmg[t].second : dmg[t].first) += v;
-        if (type == combat_attr::kAll && !modifier) dmg[combat_attr::kAll].first += v;  // b002e_torso: row 60 direct only
+        if (type == combat_attr::kAll && !modifier) {
+          for (int t : fields::spread(type, true)) dmg[t].second += v;
+          dmg[combat_attr::kAll].first += v;  // b002e_torso: row 60 direct only
+        }
         continue;
       }
       auto& d = kind == fields::Kind::Char ? chr[type] : kind == fields::Kind::Defense ? def[type] : dmg[type];

@@ -17,6 +17,13 @@ std::string part_name(const score::Contribution& c, const Labels& labels) {
 
 // Category 2 is a percentage (MECHANICS §1).
 std::string rr_amount(const effects::Reduction& r, const Labels& labels) {
+  if (r.category >= effects::kEnemyOA) {
+    const char* what = r.category == effects::kEnemyOA ? " enemy OA" : r.category == effects::kEnemyDA ? " enemy DA" : " enemy damage";
+    std::string t;
+    for (const auto& [key, v] : r.amount)
+      t += (t.empty() ? "-" : ", -") + num(v, 0) + (key == 1 || r.category == effects::kEnemyDamage ? "%" : "") + what;
+    return t;
+  }
   double lo = r.amount.begin()->second, hi = lo;
   for (const auto& [_, v] : r.amount) lo = std::min(lo, v), hi = std::max(hi, v);
   const std::string pct = r.category == 2 ? "%" : "";

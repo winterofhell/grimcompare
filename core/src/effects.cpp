@@ -40,10 +40,11 @@ struct Resist {
 constexpr Resist kDebuffFields[] = {
     {"defensivePhysical", 2}, {"defensivePierce", 4}, {"defensiveCold", 5},   {"defensiveFire", 6},
     {"defensivePoison", 7},   {"defensiveLightning", 8}, {"defensiveLife", 9}, {"defensiveChaos", 10},
-    {"defensiveAether", 11},  {"defensiveBleeding", 15}, {"defensiveElementalResistance", 58}};
+    {"defensiveAether", 11},  {"defensiveBleeding", 15}, {"defensiveElementalResistance", 58},
+    {"defensiveAllResistance", 0}};  // DefenseAttributeAbs_AllResistance::AddToAccumulator 0x200C30: 10 base resists
 constexpr int kElementalTypes[] = {combat_attr::kCold, combat_attr::kFire, combat_attr::kLightning};
 
-// `on`: 0 = every resist, 2 = Physical, 58 = Elemental.
+// `on`: 0 = every resist, 2 = Physical, 58 = Elemental; -1 = the enemy category's flat amount.
 struct Offensive {
   std::string_view min, duration;
   int category, on;
@@ -54,7 +55,20 @@ constexpr Offensive kOffensiveFields[] = {
     {"offensivePhysicalResistanceReductionPercentMin", "offensivePhysicalResistanceReductionPercentDurationMin", 2, 2},
     {"offensivePhysicalResistanceReductionAbsoluteMin", "offensivePhysicalResistanceReductionAbsoluteDurationMin", 3, 2},
     {"offensiveElementalResistanceReductionPercentMin", "offensiveElementalResistanceReductionPercentDurationMin", 2, 58},
-    {"offensiveElementalResistanceReductionAbsoluteMin", "offensiveElementalResistanceReductionAbsoluteDurationMin", 3, 58}};
+    {"offensiveElementalResistanceReductionAbsoluteMin", "offensiveElementalResistanceReductionAbsoluteDurationMin", 3, 58},
+    {"offensiveSlowOffensiveAbilityMin", "offensiveSlowOffensiveAbilityDurationMin", kEnemyOA, -1},
+    {"offensiveSlowDefensiveAbilityMin", "offensiveSlowDefensiveAbilityDurationMin", kEnemyDA, -1},
+    {"offensiveTotalDamageReductionPercentMin", "offensiveTotalDamageReductionPercentDurationMin", kEnemyDamage, -1}};
+
+// A debuff's negative ability fields lower the enemy's: {field, category, amount key}.
+struct Ability {
+  std::string_view field;
+  int category, key;
+};
+constexpr Ability kDebuffAbility[] = {{"characterOffensiveAbility", kEnemyOA, 0},
+                                      {"characterOffensiveAbilityModifier", kEnemyOA, 1},
+                                      {"characterDefensiveAbility", kEnemyDA, 0},
+                                      {"characterDefensiveAbilityModifier", kEnemyDA, 1}};
 
 bool debuff(const arz::Record& r) { return r.number("debufSkill") > 0 || r.cls == "SkillBuff_Debuf"; }
 
@@ -116,7 +130,8 @@ void learned_skills(Builder& b) {
         if (m.id == id && m.current_level > 0) e.modifiers.emplace_back(m.record, m.current_level);
     for (const auto& m : b.s.item_skill_modifiers)
       if (m.skill_id == sk.id && !m.modifier_record.empty()) e.modifiers.emplace_back(m.modifier_record, 1);
-    if (!(model::triggered_buff(*r) && b.own_trigger(e, *r, 1, true))) b.cast(e, *r, "cast", true);
+    const bool own = model::triggered_buff(*r) || r->cls.starts_with("Skill_WPAttack_");
+    if (!(own && b.own_trigger(e, *r, 1, true))) b.cast(e, *r, "cast", true);
     b.add(std::move(e));
   }
 }
@@ -136,22 +151,47 @@ void devotion_powers(Builder& b) {
   }
 }
 
+// One record granted by several items or sets (Dung Divider and Fewmet Grips: Noxious Fumes). AddItemSkills 0x538520
+// makes a Skill per item and AddAutoCastController 0x558C00 a controller per Skill, each rolling with its own
+// cooldown (SkillAutoCastController::AppraiseAndExecute 0x522D20), so the uses add. Its buff, debuff or DoT on a
+// target is one instance that each use refreshes: one effect at the summed rate, its uptime min(1, rate x duration).
+// Summons keep one effect per source (each Skill holds its own pets).
+// shortcut: the higher level stands for both — revisit if two levels of one granted skill turn up together.
+void merge_into(Effect& to, Effect&& e) {
+  to.per_sec += e.per_sec;
+  to.pool_chance += e.pool_chance;
+  to.maintained = to.maintained || e.maintained;
+  to.level = std::max(to.level, e.level);
+  to.origin = std::min(to.origin, e.origin);
+  to.source += " + " + e.source;
+  to.basis += "; " + e.basis;
+}
+
 void item_and_set_skills(Builder& b) {
+  std::vector<Effect> grants;
+  auto keep = [&](std::optional<Effect> e) {
+    if (!e) return;
+    const arz::Record* rec = b.db.record(e->record);
+    const auto same = std::find_if(grants.begin(), grants.end(), [&](const Effect& x) { return x.record == e->record; });
+    if (same != grants.end() && rec && !pet_summon(*rec) && e->level > 0 && same->level > 0) merge_into(*same, std::move(*e));
+    else grants.push_back(std::move(*e));
+  };
   for (const auto& it : b.s.equipped)
     for (const auto& name : model::item_records(it))
       if (const arz::Record* rec = b.db.record(name); rec && !rec->string("itemSkillName").empty()) {
         std::string note;
         const arz::Record* base = b.db.record(it.record);
         const std::uint32_t level = item_skill_level(rec->string("itemSkillLevelEq"), base ? *base : *rec, note);
-        b.granted(std::string(rec->string("itemSkillName")), level, note, rec->string("itemSkillAutoController"), name);
+        keep(b.granted(std::string(rec->string("itemSkillName")), level, note, rec->string("itemSkillAutoController"), name));
       }
   for (const auto& [set, n] : sets::counts(b.s))
     if (const arz::Record* rec = b.db.record(set)) {
       const sets::Bonus bonus = sets::bonus(*rec, n);
       if (!bonus.granted_skill.empty())
-        b.granted(bonus.granted_skill, static_cast<std::uint32_t>(bonus.granted_level), "",
-                  rec->string("itemSkillAutoController"), set);
+        keep(b.granted(bonus.granted_skill, static_cast<std::uint32_t>(bonus.granted_level), "",
+                       rec->string("itemSkillAutoController"), set));
     }
+  for (auto& e : grants) b.add(std::move(e));
 }
 
 // Highest-only: each source counts while stronger ones are off.
@@ -241,7 +281,9 @@ bool Builder::own_trigger(Effect& e, const arz::Record& skill, double chance, bo
   } else if (classes::is_a(skill.cls, "Skill_PassiveOnHitBuffSelf")) {  // incl. Skill_PassiveOnHitBuffShield
     trigger(e, skill, at(skill, "onHitActivationChance", e.level) / 100, "HitByEnemy", own);
   } else if (skill.cls.starts_with("Skill_WPAttack_")) {
-    trigger(e, skill, at(skill, "skillChanceWeight", e.level) / 100, "WeaponPool", own);
+    // Skill_WPAttack::GetChanceWeight 0x5160E0 reads it through the skill's accumulator: its modifiers add.
+    e.pool_chance = summed(e, skill, "skillChanceWeight") / 100;
+    trigger(e, skill, e.pool_chance, "WeaponPool", own);
   } else {
     return false;
   }
@@ -266,10 +308,10 @@ void Builder::cast(Effect& e, const arz::Record& skill, const char* how, bool ow
 }
 
 // An item or set skill.
-void Builder::granted(const std::string& skill, std::uint32_t level, std::string note, std::string_view controller,
-                      const std::string& source) {
+std::optional<Effect> Builder::granted(const std::string& skill, std::uint32_t level, std::string note,
+                                      std::string_view controller, const std::string& source) {
   const arz::Record* r = db.record(skill);
-  if (!r) return;
+  if (!r) return std::nullopt;
   Effect e;
   e.record = e.skill = skill;
   e.source = source;
@@ -277,14 +319,13 @@ void Builder::granted(const std::string& skill, std::uint32_t level, std::string
   e.basis = std::move(note);
   if (level == 0) {
     e.basis = "level equation" + e.basis;
-    add(std::move(e));
-    return;
+    return e;
   }
   const arz::Record* c = db.record(controller);
   if (own_trigger(e, *r, c ? c->number("chanceToRun") / 100 : 1, false)) {
   } else if (controller.empty()) cast(e, *r, "activated", false);
   else proc(e, *r, controller, false);
-  add(std::move(e));
+  return e;
 }
 
 void Builder::add(Effect e) {
@@ -292,21 +333,26 @@ void Builder::add(Effect e) {
   if (!rec) return;
   const arz::Record* buff = db.record(rec->string("buffSkillName"));
   const arz::Record* deb = buff && debuff(*buff) ? buff : debuff(*rec) ? rec : nullptr;
+  std::vector<std::pair<const arz::Record*, std::uint32_t>> mods;
+  for (const auto& [m, lvl] : e.modifiers)
+    if (const arz::Record* mr = db.record(m)) mods.emplace_back(mr, lvl);
   if (deb) {
-    Reduction r;
-    r.record = e.record;
-    r.category = 1;
+    Reduction r, oa, da;
+    r.record = oa.record = da.record = e.record;
+    r.category = 1, oa.category = kEnemyOA, da.category = kEnemyDA;
     auto take = [&](const arz::Record& x, std::uint32_t lvl) {
       for (const auto& f : kDebuffFields)
         if (const double v = at(x, f.field, lvl); v < 0) spread(r.amount, f.type, -v, resists);
+      for (const auto& f : kDebuffAbility)
+        if (const double v = at(x, f.field, lvl); v < 0) (f.category == kEnemyOA ? oa : da).amount[f.key] -= v;
     };
     take(*deb, e.level);
-    for (const auto& [m, lvl] : e.modifiers)
-      if (const arz::Record* mr = db.record(m)) take(*mr, lvl);
-    if (!r.amount.empty()) {
-      set_uptime(r, e, at(*deb, "skillActiveDuration", e.level), overrides);
-      out.reductions.push_back(std::move(r));
-    }
+    for (const auto& [mr, lvl] : mods) take(*mr, lvl);
+    for (Reduction* x : {&r, &oa, &da})
+      if (!x->amount.empty()) {
+        set_uptime(*x, e, at(*deb, "skillActiveDuration", e.level), overrides);
+        out.reductions.push_back(std::move(*x));
+      }
   }
   for (const auto& f : kOffensiveFields) {
     double v = 0, duration = 0;
@@ -315,13 +361,17 @@ void Builder::add(Effect e) {
       v = std::max(v, at(*x, f.min, e.level));
       duration = std::max(duration, at(*x, f.duration, e.level));
     }
-    for (const auto& [m, lvl] : e.modifiers)
-      if (const arz::Record* mr = db.record(m)) v += at(*mr, f.min, lvl);
+    // Modifiers add to the value; one that brings the effect (blitz2) brings its duration too.
+    for (const auto& [mr, lvl] : mods) {
+      v += at(*mr, f.min, lvl);
+      duration = std::max(duration, at(*mr, f.duration, lvl));
+    }
     if (v <= 0) continue;
     Reduction r;
     r.record = e.record;
     r.category = f.category;
-    spread(r.amount, f.on, v, resists);
+    if (f.on < 0) r.amount[0] = v;
+    else spread(r.amount, f.on, v, resists);
     set_uptime(r, e, duration, overrides);
     out.reductions.push_back(std::move(r));
   }
@@ -345,11 +395,27 @@ const arz::Record* summoned(const arz::Record& skill, std::uint32_t level, const
 
 Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates& rates,
                   const std::map<std::string, double>& overrides, const std::vector<int>& resists) {
-  Builder b{s, db, rates, overrides, resists, {}, utility::cooldown_reduction(s)};
-  learned_skills(b);
-  devotion_powers(b);
-  item_and_set_skills(b);
-  return std::move(b.out);
+  auto build = [&](const Rates& r) {
+    Builder b{s, db, r, overrides, resists, {}, utility::cooldown_reduction(s)};
+    learned_skills(b);
+    devotion_powers(b);
+    item_and_set_skills(b);
+    return std::move(b.out);
+  };
+  Collected out = build(rates);
+  // SkillManager::SelectWeaponPoolSkill 0x5364C0 rolls over max(100, sum of the weights under 100): past 100 each
+  // weight counts w / sum and the weapon pool skill itself never comes up. Fewer weapon pool uses scale every chance.
+  // shortcut: a weight of 100 or more (the engine's other list) is taken as a chance — revisit if a player one exists.
+  double total = 0;
+  for (const auto& e : out.effects)
+    if (!e.pet) total += e.pool_chance;
+  if (total > 1) {
+    Rates r = rates;
+    r.weapon /= total;
+    out = build(r);
+    for (auto& e : out.effects) e.pool_chance /= total;
+  }
+  return out;
 }
 
 std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, const std::vector<Reduction>& rr) {
@@ -358,6 +424,7 @@ std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, con
     double r1 = resist;
     std::vector<std::pair<double, double>> by[4];
     for (const auto& r : rr) {
+      if (r.category < 1 || r.category > 3) continue;
       const auto it = r.amount.find(type);
       if (it == r.amount.end() || r.uptime <= 0) continue;
       if (r.category == 1) r1 -= it->second * r.uptime;
@@ -372,6 +439,22 @@ std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, con
     out[type] = m;
   }
   return out;
+}
+
+Shred shred(const std::vector<Reduction>& rr, int category) {
+  Shred out;
+  for (const auto& r : rr)
+    if (r.category == category) {
+      if (const auto it = r.amount.find(0); it != r.amount.end()) out.flat += it->second * r.uptime;
+      if (const auto it = r.amount.find(1); it != r.amount.end()) out.pct += it->second * r.uptime;
+    }
+  return out;
+}
+
+double expected_highest(std::vector<std::pair<double, double>> v) {
+  double sum = 0;
+  for (const auto& [value, p] : states(std::move(v))) sum += value * p;
+  return sum;
 }
 
 }  // namespace gdc::effects

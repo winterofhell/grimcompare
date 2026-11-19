@@ -118,7 +118,7 @@ void main_damage_ratio(const Scored& before, const Scored& after, const std::vec
   for (const Scored* sd : {&before, &after})
     for (const auto& [prob, e] : sd->states) {
       for (std::size_t k = 0; k < skills.size(); ++k) both[k] = both[k] && e.skills[k].value > 0;
-      extra = extra || e.extra.per_sec > 0;
+      extra = extra || e.extra.per_sec != 0;  // negative: weapon pool attacks weaker than the uses they take
       mains = mains && main(e) > 0;
     }
   auto geo = [&](const Eval& e) {
@@ -128,7 +128,8 @@ void main_damage_ratio(const Scored& before, const Scored& after, const std::vec
     return std::exp(ln);
   };
   const double scale = extra && mains ? std::sqrt(geo(b0) / main(b0) * geo(a0) / main(a0)) : 0;
-  auto damage = [&](const Eval& e) { return geo(e) + scale * e.extra.per_sec; };
+  // Floor: a net loss to weapon pool attacks cannot take damage to zero or below.
+  auto damage = [&](const Eval& e) { return std::max(0.01 * geo(e), geo(e) + scale * e.extra.per_sec); };
   std::vector<Contribution> parts;
   for (std::size_t k = 0; k < skills.size(); ++k) {
     out.before += b0.skills[k].inputs + " w " + fmt(skills[k].weight, 2) + "; ";
@@ -185,7 +186,8 @@ void survival_ratio(const Survival& sb, const Survival& sa, const Settings& p, R
     if (a > 0 && b > 0 && a != b) out.contributions.push_back({label, "", std::log(a / b) * p.survival_weight * 100, stat});
   };
   factor("Life", sb.life, sa.life, "life");
-  factor("DA (enemy hits and crits)", sa.hit, sb.hit, "da");
+  factor("DA (enemy hits and crits)", sa.hit / sa.oa_debuff, sb.hit / sb.oa_debuff, "da");
+  factor("Enemy OA debuffs", sa.oa_debuff, sb.oa_debuff);
   factor("Dodge / deflect", 1 - sa.avoid, 1 - sb.avoid);
   factor("Block", 1 - sa.block, 1 - sb.block);
   factor("Enemy damage reduction", 1 - sa.reduction, 1 - sb.reduction);
@@ -247,6 +249,8 @@ Result compare(const snap::Snapshot& before, const snap::Snapshot& after, const 
   std::vector<std::string> notes_b, notes_a;
   const Amounts base = db ? shared_base(before, after, *db) : Amounts{};
   // model::swap predictions keep before's capture time and live pets.
+  // shortcut: a predicted `before` (a stripped slot) keeps the capture's pet speeds unshifted, so a pet-bonus swap
+  // and its reverse are off by about (Δ / (1 + m))² — revisit when predictions carry their pets' speeds.
   const snap::Snapshot* captured = after.taken_at == before.taken_at ? &before : nullptr;
   Memo own;
   if (!memo) memo = &own;

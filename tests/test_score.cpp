@@ -726,3 +726,57 @@ TEST_CASE("parse: every Unicode code point where the parser classifies character
   }
   CHECK(score::parse("[preset]\nname = \"Ölaf's ☃ build\"", error));
 }
+
+TEST_CASE("+% All Damage from a buff or a skill reaches DoT too; buff fields past their array end hold the last value (installed game; skips if absent)") {
+  // MECHANICS §3: type 60 spreads over both kinds.
+  model::BuffEffect all;
+  all.stats[{fields::Kind::Damage, 60, false}] = 35;
+  const std::pair<const model::BuffEffect*, double> up[] = {{&all, 1.0}};
+  snap::Snapshot s, on;
+  const arz::Database* db = game_db();
+  if (!db) return;
+  model::buffed(s, up, *db, on);
+  auto row = [&](int type) { return *score::find(on.damage_modifiers, type); };
+  CHECK(row(6).damage_modifier == 35);
+  CHECK(row(6).dot_modifier == 35);
+  CHECK(row(15).dot_modifier == 35);   // Bleeding: DoT only
+  CHECK(row(4).damage_modifier == 35);  // Pierce: direct only
+  CHECK(row(4).dot_modifier == 0);
+
+  // Soul Harvest (soulscythe2.dbr L4): 62% on the skill's direct and DoT keys.
+  score::Raw raw;
+  score::add_record(*db, *db->record("records/skills/playerclass08/soulscythe2.dbr"), 4, raw);
+  CHECK(raw.pct.at({9, false}) == 62);
+  CHECK(raw.pct.at({9, true}) == 62);
+  CHECK(raw.pct.at({15, true}) == 62);
+
+  // item_murderousintent.dbr at L3: OA [100, 120, 150], DA [-50, -60].
+  const model::BuffEffect m = model::buff_effect(*db->record("records/skills/itemskills/item_murderousintent.dbr"), 3);
+  CHECK(m.stats.at({fields::Kind::Char, 21, false}) == 150);
+  CHECK(m.stats.at({fields::Kind::Char, 23, false}) == -60);
+}
+
+TEST_CASE("score: DoT duration from devotion nodes and passives always, from a toggle only while on (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  auto skill = [](std::uint32_t id, const char* record, std::uint32_t level) {
+    snap::Skill k;
+    k.id = id;
+    k.record = record;
+    k.level = k.current_level = level;
+    k.buff_active = false;  // as schema >= 8 captures read: anything not flagged on
+    return k;
+  };
+  snap::Snapshot s;
+  s.skills.push_back(skill(1, "records/skills/devotion/tier1_02d.dbr", 1));  // +30% Poison duration
+  s.skills.back().level = 0;
+  s.skills.back().devotion_max_level = 1;
+  s.skills.push_back(skill(2, "records/skills/playerclass06/primalbond01.dbr", 10));  // +64% Bleeding duration at 10
+  auto dot = [&](int type) { const auto d = score::gear(s, *db, {}).dot; return d.contains(type) ? d.at(type) : 0.0; };
+  CHECK(dot(7) == 30);
+  CHECK(dot(15) == 0);  // toggled off
+  s.skills[1].buff_active = true;
+  CHECK(dot(15) == 64);
+  s.skills[1].buff_active.reset();  // after model::expected(): on only with its collectors in the capture
+  CHECK(dot(15) == 0);
+}

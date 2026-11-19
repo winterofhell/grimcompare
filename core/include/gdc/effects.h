@@ -18,7 +18,7 @@ enum class Origin : std::uint8_t { Derived, Preset, Default };  // Default: fall
 struct Rates {
   double action = 0;      // AttackEnemy
   double crit = 0;        // AttackEnemyCrit
-  double weapon = 0;      // Skill_WPAttack_*
+  double weapon = 0;      // uses/s of weapon pool skills (SkillActivatedWeaponPool), which Skill_WPAttack_* replace
   double hits_taken = 0;  // HitByEnemy
   double melee_hits = 0;  // HitByMelee
   double projectile_hits = 0;  // HitByProjectile
@@ -45,6 +45,8 @@ struct Effect {
   double pets = 0;
   // LowHealth threshold; 0 when the controller has none.
   double life_below = 0;
+  // Skill_WPAttack_*: the share of weapon pool skill uses it replaces.
+  double pool_chance = 0;
   Origin origin = Origin::Default;
   std::string basis;
   std::vector<std::pair<std::string, std::uint32_t>> modifiers;
@@ -52,6 +54,9 @@ struct Effect {
   std::string pet_record;
   std::vector<std::pair<std::string, std::uint32_t>> weapon;
 };
+
+// Categories 1-3 reduce resists (MECHANICS §1); the enemy ones hold amount[0] flat and amount[1] % (MECHANICS §9).
+inline constexpr int kEnemyOA = 4, kEnemyDA = 5, kEnemyDamage = 6;
 
 struct Reduction {
   std::string record;
@@ -88,5 +93,15 @@ inline double uptime(const Effect& e, double duration) {
 
 // RR stacking: type 1 sums, 2 / 3 highest-only.
 std::map<int, double> resist_multipliers(const std::map<int, double>& enemy, const std::vector<Reduction>& rr);
+
+// Enemy OA / DA after debuffs, as the player's: (base - flat) x (1 - % / 100); expected value over uptimes.
+struct Shred {
+  double flat = 0, pct = 0;
+  double apply(double v) const { return std::max(0.0, v - flat) * std::max(0.0, 1 - pct / 100); }
+};
+Shred shred(const std::vector<Reduction>& rr, int category);
+
+// Highest-only (value, uptime) sources: expected value.
+double expected_highest(std::vector<std::pair<double, double>> v);
 
 }  // namespace gdc::effects

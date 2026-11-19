@@ -109,11 +109,12 @@ TEST_CASE("regress: overcap lost above the cap costs what the monsters of that l
       }
   CHECK(overcapped == 4);
 
-  // The stage can still ask for a fixed buffer: the old settings give the old ~0%.
+  // The stage can still ask for a fixed buffer: the old settings give about the old ~0% (now -2.4%: Vulnerability
+  // and the devotion's DA shred put the hit chance near its cap, so the pants' OA is worth less).
   auto fixed = p;
   for (auto& st : fixed.stages)
     if (st.name == "10-35") st.settings.resist_reduction = 25, st.settings.threshold_resist_weight = 1;
-  CHECK(std::abs(hover(s, pants, 4, "vs Legs", fixed).percent) < 1);
+  CHECK(std::abs(hover(s, pants, 4, "vs Legs", fixed).percent) < 3);
   std::string error;
   const auto parsed = score::parse("[survival]\nresist_reduction = 3\n[[stage]]\nname = \"a\"\n[stage.survival]\n"
                                    "resist_reduction = 25\n[[stage]]\nname = \"b\"\nmin_level = 50\n[stage.survival]\n"

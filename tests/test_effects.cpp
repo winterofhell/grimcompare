@@ -5,6 +5,7 @@
 #include <string>
 
 #include "game_db.h"
+#include "gdc/attribute_names.h"
 #include "gdc/effects.h"
 #include "gdc/score.h"
 #include "gdc/stat_model.h"
@@ -495,4 +496,275 @@ TEST_CASE("effects: buff classes by the engine's class tree (installed game; ski
   c = effects::collect(w, *db, rates, {}, {});
   for (const auto& r : c.reductions) CHECK_FALSE(r.record.ends_with("blackwater3.dbr"));
   for (const auto& e : c.effects) CHECK_FALSE(e.record.ends_with("blackwater3.dbr"));
+}
+
+TEST_CASE("effects: debuff OA / DA shred, all-resist modifiers, enemy damage reduction (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  learn(s, 1, kCurse, 10);
+  learn(s, 2, kVulnerability, 10);
+  s.skills[0].modifier_ids = {2};
+  learn(s, 3, "records/skills/playerclass03/pox1.dbr", 10);
+  learn(s, 4, "records/skills/playerclass03/pox2.dbr", 10);
+  learn(s, 5, "records/skills/playerclass03/pox1b.dbr", 1);
+  s.skills[2].modifier_ids = {4, 5};
+  learn(s, 6, "records/skills/playerclass01/warcry1.dbr", 10);
+  snap::ItemSkillModifier m;  // ascended a305a: defensiveAllResistance -1
+  m.skill_id = 1;
+  m.modifier_record = "records/skills/itemskillsgdx3/skillmodifiers/ascended/playerclass03/a305a.dbr";
+  s.item_skill_modifiers.push_back(m);
+  effects::Rates rates;
+  rates.action = 2;
+  const std::vector<int> all = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15};
+  const auto c = effects::collect(s, *db, rates, {{"records/skills/playerclass01/warcry1.dbr", 0.5}}, all);
+
+  // Curse of Frailty L10 + a305a: Pierce and Aether only from the modifier's all-resist, the rest added.
+  const auto* curse = find(c, kCurse, 1);
+  REQUIRE(curse);
+  CHECK(curse->amount.at(4) == 1);
+  CHECK(curse->amount.at(11) == 1);
+  CHECK(curse->amount.at(7) == 26);
+  // Vulnerability L10: -150 DA (curse2 characterDefensiveAbility), at the curse's uptime.
+  const auto* frail = find(c, kCurse, effects::kEnemyDA);
+  REQUIRE(frail);
+  CHECK(frail->amount.at(0) == 150);
+  CHECK(frail->uptime == curse->uptime);
+  // Bloody Pox: Wasting L10 -150 OA (pox2), the transmuter -25% DA (pox1b).
+  const auto* oa = find(c, "records/skills/playerclass03/pox1.dbr", effects::kEnemyOA);
+  REQUIRE(oa);
+  CHECK(oa->amount.at(0) == 150);
+  const auto* pct = find(c, "records/skills/playerclass03/pox1.dbr", effects::kEnemyDA);
+  REQUIRE(pct);
+  CHECK(pct->amount.at(1) == 25);
+  CHECK_FALSE(pct->amount.contains(0));
+  // War Cry L10: 20% enemy damage reduction, preset uptime.
+  const auto* cry = find(c, "records/skills/playerclass01/warcry1.dbr", effects::kEnemyDamage);
+  REQUIRE(cry);
+  CHECK(cry->amount.at(0) == 20);
+  CHECK(cry->uptime == 0.5);
+  // Never a resist multiplier.
+  const auto mult = effects::resist_multipliers({{7, 0}}, {*cry, *oa, *frail});
+  CHECK(mult.at(7) == 1);
+
+  // Expected values: flat and % sum x uptime; (base - flat) x (1 - %).
+  const auto da = effects::shred(c.reductions, effects::kEnemyDA);
+  CHECK(da.flat == doctest::Approx(150 * frail->uptime));
+  CHECK(da.pct == doctest::Approx(25 * pct->uptime));
+  CHECK(effects::Shred{100, 25}.apply(500) == doctest::Approx(300));
+  CHECK(effects::Shred{600, 0}.apply(500) == 0);
+  // Highest-only: 20% half the time, else 10%.
+  CHECK(effects::expected_highest({{0.2, 0.5}, {0.1, 1}}) == doctest::Approx(0.15));
+  CHECK(effects::expected_highest({}) == 0);
+}
+
+TEST_CASE("score: enemy damage reduction from a skill joins the items' strongest-only stage (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/playerclass01/warcry1.dbr", 10);
+  s.skills[0].current_level = 0;
+  snap::Snapshot after = s;
+  after.skills[0].current_level = 10;
+  score::Preset p;
+  p.uptime["records/skills/playerclass01/warcry1.dbr"] = 1;
+  const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
+  // 20% less damage taken: EHP x 1 / 0.8.
+  CHECK(r.ratio.survival == doctest::Approx(1.25));
+  CHECK(r.ratio.damage == doctest::Approx(1));
+}
+
+TEST_CASE("score: a devotion proc's enemy damage reduction counts at its uptime (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  // Abomination's Tainted Eruption: tier3_02h_skill, offensiveTotalDamageReductionPercentMin 2..16 by level, 5 s.
+  constexpr const char* kEruption = "records/skills/devotion/tier3_02h_skill.dbr";
+  snap::Snapshot s;
+  s.level = 94;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, kEruption, 10);
+  s.skills[0].devotion_max_level = 15;
+  effects::Rates rates;
+  rates.char_level = 94;
+  rates.action = 2;
+  const auto c = effects::collect(s, *db, rates, {}, {});
+  const auto* r = find(c, kEruption, effects::kEnemyDamage);
+  REQUIRE(r);
+  CHECK(r->amount.at(0) == 11);
+  CHECK(r->uptime > 0);
+  snap::Snapshot before = s;
+  before.skills[0].current_level = 0;
+  score::Preset p;
+  p.uptime[kEruption] = 1;
+  const auto res = score::compare(before, s, score::main_skills(s, p, db), p, db);
+  // The rest is its Confusion (offensiveConfusionMin 1.8 s) as proc crowd control.
+  const auto dr = std::find_if(res.contributions.begin(), res.contributions.end(),
+                               [](const score::Contribution& c) { return c.label == "Enemy damage reduction"; });
+  REQUIRE(dr != res.contributions.end());
+  CHECK(dr->points == doctest::Approx(100 * std::log(1 / 0.89)));
+}
+
+TEST_CASE("effects: a pet's debuff aura lowers enemy damage while a pet lives (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  // Black Blood of Yugol (tier3_21f_skill, petLimit 6, 8 s) -> pet_blackblood_15, whose petskill_blackblood_aura
+  // (Skill_BuffRadiusToggled) applies petskill_blackblood_aura_buff: offensiveTotalDamageReductionPercentMin 20 at 15.
+  constexpr const char* kBlackBlood = "records/skills/devotion/tier3_21f_skill.dbr";
+  constexpr const char* kAura = "records/skills/devotion/pets/petskill_blackblood_aura.dbr";
+  snap::Snapshot s;
+  s.level = 94;
+  learn(s, 1, kBlackBlood, 15);
+  s.skills[0].devotion_max_level = 15;
+  effects::Rates rates;
+  rates.char_level = 94;
+  const auto none = effects::collect(s, *db, rates, {}, {});
+  CHECK_FALSE(find(none, kAura, effects::kEnemyDamage));  // no summon rate: no pets, no aura
+  rates.hits_taken = 1;  // its devotion trigger is "when hit"
+  const auto up = effects::collect(s, *db, rates, {}, {});
+  const auto* r = find(up, kAura, effects::kEnemyDamage);
+  REQUIRE(r);
+  CHECK(r->amount.at(0) == 20);
+  CHECK(r->uptime > 0);
+  CHECK(r->uptime <= 1);
+}
+
+TEST_CASE("score: a timed buff's Total Damage Modified scales the player's hits while it is up (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/playerclass03/evileye1.dbr", 12);
+  snap::Snapshot after = s;
+  // c011_waist grants item_torment: offensiveDamageMultModifier -25, Skill_BuffSelfDuration.
+  after.equipped.push_back(piece(9, "records/items/gearaccessories/waist/c011_waist.dbr"));
+  const std::string torment = "records/skills/itemskills/item_torment.dbr";
+  score::Preset p;
+  p.skills = {"records/skills/playerclass03/evileye1.dbr"};
+  p.uptime[torment] = 1;
+  CHECK(score::compare(s, after, score::main_skills(s, p, db), p, db).ratio.damage == doctest::Approx(0.75));
+  p.uptime[torment] = 0.5;  // two states, 1 and 0.75
+  const double half = score::compare(s, after, score::main_skills(s, p, db), p, db).ratio.damage;
+  CHECK(half > 0.75);
+  CHECK(half < 1);
+}
+
+TEST_CASE("effects: weapon pool attacks share the weapon pool skill's uses, past 100% by weight (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  constexpr const char* kZolhan = "records/skills/playerclass01/weaponpool2.dbr";  // skillChanceWeight 12, 15, 18, 20, ...
+  effects::Rates rates;
+  rates.char_level = 94;
+  rates.action = rates.weapon = 2;
+  snap::Snapshot s;
+  s.level = 94;
+  learn(s, 1, kZolhan, 4);
+  snap::ItemSkillModifier m;  // shield_d007: +10 chance
+  m.skill_id = 1;
+  m.skill_record = kZolhan;
+  m.modifier_record = "records/skills/itemskillsgdx1/skillmodifiers/upgradedgdx1/shield_d007_zolhantechnique.dbr";
+  s.item_skill_modifiers.push_back(m);
+  auto pooled = [&](const snap::Snapshot& x) {
+    std::map<std::string, std::pair<double, double>> out;  // record -> chance, uses/s
+    for (const auto& e : effects::collect(x, *db, rates, {}, {}).effects)
+      if (e.pool_chance > 0) out[e.record] = {e.pool_chance, e.per_sec};
+    return out;
+  };
+  auto one = pooled(s);
+  CHECK(one[kZolhan].first == doctest::Approx(0.30));
+  CHECK(one[kZolhan].second == doctest::Approx(0.60));
+  // Four weights of 30: one roll over 120.
+  snap::Snapshot many;
+  many.level = 94;
+  learn(many, 1, kZolhan, 22);
+  learn(many, 2, "records/skills/playerclass01/weaponpool1.dbr", 22);
+  learn(many, 3, "records/skills/playerclass06/weaponpool01.dbr", 20);
+  learn(many, 4, "records/skills/playerclass06/weaponpool02.dbr", 20);
+  const auto four = pooled(many);
+  REQUIRE(four.size() == 4);
+  for (const auto& [record, v] : four) {
+    CHECK(v.first == doctest::Approx(0.25));
+    CHECK(v.second == doctest::Approx(0.5));
+  }
+}
+
+TEST_CASE("score: a weapon pool attack replaces default attacks by its chance (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.attack_speed = 2;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/default/defaultweaponattack.dbr", 1);
+  learn(s, 2, "records/skills/playerclass01/weaponpool2.dbr", 0);  // Zolhan's Technique
+  snap::Item sword = piece(0, "records/items/gearweapons/swords1h/c005_sword.dbr");
+  sword.stats->offensive_damage.push_back({2, false, 100, 100});
+  s.equipped.push_back(sword);
+  snap::Snapshot after = s;
+  after.skills[1].level = after.skills[1].current_level = 4;  // 20%
+  score::Preset p;
+  p.skills = {"records/skills/default/defaultweaponattack.dbr"};
+  const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
+  // 80% of the uses stay 100 weapon damage, 20% become level 4's 145% weapon + 48 Internal Trauma x 5 s. At 2 x 20%
+  // = 0.4 uses/s the 5 s DoT runs twice over and does not stack with itself: half of its 240 counts, 265 per use.
+  CHECK(r.ratio.damage == doctest::Approx(0.8 + 0.2 * 2.65).epsilon(0.005));
+  CHECK(r.after.find("replaced weapon pool uses 0.200") != std::string::npos);
+}
+
+TEST_CASE("score: a weapon pool attack on cooldown replaces only the uses it fires on (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.attack_speed = 2;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/default/defaultweaponattack.dbr", 1);
+  snap::Item sword = piece(0, "records/items/gearweapons/swords1h/c005_sword.dbr");
+  sword.stats->offensive_damage.push_back({2, false, 100, 100});
+  s.equipped.push_back(sword);
+  // c011_axe grants item_addnotch.dbr: weight 10, 2 s cooldown. At 2 uses/s it fires 1 / (2 + 1 / 0.2) = 1/7 per
+  // second, a 1/14 share of the uses, not its 10% weight.
+  snap::Item axe = piece(0, "records/items/gearweapons/axe1h/c011_axe.dbr");
+  axe.stats->offensive_damage.push_back({2, false, 100, 100});
+  const snap::Snapshot after = model::swap(s, axe, 0, db).after;
+  score::Preset p;
+  p.skills = {"records/skills/default/defaultweaponattack.dbr"};
+  const auto r = score::compare(s, after, score::main_skills(s, p, db), p, db);
+  CHECK(r.after.find("replaced weapon pool uses 0.071") != std::string::npos);
+}
+
+TEST_CASE("effects: one proc granted by two items is one effect at the summed rate (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  constexpr const char* kFumes = "records/skills/itemskillsgdx2/noxiousfumes_01.dbr";
+  snap::Snapshot s;
+  s.level = 100;
+  s.equipped = {piece(equip::kHands, "records/items/gearhands/c207_hands.dbr")};  // Fewmet Grips
+  effects::Rates rates;
+  rates.action = 2;
+  auto fumes = [&](const effects::Collected& c) {
+    return std::count_if(c.effects.begin(), c.effects.end(), [&](const effects::Effect& e) { return e.record == kFumes; });
+  };
+  const auto one = effects::collect(s, *db, rates, {}, {});
+  REQUIRE(fumes(one) == 1);
+  // 15% on attack at 2/s, cooldown 2 s: 1 / (2 + 1 / 0.3) per controller; -OA for 5 s.
+  const double rate = 1 / (2 + 1 / 0.3);
+  const auto* oa = find(one, kFumes, effects::kEnemyOA);
+  REQUIRE(oa);
+  CHECK(oa->uptime == doctest::Approx(rate * 5));
+
+  // Dung Divider grants the same record: each item's controller rolls (the novas add), the debuff is one instance.
+  s.equipped.push_back(piece(equip::kRightHand, "records/items/gearweapons/caster/c307_dagger.dbr"));
+  const auto two = effects::collect(s, *db, rates, {}, {});
+  REQUIRE(fumes(two) == 1);
+  const auto e = std::find_if(two.effects.begin(), two.effects.end(), [&](const effects::Effect& x) { return x.record == kFumes; });
+  CHECK(e->per_sec == doctest::Approx(2 * rate));
+  CHECK(std::count_if(two.reductions.begin(), two.reductions.end(), [&](const effects::Reduction& r) {
+          return r.record == kFumes && r.category == effects::kEnemyOA;
+        }) == 1);
+  CHECK(find(two, kFumes, effects::kEnemyOA)->uptime == 1);  // min(1, 2 x 0.94)
+  CHECK(find(two, kFumes, effects::kEnemyOA)->amount.at(0) == oa->amount.at(0));
 }

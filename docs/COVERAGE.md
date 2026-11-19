@@ -262,14 +262,14 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowAttackSpeedDurationMin` | I2 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowBleedingChance` | I7 R2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowBleedingDurationMin` | I195 C3 A4 R5 X62 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowBleedingDurationModifier` | I149 C2 R1 X49 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowBleedingDurationModifier` | I149 C2 R1 X49 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowBleedingMax` | I1 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowBleedingMin` | I195 C3 A4 R5 X62 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowBleedingModifier` | I775 C6 A28 R10 X388 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowBleedingModifierChance` | I6 X1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdDurationMin` | I33 A3 X28 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowColdDurationModifier` | I110 C1 X35 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowColdDurationModifier` | I110 C1 X35 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowColdGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowColdMin` | I33 A3 X28 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowColdModifier` | I818 C5 A32 R7 X741 | Damage: % of that final type after conversions (direct and duration separately: engine) |
@@ -282,7 +282,7 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowDefensiveReductionDurationMin` | X14 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowFireChance` | I13 X14 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowFireDurationMin` | I59 C1 A4 R1 X34 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowFireDurationModifier` | I128 R2 X120 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowFireDurationModifier` | I128 R2 X120 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowFireGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowFireMax` | I3 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowFireMin` | I60 C1 A4 R1 X34 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
@@ -290,13 +290,13 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowFireModifierChance` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLifeChance` | I2 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLifeDurationMin` | I21 C1 A1 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowLifeDurationModifier` | I68 R1 X22 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowLifeDurationModifier` | I68 R1 X22 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowLifeMin` | I21 C1 A1 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowLifeModifier` | I789 C5 A30 R11 X408 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowLifeModifierChance` | I1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningChance` | I7 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningDurationMin` | I23 A1 R1 X14 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowLightningDurationModifier` | I90 R1 X103 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowLightningDurationModifier` | I90 R1 X103 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowLightningGlobal` | I2 R1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowLightningMax` | I6 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowLightningMin` | I23 A1 R1 X14 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
@@ -306,13 +306,13 @@ R relics, X affixes (incl. ascended / awakened), S sets.
 | `offensiveSlowManaLeachDurationMin` | I8 C1 X5 | Damage: DoT duration of the flat damage it belongs to |
 | `offensiveSlowPhysicalChance` | I7 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowPhysicalDurationMin` | I60 A6 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowPhysicalDurationModifier` | I47 R1 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowPhysicalDurationModifier` | I47 R1 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowPhysicalMax` | I2 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowPhysicalMin` | I60 A6 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowPhysicalModifier` | I640 C4 A26 R4 X231 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowPoisonChance` | I8 | chance / grouping of the stat it belongs to (engine totals are expected values) |
 | `offensiveSlowPoisonDurationMin` | I71 C4 A7 R1 X58 | Damage: DoT duration of the flat damage it belongs to |
-| `offensiveSlowPoisonDurationModifier` | I69 C1 R1 X68 | Damage: +% DoT duration of that final type, from the equipped items' records (shortcut: record values, skills' part not seen) |
+| `offensiveSlowPoisonDurationModifier` | I69 C1 R1 X68 | Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted) |
 | `offensiveSlowPoisonMin` | I71 C4 A7 R1 X58 | Damage: flat damage of weapon attacks; skills' and procs' own flat damage |
 | `offensiveSlowPoisonModifier` | I549 C6 A31 R9 X455 | Damage: % of that final type after conversions (direct and duration separately: engine) |
 | `offensiveSlowRunSpeedChance` | C1 | chance / grouping of the stat it belongs to (engine totals are expected values) |
@@ -404,7 +404,7 @@ identity fields are left out. "Main skills only": a learned skill that is not a 
 own, so its modifier's damage is not scored. The Shift view lists each changed modifier per skill and marks
 parts not scored.
 
-223 fields: 122 scored, 14 zero by design, 87 not scored.
+223 fields: 133 scored, 14 zero by design, 76 not scored.
 
 | Field | Records | Scored how |
 |---|---|---|
@@ -412,11 +412,7 @@ parts not scored.
 | `beamNumber` | 6 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `cooldownCharges` | 74 | not scored: skill charges are not modeled |
 | `cooldownTime` | 10 | not scored: skill charges are not modeled |
-| `damageAbsorptionPercent` | 13 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
-| `defensiveAllResistance` | 51 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `defensiveBleedingDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
-| `defensiveBlockAmountModifier` | 7 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
-| `defensiveBlockModifier` | 12 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `defensivePoisonDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `defensiveProtection` | 2 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `explosionRadius` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
@@ -430,18 +426,12 @@ parts not scored.
 | `offensiveProjectileFumbleMin` | 6 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowAttackSpeedDurationMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowAttackSpeedMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowDefensiveAbilityDurationMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowDefensiveAbilityMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowOffensiveAbilityDurationMin` | 2 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowOffensiveAbilityMin` | 2 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowRunSpeedDurationMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowRunSpeedMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowTotalSpeedDurationMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveSlowTotalSpeedMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveStunMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `offensiveTauntMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveTotalDamageReductionPercentDurationMin` | 18 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveTotalDamageReductionPercentMin` | 18 | not scored: crowd control / debuff of the skill without a damage or RR model |
 | `overwriteBaseSkill` | 28 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `petBurstSpawn` | 68 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `petChanges` | 46 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
@@ -477,7 +467,6 @@ parts not scored.
 | `retaliationPoisonModifier` | 2 | not scored: retaliation from a skill modifier is not read |
 | `retaliationTotalDamageModifier` | 17 | not scored: retaliation from a skill modifier is not read |
 | `skillActiveDuration` | 122 | not scored: buff / debuff duration of a modifier is not read (uptimes use the skill record) |
-| `skillChanceWeight` | 279 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `skillComboChargeDuration` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `skillComboChargeLevel` | 31 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
 | `skillCooldownReduction` | 21 | not scored: read from items only |
@@ -534,8 +523,12 @@ parts not scored.
 | `conversionOutType2` | 209 | Damage, main skills only: skill conversion, before the global one |
 | `conversionPercentage` | 794 | Damage, main skills only: skill conversion, before the global one |
 | `conversionPercentage2` | 208 | Damage, main skills only: skill conversion, before the global one |
+| `damageAbsorptionPercent` | 13 | Survivability: % absorption of the modified buff while it is up |
 | `defensiveAether` | 27 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveAllResistance` | 51 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
 | `defensiveBleeding` | 37 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
+| `defensiveBlockAmountModifier` | 7 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `defensiveBlockModifier` | 12 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
 | `defensiveChaos` | 25 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
 | `defensiveCold` | 24 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
 | `defensiveCrowdControl` | 12 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
@@ -567,7 +560,7 @@ parts not scored.
 | `offensiveColdMin` | 176 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveColdModifier` | 24 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
 | `offensiveCritDamageModifier` | 159 | Damage, main skills only: crit damage |
-| `offensiveDamageMultModifier` | 88 | Damage, main skills only: "Total Damage Modified by": multiplies the skill's damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50) |
+| `offensiveDamageMultModifier` | 88 | Damage, main skills only: "Total Damage Modified by": multiplies the skill's damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50); on a timed buff, every hit of the player's while it is up |
 | `offensiveElementalChance` | 1 | Damage, main skills only: chance of the flat damage it belongs to (expected value) |
 | `offensiveElementalMin` | 57 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveElementalModifier` | 12 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
@@ -600,6 +593,8 @@ parts not scored.
 | `offensiveSlowColdDurationModifier` | 6 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
 | `offensiveSlowColdMin` | 56 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveSlowColdModifier` | 17 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowDefensiveAbilityDurationMin` | 5 | Damage: lowers the enemy's DA (hit and crit chance) at the modified skill's uptime (gdc::effects) |
+| `offensiveSlowDefensiveAbilityMin` | 5 | Damage: lowers the enemy's DA (hit and crit chance) at the modified skill's uptime (gdc::effects) |
 | `offensiveSlowFireDurationMin` | 75 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
 | `offensiveSlowFireDurationModifier` | 8 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
 | `offensiveSlowFireMin` | 75 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
@@ -612,6 +607,8 @@ parts not scored.
 | `offensiveSlowLightningDurationModifier` | 3 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
 | `offensiveSlowLightningMin` | 54 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveSlowLightningModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveSlowOffensiveAbilityDurationMin` | 2 | Survivability: lowers the enemy's OA (its hit chance) at the modified skill's uptime (gdc::effects) |
+| `offensiveSlowOffensiveAbilityMin` | 2 | Survivability: lowers the enemy's OA (its hit chance) at the modified skill's uptime (gdc::effects) |
 | `offensiveSlowPhysicalDurationMin` | 51 | Damage, main skills only: DoT duration of the flat damage it belongs to (damage per second x seconds) |
 | `offensiveSlowPhysicalDurationModifier` | 3 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
 | `offensiveSlowPhysicalMin` | 51 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
@@ -622,12 +619,15 @@ parts not scored.
 | `offensiveSlowPoisonMin` | 56 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveSlowPoisonModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
 | `offensiveTotalDamageModifier` | 27 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveTotalDamageReductionPercentDurationMin` | 18 | Survivability: enemy damage reduction at the modified skill's uptime, strongest only (gdc::effects) |
+| `offensiveTotalDamageReductionPercentMin` | 18 | Survivability: enemy damage reduction at the modified skill's uptime, strongest only (gdc::effects) |
 | `offensiveTotalResistanceReductionAbsoluteDurationMin` | 31 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
 | `offensiveTotalResistanceReductionAbsoluteMin` | 31 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
 | `offensiveTotalResistanceReductionPercentDurationMin` | 3 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
 | `offensiveTotalResistanceReductionPercentMin` | 3 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
 | `petLimit` | 83 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
 | `petSkillName` | 287 | Damage: pet skill added to the pet (SkillSecondary_PetModifier) |
+| `skillChanceWeight` | 279 | Damage: weapon pool chance of the modified Skill_WPAttack_* (weights add, Skill_WPAttack::GetChanceWeight 0x5160E0; past 100 in all, each w / sum, SkillManager::SelectWeaponPoolSkill 0x5364C0) |
 | `skillCooldownTime` | 294 | Damage, main skills only: cooldown (uses per second); procs' recharge too |
 | `spawnObjectsTimeToLive` | 16 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
 | `weaponDamagePct` | 540 | Damage, main skills only: % weapon damage |

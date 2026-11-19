@@ -4,9 +4,9 @@
 # from the database and the scoring model, not tuned in play. Missing keys keep presets/default.toml's values.
 # Any mastery pair fits; [match] archetype is score::archetype (where the class skill points go, docs/PRESETS.md
 # "Archetype"). Auto tries named presets in file-name order and takes the first that fits.
-# Limitation: weapon pool skills (Cadence, Fire Strike, Savagery, ...) count for the archetype but are not
-# main skills, so their damage is not in [match] damage; a build whose only attack is one has no main
-# damage skill and does not match.
+# Weapon pool skills (the default attack, Cadence, Savagery) are main skills. Limitation: pool attacks
+# (Skill_WPAttack_*, e.g. Zolhan's Technique) are not: they take a share of those skills' uses and count in
+# Damage like procs, but not in [match] damage.
 
 [preset]
 name = "physical-melee"

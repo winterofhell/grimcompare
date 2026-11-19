@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <tuple>
 
 #include "gdc/stat_model.h"
 
@@ -28,6 +29,30 @@ double held_seconds(const arz::Record* rec, const arz::Record* buff, std::uint32
   return held;
 }
 
+using Modifiers = std::vector<std::pair<std::string, std::uint32_t>>;
+
+// damageAbsorptionPercent / 100 and damageAbsorption / one hit, the skill's plus its modifiers' (Mark of Torment).
+std::pair<double, double> absorption(const arz::Record& stats, std::uint32_t lv, const Modifiers& mods,
+                                     const arz::Database& db, double hit) {
+  double pct = at_level(stats, "damageAbsorptionPercent", lv), flat = at_level(stats, "damageAbsorption", lv);
+  for (const auto& [m, ml] : mods)
+    if (const arz::Record* r = db.record(m)) {
+      pct += at_level(*r, "damageAbsorptionPercent", ml);
+      flat += at_level(*r, "damageAbsorption", ml);
+    }
+  return {std::clamp(pct / 100, 0.0, 1.0), hit > 0 ? std::clamp(flat / hit, 0.0, 1.0) : 0.0};
+}
+
+Modifiers linked(const snap::Snapshot& s, const snap::Skill& sk) {
+  Modifiers out;
+  for (const std::uint32_t id : sk.modifier_ids)
+    for (const auto& m : s.skills)
+      if (m.id == id && m.current_level > 0) out.emplace_back(m.record, m.current_level);
+  for (const auto& m : s.item_skill_modifiers)
+    if (m.skill_id == sk.id && !m.modifier_record.empty()) out.emplace_back(m.modifier_record, 1);
+  return out;
+}
+
 }  // namespace
 
 std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, const arz::Database& db) {
@@ -38,6 +63,10 @@ std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, cons
     const auto t = model::buff_timing(sk, db);
     if (!t) continue;
     Buff b{sk.record, 1, {}, model::buff_effect(s, sk, db)};
+    if (const arz::Record* rec = db.record(sk.record)) {
+      const arz::Record* buff = db.record(rec->string("buffSkillName"));
+      std::tie(b.absorb_pct, b.absorb_hit) = absorption(buff ? *buff : *rec, sk.current_level, linked(s, sk), db, enemy_hit(s, p, false));
+    }
     if (const auto o = p.uptime.find(sk.record); !p.recast_buffs && o != p.uptime.end()) {
       b.uptime = o->second;
       b.basis = p.live_buffs ? "live" : "preset [uptime]";
@@ -55,6 +84,9 @@ std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, cons
 
 Procs procs(const snap::Snapshot& s, const Side& side, const Settings& p, const arz::Database& db) {
   Procs out;
+  out.enemy_oa = effects::shred(side.effects.reductions, effects::kEnemyOA);
+  for (const auto& r : side.effects.reductions)
+    if (r.category == effects::kEnemyDamage && r.uptime > 0) out.enemy_damage.emplace_back(r.amount.at(0) / 100, r.uptime);
   const double hit = enemy_hit(s, p, false), life = model::sheet(s).life;
   double free = 1;
   for (const auto& e : side.effects.effects) {
@@ -82,13 +114,17 @@ Procs procs(const snap::Snapshot& s, const Side& side, const Settings& p, const 
                          ? up(duration)
                          : std::min(1.0, e.life_below / 100) * std::min(1.0, e.per_sec / p.low_health_per_sec);
     if (!seen("buff " + fmt(u, 3))) continue;
-    const double absorb = at_level(*stats, "damageAbsorption", lv);
     if (duration > 0) {
+      const auto [pct, per_hit] = absorption(*stats, lv, e.modifiers, db, hit);
+      // MECHANICS §2 rule 7: each record's multiplier compounds (item_torment -25%).
+      double mult = std::max(0.0, 1 + at_level(*stats, "offensiveDamageMultModifier", lv) / 100);
+      for (const auto& [m, ml] : e.modifiers)
+        if (const arz::Record* mr = db.record(m)) mult *= std::max(0.0, 1 + at_level(*mr, "offensiveDamageMultModifier", ml) / 100);
       out.buffs.push_back({e.record, u, preset_uptime != p.uptime.end() ? "preset [uptime]" : fmt(duration, 1) + " s, " + e.basis,
-                           db.derived<model::BuffEffect>(*stats, lv, [&] { return model::buff_effect(*stats, lv); }),
-                           std::min(1.0, at_level(*stats, "damageAbsorptionPercent", lv) / 100), std::min(1.0, absorb / hit)});
+                           db.derived<model::BuffEffect>(*stats, lv, [&] { return model::buff_effect(*stats, lv); }), pct, per_hit,
+                           mult});
     } else {
-      out.restored += e.per_sec * absorb;
+      out.restored += e.per_sec * at_level(*stats, "damageAbsorption", lv);
     }
     out.restored += e.per_sec * (at_level(*stats, "skillLifePercent", lv) / 100 * life + at_level(*stats, "skillLifeBonus", lv));
   }
@@ -98,7 +134,8 @@ Procs procs(const snap::Snapshot& s, const Side& side, const Settings& p, const 
 
 // `shares`: buff record -> uptime in this state; unnamed: own uptime.
 double state(const snap::Snapshot& s, const Procs& procs, const std::vector<Buff>& learned,
-             const std::map<std::string, double>& shares, const arz::Database& db, snap::Snapshot& out) {
+             const std::map<std::string, double>& shares, const arz::Database& db, snap::Snapshot& out, double* mult) {
+  if (mult) *mult = 1;
   std::vector<std::pair<const model::BuffEffect*, double>> buffs;
   double absorbed = 1;
   for (const auto* list : {&procs.buffs, &learned})
@@ -107,6 +144,7 @@ double state(const snap::Snapshot& s, const Procs& procs, const std::vector<Buff
       const double sh = it != shares.end() ? it->second : b.uptime;
       buffs.emplace_back(&b.effect, sh);
       absorbed *= (1 - sh * b.absorb_pct) * (1 - sh * b.absorb_hit);
+      if (mult) *mult *= 1 + sh * (b.mult - 1);  // a share between 0 and 1: its expected value
     }
   model::buffed(s, buffs, db, out);
   // Floor: one hit size stands for all, avoid fake immunity.

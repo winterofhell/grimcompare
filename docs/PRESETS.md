@@ -106,6 +106,6 @@ Templates (`presets/*.toml`; all ten masteries; every weight is a design choice,
 `plague-garden` adds `archetype = "caster"`. Tests (`tests/test_presets.cpp`, DB-backed): each template is picked for a synthetic character. Trap skills do not count as pets. Without `modifier_ids`, a pet modifier does not count. winterpoison (level 15, store #0021) gets `plague-garden` by name (0.9.5); under another name, and winterofhell (level 96), get no template.
 
 Limitations:
-- Weapon pool skills count toward the archetype but are not main skills, so a build whose only attack is one has no main damage skill and fails `[match] damage`.
+- Weapon pool skills (the default attack, Cadence, Savagery) are main skills. Pool attacks (`Skill_WPAttack_*`, e.g. Zolhan's Technique) count toward the archetype but are not: they take a share of those skills' uses and count in Damage like procs (docs/MECHANICS.md §4, §5), not in `[match] damage`.
 - Pet damage is an experimental estimate from the pet records (docs/MECHANICS.md §4); the tooltip says so. Summons without a time to live (Blade Spirit, Squall, Celestial Guardian too) are kept at `petLimit`; with a live pet in the snapshot its engine speed and hit animation set the rate.
 - No ranged template.

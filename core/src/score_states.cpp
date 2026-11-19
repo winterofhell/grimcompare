@@ -10,9 +10,10 @@ namespace gdc::score {
 namespace {
 
 // `explain`: build log text; only the shown state needs it.
+// `mult`: the state's buff damage multiplier.
 Eval eval(const snap::Snapshot& s, double absorbed, const Side& side, const Procs& procs, const Settings& p,
           const arz::Database* db, std::vector<std::string>& notes, bool explain = true,
-          std::vector<Converted>* converted = nullptr) {
+          std::vector<Converted>* converted = nullptr, double mult = 1) {
   Eval e;
   if (db) {
     std::optional<Converted> own;
@@ -21,8 +22,29 @@ Eval eval(const snap::Snapshot& s, double absorbed, const Side& side, const Proc
       const auto& m = side.mains[k];
       e.skills.push_back(m.skill ? skill_damage(s, *m.skill, m.raw, side.gear, p, notes, nullptr, &side.resist, explain, &conv.mains[k])
                               : SkillDamage{});
+      SkillDamage& d = e.skills.back();
+      d.plain = d.per_use;
+      if (m.skill && m.charges > 0 && d.per_use > 0) {
+        // Every (charges + 1)th use is the skill's own hit (Cadence: two plain hits, then the finale).
+        const SkillDamage plain = skill_damage(s, *m.skill, m.plain, side.gear, p, notes, nullptr, &side.resist, false);
+        const double cycle = (m.charges * plain.per_use + d.per_use) / (m.charges + 1);
+        d.value *= cycle / d.per_use;
+        d.per_use = cycle, d.plain = plain.per_use;
+        if (explain) d.inputs += " cycle " + fmt(m.charges, 0) + " x " + fmt(plain.per_use) + " plain + 1 = " + fmt(cycle);
+      }
+      d.value *= mult, d.per_use *= mult, d.plain *= mult;
+      if (explain && mult != 1 && !e.skills.back().inputs.empty()) e.skills.back().inputs += " x" + fmt(mult, 3) + " buff mult";
     }
-    e.extra = extra_damage(s, side, p, explain, conv);
+    e.extra = extra_damage(s, side, p, explain, conv, mult);
+    // Weapon pool attacks are counted whole in extra; the weapon pool skill uses they take come off here, so the main
+    // skills' values keep their per-use meaning.
+    double replaced = 0;
+    for (std::size_t k = 0; k < side.mains.size(); ++k)
+      replaced += side.mains[k].pool * side.mains[k].pool_share() * e.skills[k].plain * e.skills[k].rate;
+    if (side.pooled > 0 && replaced > 0) {
+      e.extra.per_sec -= side.pooled * replaced;
+      if (explain) e.extra.inputs += " replaced weapon pool uses " + fmt(side.pooled, 3) + " x " + fmt(replaced) + "/s";
+    }
   }
   e.survival = survival(s, procs, absorbed, p, db, explain);
   e.other = other(s, side.utility, p, explain);
@@ -71,8 +93,9 @@ Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, con
   for (std::size_t mask = 0; mask < n; ++mask) {
     std::map<std::string, double> shares;
     for (std::size_t i = 0; i < open.size(); ++i) shares[open[i]->record] = mask >> i & 1;
-    const double absorbed = state(s, out.procs, learned, shares, *db, work);
-    out.states.emplace_back(probs[mask], eval(work, absorbed, out.side, out.procs, p, db, notes, mask == shown, &converted));
+    double mult = 1;
+    const double absorbed = state(s, out.procs, learned, shares, *db, work, &mult);
+    out.states.emplace_back(probs[mask], eval(work, absorbed, out.side, out.procs, p, db, notes, mask == shown, &converted, mult));
   }
   return out;
 }
@@ -84,6 +107,7 @@ Survival mixed_survival(const Scored& scored) {
   out.ehp = g([](const Eval& e) { return e.survival.ehp; });
   out.life = g([](const Eval& e) { return e.survival.life; });
   out.hit = g([](const Eval& e) { return e.survival.hit; });
+  out.oa_debuff = g([](const Eval& e) { return e.survival.oa_debuff; });
   out.avoid = 1 - g([](const Eval& e) { return 1 - e.survival.avoid; });
   out.block = 1 - g([](const Eval& e) { return 1 - e.survival.block; });
   out.reduction = 1 - g([](const Eval& e) { return 1 - e.survival.reduction; });

@@ -101,8 +101,10 @@ inline double enemy_hit(const snap::Snapshot& s, const Settings& p, bool physica
   return std::max(1.0, physical ? e.hit_physical : e.hit);
 }
 
-inline formulas::Hit attack(const snap::Snapshot& s, const Settings& p, double crit_bonus, double* pth_out = nullptr) {
-  const double pth = formulas::probability_to_hit(formulas::offensive_ability(s), enemy_da(s, p));
+// `da`: the side's debuffs on the enemy.
+inline formulas::Hit attack(const snap::Snapshot& s, const Settings& p, double crit_bonus, const effects::Shred& da,
+                            double* pth_out = nullptr) {
+  const double pth = formulas::probability_to_hit(formulas::offensive_ability(s), da.apply(enemy_da(s, p)));
   if (pth_out) *pth_out = pth;
   return formulas::expected_hit(pth, s.pth, crit_bonus);
 }
@@ -144,6 +146,7 @@ struct Raw {
 struct Gear {
   Amounts flat;
   std::map<int, double> dot;
+  effects::Shred enemy_da;  // the side's debuffs; none for the auto skill pick
   // DurDamage::Process 0x114206: duration × (1 + Σ duration % / 100), skill and gear % in one sum.
   double dot_scale(int type, double skill_pct = 0) const {
     const auto it = dot.find(type);
@@ -155,6 +158,7 @@ struct SkillDamage {
   double value = 0;
   std::string inputs;
   double per_use = 0, cooldown = 0, uses = 0, rate = 0;
+  double plain = 0;  // per use of the hits a weapon pool attack can take (Main::charges)
 };
 
 struct Buff {
@@ -163,11 +167,14 @@ struct Buff {
   std::string basis;
   model::BuffEffect effect;
   double absorb_pct = 0, absorb_hit = 0;  // damageAbsorptionPercent / 100, damageAbsorption / one hit
-  bool matters() const { return !effect.empty() || absorb_pct > 0 || absorb_hit > 0; }
+  double mult = 1;  // "Total Damage Modified by" while up: Π (1 + offensiveDamageMultModifier / 100)
+  bool matters() const { return !effect.empty() || absorb_pct > 0 || absorb_hit > 0 || mult != 1; }
 };
 
 struct Procs {
   double cc = 0;
+  effects::Shred enemy_oa;  // the side's debuffs on the enemy
+  std::vector<std::pair<double, double>> enemy_damage;  // skills' enemy damage reduction %, uptime
   std::vector<Buff> buffs;
   double restored = 0;
   std::string inputs;
@@ -180,6 +187,7 @@ struct Survival {
   std::string inputs;
   double life = 0;
   double hit = 1;
+  double oa_debuff = 1;  // part of `hit` from the side's OA debuffs on the enemy
   double avoid = 0;
   double block = 0;
   double reduction = 0;
@@ -204,6 +212,12 @@ struct Utility {
 struct Main {
   const snap::Skill* skill = nullptr;  // null: not in the snapshot
   Raw raw;
+  double pool = 0;  // weapon pool skills: the main skill weight whose uses a Skill_WPAttack_* can take
+  // Skill_WeaponPool_ChargedFinale (Cadence): skillChargeLevel plain weapon hits, then the skill's own hit. A weapon
+  // pool attack can take a plain hit, never the finale.
+  double charges = 0;
+  Raw plain;  // a plain hit: 100% weapon damage
+  double pool_share() const { return charges > 0 ? charges / (charges + 1) : 1; }
 };
 
 struct Side {
@@ -222,6 +236,7 @@ struct Side {
   };
   std::vector<Hit> hits;
   std::map<std::string, std::string> hits_unknown;
+  double pooled = 0;  // share of weapon pool skill uses the Skill_WPAttack_* hits take
 };
 
 // Procs and pets per second (MECHANICS §4).
@@ -276,6 +291,8 @@ struct Scored {
 
 // score_skills.cpp
 void add_flat(const arz::Database& db, const arz::Record& r, std::uint32_t level, double scale, Amounts& out);
+// Expected DoT seconds per use of each type the record deals (duration x chance; the longest when a type repeats).
+std::map<int, double> dot_seconds(const arz::Record& r, std::uint32_t level);
 void add_pair(Conversions& c, int from, int to, double pct);
 bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t level);
 void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out,
@@ -307,7 +324,9 @@ std::string skill_parts(const snap::Snapshot& s, const Settings& p, const Raw& r
 double type_weight(const Settings& p, Key k);
 const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
                                std::optional<Converted>& own, std::vector<std::string>& notes);
-Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv);
+// `mult`: the state's buff damage multiplier, the player's own hits only.
+Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv,
+                   double mult = 1);
 
 // score_survival.cpp
 Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, const Settings& p, const arz::Database* db,
@@ -324,8 +343,10 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
 // score_buffs.cpp
 std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, const arz::Database& db);
 Procs procs(const snap::Snapshot& s, const Side& x, const Settings& p, const arz::Database& db);
+// Returns the absorbed share; `mult`: the buffs' damage multiplier in this state.
 double state(const snap::Snapshot& s, const Procs& pr, const std::vector<Buff>& learned,
-             const std::map<std::string, double>& shares, const arz::Database& db, snap::Snapshot& out);
+             const std::map<std::string, double>& shares, const arz::Database& db, snap::Snapshot& out,
+             double* mult = nullptr);
 
 // score_states.cpp
 Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database* db,

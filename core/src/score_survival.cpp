@@ -156,13 +156,18 @@ Survival survival(const snap::Snapshot& s, const Procs& procs, double absorbed, 
   const model::Sheet sh = model::sheet(s);
   Survival out;
   out.life = sh.life;
-  const double pth = formulas::probability_to_hit(enemy_oa(s, p), sh.da);
+  const double oa = enemy_oa(s, p), pth = formulas::probability_to_hit(procs.enemy_oa.apply(oa), sh.da);
   // Monster crit damage: difficulty bonus only (ultimateChallangeAdjustment).
   const formulas::Hit h = formulas::expected_hit(pth, s.pth, enemy_of(s).crit_damage / 100);
   out.hit = h.multiplier;
+  const double undebuffed = formulas::expected_hit(formulas::probability_to_hit(oa, sh.da), s.pth, enemy_of(s).crit_damage / 100).multiplier;
+  out.oa_debuff = undebuffed > 0 ? out.hit / undebuffed : 1;
   out.avoid = utility::avoid(s, p.melee_share);
   out.block = utility::block(s, db, enemy_hit(s, p, false), p.incoming_hits_per_sec);
-  out.reduction = p.damage_reduction_uptime * utility::damage_reduction(s);
+  // Items at the preset uptime, skills at their own; strongest only (§9 stage 0).
+  std::vector<std::pair<double, double>> reductions = procs.enemy_damage;
+  reductions.emplace_back(utility::damage_reduction(s), p.damage_reduction_uptime);
+  out.reduction = effects::expected_highest(std::move(reductions));
   const double physical_hit = enemy_hit(s, p, true);
   const double armor_absorb = std::min(100.0, absorption(s, sh, db)) / 100;
   const double ahead = lookahead(s, p);

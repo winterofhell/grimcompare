@@ -78,7 +78,7 @@ def how(f):
     if f == 'bonusTableName':
         return 'scored', 'completion bonus: moves with the component; its stats are in the item\'s engine totals'
     if re.match(r'offensiveSlow\w+DurationModifier$', f):
-        return 'scored', 'Damage: +% DoT duration of that final type, from the equipped items\' records (shortcut: record values, skills\' part not seen)'
+        return 'scored', 'Damage: +% DoT duration of that final type, from the records of the equipped items, the worn set tiers and the learned passives, toggles and devotions with their modifiers (record values; timed buffs not counted)'
     if f in ('racialBonusPercentDamage', 'racialBonusPercentDefense', 'racialBonusRace'):
         return 'scored', 'Other `racial_damage` / `racial_defense`: % x share of monsters with any listed race (re/EnemyRaces.tsv; record values)'
     if f == 'racialBonusAbsoluteDamage':
@@ -212,8 +212,18 @@ def mod_how(f):
                                  'skillCooldownTime': 'cooldown (uses per second); procs\' recharge too'}[f]
     if f == 'offensiveLifeLeechMin':
         return 'scored', 'Other `life_leech`, main skills only'
+    if f.startswith('offensiveSlowOffensiveAbility'):
+        return 'scored', 'Survivability: lowers the enemy\'s OA (its hit chance) at the modified skill\'s uptime (gdc::effects)'
+    if f.startswith('offensiveSlowDefensiveAbility'):
+        return 'scored', 'Damage: lowers the enemy\'s DA (hit and crit chance) at the modified skill\'s uptime (gdc::effects)'
+    if f.startswith('offensiveTotalDamageReductionPercent'):
+        return 'scored', 'Survivability: enemy damage reduction at the modified skill\'s uptime, strongest only (gdc::effects)'
     if f in RR:
         return 'scored', 'Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only)'
+    if f == 'skillChanceWeight':
+        return 'scored', 'Damage: weapon pool chance of the modified Skill_WPAttack_* (weights add, Skill_WPAttack::GetChanceWeight 0x5160E0; past 100 in all, each w / sum, SkillManager::SelectWeaponPoolSkill 0x5364C0)'
+    if f == 'damageAbsorptionPercent':
+        return 'scored', 'Survivability: % absorption of the modified buff while it is up'
     if f in DEBUFF:
         return 'scored', 'Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active'
     if f in SHEET:
@@ -231,17 +241,17 @@ def mod_how(f):
     if re.match(r'(refreshCooldown|refreshDuration)\w+$', f):
         return 'no', 'not scored: triggered cooldown / duration refresh is not modeled'
     if re.match(r'(projectile\w+|skillTarget\w+|beam\w+|wave\w+|explosionRadius|spark\w+|targetingMode|'
-                r'overwriteBaseSkill|petBurstSpawn|petChanges|skillChanceWeight|skillComboCharge\w+)$', f):
+                r'overwriteBaseSkill|petBurstSpawn|petChanges|skillComboCharge\w+)$', f):
         return 'no', 'not scored: area, targets, projectiles or behaviour; the model is one target, one use'
     if f == 'offensiveDamageMultModifier':
-        return 'scored', MAIN + '"Total Damage Modified by": multiplies the skill\'s damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50)'
+        return 'scored', MAIN + '"Total Damage Modified by": multiplies the skill\'s damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50); on a timed buff, every hit of the player\'s while it is up'
     if f in ('skillLifePercent', 'skillLifeBonusBuffDuration', 'skillLifePercentBuffDuration'):
         return 'no', 'not scored: heals are read from the skill record only'
     if f in ('skillCooldownReduction', 'skillCooldownReductionChance', 'skillManaCostReduction') or f.startswith('racialBonus'):
         return 'no', 'not scored: read from items only'
     if f in ('cooldownCharges', 'cooldownTime'):
         return 'no', 'not scored: skill charges are not modeled'
-    if f.startswith(('defensive', 'character')) or f == 'damageAbsorptionPercent':
+    if f.startswith(('defensive', 'character')):
         return 'no', 'not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled")'
     if f.startswith('retaliation'):
         return 'no', 'not scored: retaliation from a skill modifier is not read'

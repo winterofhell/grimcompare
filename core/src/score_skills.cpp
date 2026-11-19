@@ -55,6 +55,17 @@ void add_flat(const arz::Database& db, const arz::Record& r, std::uint32_t level
   for (const auto& [k, v] : flat_parts(db, r, level)) out[k] += v * scale;
 }
 
+std::map<int, double> dot_seconds(const arz::Record& r, std::uint32_t level) {
+  std::map<int, double> out;
+  for (const auto& f : fields::flat_damage())
+    if (!f.duration.empty() && at_level(r, f.min, level) != 0) {
+      const double chance = at_level(r, f.chance, level);
+      const double secs = at_level(r, f.duration, level) * (chance > 0 && chance < 100 ? chance / 100 : 1);
+      out[f.type] = std::max(out[f.type], secs);
+    }
+  return out;
+}
+
 // AddAttribute 0x17D890: a new source type appends, known ones add.
 void add_pair(Conversions& c, int from, int to, double pct) {
   auto it = std::find_if(c.begin(), c.end(), [&](const auto& x) { return x.first == from; });
@@ -80,6 +91,8 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
     if (t.type == kElemental || t.type == kAll)
       for (int x : fields::spread(t.type, t.modifier)) out.pct[{x, t.modifier}] += v;
     else out.pct[{t.type, t.modifier}] += v;
+    if (t.type == kAll && !t.modifier)  // +% All Damage reaches DoT too (MECHANICS §3)
+      for (int x : fields::spread(kAll, true)) out.pct[{x, true}] += v;
   }
   // DamageAttributeAbsMod_DamageMultiplier::AddModifierToAccumulator 0x19D200: one entry per record, type 0x3D,
   // value × 0.01. ModifyDamage 0x119280 runs every additive modifier first, then each multiplier entry on its own
