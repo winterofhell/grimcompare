@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <algorithm>
+
 #include "game_db.h"
 #include "gdc/stat_model.h"
 #include "gdc/enemy.h"
@@ -44,7 +46,7 @@ TEST_CASE("utility: avoidance, item cooldown reduction, experience, unlisted sta
   s.level = 50;
   s.char_attributes = {{27, 12, 0, 0, 0}, {28, 8, 0, 0, 0}, {55, 10, 0, 0, 0}, {57, 30, 0, 0, 0}};
   auto ring = item(1, 4, "records/items/x.dbr");
-  ring.stats->skill_attributes = {{1, 5, 0, 0, 0}, {2, 10, 0, 0, 0}, {3, 20, 0, 0, 0}};
+  ring.stats->skill_attributes = {{1, 5, 0, 0, 0}, {2, 10, 0, 0, 0}, {3, 20, 0, 0, 0}, {4, 30, 0, 0, 0}};
   ring.stats->offensive_damage = {{20, false, 3, 3}, {28, true, 15, 15, 3}};
   s.equipped = {ring};
   const auto v = utility::values(s, game_db());
@@ -62,6 +64,9 @@ TEST_CASE("utility: avoidance, item cooldown reduction, experience, unlisted sta
   s.equipped.pop_back();
   CHECK(v.unlisted.at("char 57 LightRadius") == doctest::Approx(0.30));
   CHECK(v.unlisted.at("skill 3 ProjectileSpeedModifier") == doctest::Approx(0.20));
+  // Combo Charge Spend Reduction counts in Damage only.
+  CHECK(utility::combo_keep(s) == doctest::Approx(0.30));
+  CHECK(std::none_of(v.unlisted.begin(), v.unlisted.end(), [](const auto& kv) { return kv.first.starts_with("skill 4 "); }));
   // playerlevels.dbr maxPlayerLevel 100: 10% at level 50 counts half, at 100 nothing.
   if (game_db()) {
     CHECK(v.keys.at("experience") == doctest::Approx(0.05));

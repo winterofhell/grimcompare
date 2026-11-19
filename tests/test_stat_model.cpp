@@ -12,6 +12,7 @@
 
 #include "game_db.h"
 #include "gdc/calibrate.h"
+#include "gdc/attribute_names.h"
 #include "gdc/stat_model.h"
 
 using namespace gdc;
@@ -437,4 +438,29 @@ TEST_CASE("swap model: +1 Occultist (d016_relic) on a timed buff between casts, 
   REQUIRE(p.unused.size() == 1);
   CHECK(p.unused[0].record.ends_with("evileye1.dbr"));
   CHECK(p.unused[0].after == 1);
+}
+
+TEST_CASE("swap model: a passive's Elemental resist reaches Cold, Fire and Lightning (installed game; skips if absent)") {
+  if (!game_db()) return;
+  // Soldier passive3: defensiveElementalResistance and defensiveTotalSpeedResistance 8 at 2, 14 at 5. The engine holds
+  // the elemental part on Cold / Fire / Lightning (DefenseAttributeAbs_ElementalResistance 0x200A70).
+  snap::Snapshot s;
+  s.level = 50;
+  s.defense_cap = 80;
+  for (int t : {5, 6, 8}) s.defense.push_back({t, 30, 0, 0, 0, 0});
+  snap::Skill k;
+  k.id = 1;
+  k.record = "records/skills/playerclass01/passive3.dbr";
+  k.level = k.current_level = 2;
+  k.passive = snap::ItemStats{};
+  k.passive->defense = {{5, 8, 0, 0, 0, 0}, {6, 8, 0, 0, 0, 0}, {8, 8, 0, 0, 0, 0}, {16, 8, 0, 0, 0, 0}};
+  s.skills.push_back(k);
+  snap::Item gloves;  // d009_hands: +3 passive3
+  gloves.location = gdc::equip::kHands;
+  gloves.record = "records/items/gearhands/d009_hands.dbr";
+  gloves.stats = snap::ItemStats{};
+  const auto p = model::swap(s, gloves, gdc::equip::kHands, game_db());
+  CHECK(!has_warning(p, "engine values differ"));
+  CHECK(!has_warning(p, "not modeled"));
+  for (int t : {5, 6, 8}) CHECK(resist(model::sheet(p.after), t)->raw == doctest::Approx(36));
 }

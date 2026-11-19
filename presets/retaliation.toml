@@ -25,7 +25,5 @@ archetype = "retaliation"
 
 [damage]
 skill_weights = "points"
-
-[other]
-retaliation = 0.5                             # design choice: 25x default; per 1000 retaliation damage
-retaliation_modifier = 0.5                    # design choice: 25x default; per 100% retaliation damage
+retaliation = true                            # retaliation damage and % Retaliation Added to Attack count in Damage;
+                                              # [other] retaliation / retaliation_modifier then weigh nothing

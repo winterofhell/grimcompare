@@ -146,11 +146,9 @@ void weigh_life_leech(Side& out, const std::vector<Skill>& skills) {
   leech = v;
 }
 
-// Damage per second of procs, pets and weapon pool attacks; returns the share of weapon pool uses the attacks take.
-// `weapon`: weapon pool skill uses/s.
-double collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Database& db, std::optional<PetStats>& pets,
-                    Side& out, double weapon) {
-  double pooled = 0;
+// Damage per second of procs, pets and weapon pool attacks.
+void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Database& db, std::optional<PetStats>& pets,
+                  Side& out) {
   for (const auto& e : out.effects.effects) {
     // A weapon pool attack (Skill_WPAttack_*, the only effects with a pool chance) replaces a weapon pool skill's use:
     // its whole hit counts, the use it took is lost (eval()).
@@ -170,34 +168,39 @@ double collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Datab
         add_flat(db, *buff, lv, 1, a);
         own = buff;
       }
-    // A DoT from one source does not stack on a target: a new use only takes over from the running one. Past one
-    // use per (seconds x duration modifier), the uses add no DoT.
-    if (!e.pet && e.per_sec > 0)
+    // A DoT from one source does not stack on a target: past one use per (seconds x duration modifier), the uses
+    // add no DoT. Kept apart, so each buff state caps it at its own rate (extra_damage).
+    std::vector<Side::Hit::Dot> dots;
+    if (!e.pet)
       for (const auto& [type, secs] : dot_seconds(*own, lv))
-        if (const auto it = a.find({type, true}); it != a.end() && secs > 0)
-          it->second *= std::min(1.0, 1 / (e.per_sec * secs * out.gear.dot_scale(type)));
+        if (const auto it = a.find({type, true}); it != a.end() && secs > 0) {
+          dots.push_back({it->first, it->second, secs * out.gear.dot_scale(type)});
+          a.erase(it);
+        }
     const double weapon_pct = classes::is_a(rec->cls, "Character") ? 100 : at_level(*rec, "weaponDamagePct", lv);
     Amounts pet_weapon;
     if (e.pet)
       for (const auto& [r, l] : e.weapon)
         if (const arz::Record* w = db.record(r)) add_flat(db, *w, l, 1, pet_weapon);
-    if (a.empty() && (weapon_pct == 0 || (e.pet && pet_weapon.empty()))) continue;
+    if (a.empty() && dots.empty() && (weapon_pct == 0 || (e.pet && pet_weapon.empty()))) continue;
     if (e.per_sec <= 0) {
       out.hits_unknown.emplace(e.record, e.basis);
       continue;
     }
     if (weapon_pct != 0)
       for (const auto& [k, v] : e.pet ? pet_weapon : out.gear.flat) a[k] += v * weapon_pct / 100;
-    Side::Hit h{e.record, e.pet && !e.player_scaled, e.player_scaled, e.per_sec, std::move(a)};
+    Side::Hit h;
+    h.record = e.record, h.pet = e.pet && !e.player_scaled, h.player_scaled = e.player_scaled, h.per_sec = e.per_sec;
+    h.flat = std::move(a), h.dots = std::move(dots);
     if (h.pet) {
       if (!pets) pets = pet_bonuses(s, db);
       pet_scaling(s, p, db, *pets, e, out.gear.enemy_da, h);
+    } else {
+      h.on = e.on, h.chance = e.chance, h.recharge = e.recharge;
     }
+    if (pool) h.pool_chance = e.pool_chance;
     out.hits.push_back(std::move(h));
-    // Only the uses it fires on: a cooldown keeps it under its chance.
-    if (pool && weapon > 0) pooled += std::min(e.pool_chance, e.per_sec / weapon);
   }
-  return pooled;
 }
 
 }  // namespace
@@ -208,12 +211,29 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
   Side out;
   for (const auto& k : skills) {
     const snap::Skill* sk = skill_by_record(s, k.record);
-    out.mains.push_back({sk, sk ? skill_raw(s, *sk, db, notes) : Raw{}});
-    Main& m = out.mains.back();
+    Main& m = out.mains.emplace_back();
+    m.skill = sk;
+    if (sk) m.raw = skill_raw(s, *sk, db, notes);
+    m.weight = k.weight;
+    // SkillManager::GetOffensiveModifierAttributes 0x52F6E0 leaves out the passive % of the skill being used (same
+    // object name, 0x52F810..0x52F86B): a charged Skill_WeaponPool_ChargedScaling hits with its own % and its
+    // modifiers' once, locally (0x510F80). Its charged buff (learned_buffs()) or the capture's totals hold those for
+    // every hit, so its own hit takes none from skill_raw().
+    // shortcut: a capture taken charged is taken at the max charge scale — revisit when the snapshot records the
+    // charge count.
+    if (const arz::Record* r = sk ? db.record(sk->record) : nullptr; r && classes::is_a(r->cls, "Skill_WeaponPool_ChargedScaling")) {
+      m.raw.pct.clear();
+      m.raw.crit = 0;
+    }
     if (const arz::Record* r = sk ? db.record(sk->record) : nullptr; r && classes::is_a(r->cls, "Skill_WeaponPool_ChargedFinale")) {
       m.charges = at_level(*r, "skillChargeLevel", sk->current_level);
       m.plain.weapon_pct = 100;
       m.plain.speed = m.raw.speed;
+    }
+    if (const arz::Record* r = sk ? db.record(sk->record) : nullptr) {
+      m.combo = at_level(*r, "skillComboChargeLevel", sk->current_level);
+      for (const auto& [mr, ml] : modifiers_of(s, *sk))
+        if (const arz::Record* x = db.record(mr)) m.combo += at_level(*x, "skillComboChargeLevel", ml);
     }
   }
   out.utility = utility_of(s, p, &db);
@@ -229,7 +249,8 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
   out.gear = gear(s, db, base);
   out.gear.enemy_da = effects::shred(out.effects.reductions, effects::kEnemyDA);
   weigh_life_leech(out, skills);
-  out.pooled = collect_hits(s, p, db, pets, out, r.weapon);
+  out.rates = r;
+  collect_hits(s, p, db, pets, out);
   for (std::size_t k = 0; k < skills.size(); ++k)
     if (weapon_pool(out.mains[k], db)) out.mains[k].pool = skills[k].weight;
   return out;

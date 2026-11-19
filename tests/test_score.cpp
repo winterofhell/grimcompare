@@ -11,6 +11,8 @@
 
 #include "game_db.h"
 #include "gdc/combat_formulas.h"
+#include "gdc/db_fields.h"
+#include "gdc/stat_model.h"
 #include "gdc/components.h"
 #include "gdc/enemy.h"
 #include "gdc/score.h"
@@ -779,4 +781,166 @@ TEST_CASE("score: DoT duration from devotion nodes and passives always, from a t
   CHECK(dot(15) == 64);
   s.skills[1].buff_active.reset();  // after model::expected(): on only with its collectors in the capture
   CHECK(dot(15) == 0);
+}
+
+TEST_CASE("score: Savagery hits at its level's max charge scale and holds its charged bonuses as a main skill (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  constexpr const char* kSavagery = "records/skills/playerclass06/savagery1.dbr";
+  // skillChargeLevel 6 to L8, 7 from L9, 9 from L24; skillChargeMultipliers [.., 100, 108, 115, 120].
+  const arz::Record& rec = *db->record(kSavagery);
+  CHECK(score::max_charge_scale(rec, 8) == doctest::Approx(1.0));
+  CHECK(score::max_charge_scale(rec, 9) == doctest::Approx(1.08));
+  CHECK(score::max_charge_scale(rec, 26) == doctest::Approx(1.2));
+
+  auto skill = [](std::uint32_t id, const char* record, std::uint32_t level) {
+    snap::Skill k;
+    k.id = id;
+    k.record = record;
+    k.level = k.current_level = level;
+    return k;
+  };
+  snap::Snapshot s = base(94);
+  s.attack_speed = 2;
+  s.skills = {skill(1, kSavagery, 9), skill(2, "records/skills/playerclass06/savagery2.dbr", 5),
+              skill(3, "records/skills/playerclass06/savagery3.dbr", 5)};
+  s.skills[0].modifier_ids = {2, 3};
+  std::vector<std::string> notes;
+  // L9: 129% weapon, +48% Lightning; savagery3 L5 +34% Physical and +94% Lightning stay at 1.
+  const score::Raw raw = score::skill_raw(s, s.skills[0], *db, notes);
+  CHECK(raw.weapon_pct == doctest::Approx(129 * 1.08));
+  CHECK(raw.pct.at({8, false}) == doctest::Approx(48 * 1.08 + 94));
+  CHECK(raw.pct.at({2, false}) == doctest::Approx(34));
+
+  score::Preset p;
+  p.skills = {kSavagery};
+  auto charged = [&](const snap::Snapshot& x) -> std::optional<score::Buff> {
+    const score::Side side = score::side(x, score::main_skills(x, p, db), p, *db, {}, notes);
+    for (const auto& b : score::learned_buffs(x, side, p, *db))
+      if (b.record == kSavagery) return b;
+    return std::nullopt;
+  };
+  auto stat = [](const score::Buff& b, const char* field) {
+    double scale = 1;
+    const fields::Target* t = fields::lookup(field, scale);
+    REQUIRE(t);
+    const auto it = b.effect.stats.find({t->kind, t->type, t->modifier});
+    return it != b.effect.stats.end() ? it->second : 0.0;
+  };
+  const auto b = charged(s);
+  REQUIRE(b);
+  CHECK(b->uptime == 1);
+  CHECK(stat(*b, "characterOffensiveAbility") == doctest::Approx(50));     // savagery2 L5
+  CHECK(stat(*b, "characterAttackSpeedModifier") == doctest::Approx(7));   // savagery3 L5
+  CHECK(stat(*b, "offensivePhysicalModifier") == doctest::Approx(34));     // savagery3 at 1
+  CHECK(stat(*b, "offensiveLightningModifier") == doctest::Approx(48 * 1.08 + 94));
+  // SkillManager::GetOffensiveModifierAttributes 0x52F6E0 leaves its passive % out of its own hit: the buff holds the
+  // % for every hit, Savagery's own hit adds none on top; its weapon % stays.
+  const score::Side side = score::side(s, score::main_skills(s, p, db), p, *db, {}, notes);
+  REQUIRE(side.mains.size() == 1);
+  CHECK(side.mains[0].raw.pct.empty());
+  CHECK(side.mains[0].raw.crit == 0);
+  CHECK(side.mains[0].raw.weapon_pct == doctest::Approx(129 * 1.08));
+
+  // Its collectors at capture held stats: charged then, already in the totals.
+  s.skills[0].passive = snap::ItemStats{};
+  s.skills[0].passive->char_attributes.push_back({21, 50, 0});
+  CHECK_FALSE(charged(s));
+}
+
+TEST_CASE("score: Onslaught's combo charges scale a cooldown main skill (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  constexpr const char* kOnslaught = "records/skills/playerclass10/onslaught1.dbr";
+  constexpr const char* kRing = "records/skills/playerclass04/ringofsteel.dbr";  // 3 s cooldown
+  auto skill = [](std::uint32_t id, const char* record, std::uint32_t level) {
+    snap::Skill k;
+    k.id = id;
+    k.record = record;
+    k.level = k.current_level = level;
+    return k;
+  };
+  snap::Snapshot s = base(94);
+  s.attack_speed = 2;
+  s.skills = {skill(1, kOnslaught, 10), skill(2, kRing, 10)};
+  snap::Item sword;
+  sword.location = 0;
+  sword.record = "records/items/gearweapons/swords1h/c005_sword.dbr";
+  sword.stats = snap::ItemStats{};
+  sword.stats->offensive_damage.push_back({2, false, 100, 100});
+  s.equipped.push_back(sword);
+  score::Preset p;
+  auto after_text = [&](std::vector<std::string> skills) {
+    p.skills = std::move(skills);
+    return score::compare(s, s, score::main_skills(s, p, db), p, db).after;
+  };
+  // skillComboChargeLevel 3 at L10; gameengine.dbr skillComboChargeMultipliers [12, 24, 36, ..]: 100 + 36 %.
+  CHECK(after_text({kRing, kOnslaught}).find("x1.360 combo (3.00 charges)") != std::string::npos);
+  CHECK(after_text({kRing}).find("combo") == std::string::npos);  // no builder
+  // onslaught3 L5 adds 2: 5 charges, kept by a 50% Combo Charge Spend Reduction roll.
+  s.skills.push_back(skill(3, "records/skills/playerclass10/onslaught3.dbr", 5));
+  s.skills[0].modifier_ids = {3};
+  s.skill_attributes.push_back({4, 50});
+  CHECK(after_text({kRing, kOnslaught}).find("x1.600 combo (5.00 charges)") != std::string::npos);
+}
+
+TEST_CASE("score: an on-attack proc's rate follows the state's trigger rate; merged sources keep their sum") {
+  score::Side::Hit h;
+  h.on = effects::Effect::On::kAttack;
+  h.chance = 0.2, h.recharge = 1;
+  effects::Rates base, fast;
+  base.action = 2, fast.action = 4;
+  h.per_sec = 1 / (1 + 1 / (0.2 * 2));
+  CHECK(h.rate(base, base) == doctest::Approx(h.per_sec));
+  CHECK(h.rate(fast, base) == doctest::Approx(1 / (1 + 1 / (0.2 * 4))));
+  h.per_sec *= 2;  // two items granting it
+  CHECK(h.rate(fast, base) == doctest::Approx(2 / (1 + 1 / (0.2 * 4))));
+  h.on = effects::Effect::On::kCrit;
+  base.crit = 0.5, fast.crit = 0.25;
+  h.per_sec = 1 / (1 + 1 / (0.2 * 2 * 0.5));
+  CHECK(h.rate(fast, base) == doctest::Approx(1 / (1 + 1 / (0.2 * 4 * 0.25))));
+  h.on = effects::Effect::On::kOther;
+  CHECK(h.rate(fast, base) == doctest::Approx(h.per_sec));
+}
+
+TEST_CASE("score: a proc's DoT is capped at the state's own rate") {
+  snap::Snapshot s = base(50);
+  score::Settings p;
+  score::Side x;
+  x.rates.action = 1;
+  score::Side::Hit h;
+  h.record = "records/x/proc.dbr";
+  h.on = effects::Effect::On::kAttack;
+  h.chance = 1;  // every attack, no cooldown: rate = action
+  h.per_sec = 1;
+  h.dots.push_back({{7, true}, 100, 2});  // 2 s Poison
+  x.hits.push_back(h);
+  std::vector<std::string> notes;
+  std::optional<score::Converted> own;
+  const score::Converted& conv = score::converted_for(s, x, p, nullptr, own, notes);
+  auto per_sec = [&](double action) {
+    effects::Rates now;
+    now.action = action;
+    return score::extra_damage(s, x, p, false, conv, 1, now).per_sec;
+  };
+  // 0.25 uses/s: each DoT runs out (2 s < 4 s); 2 uses/s: one running DoT, whatever the rate (x 1/4 per use).
+  CHECK(per_sec(0.25) > 0);
+  CHECK(per_sec(2) == doctest::Approx(per_sec(0.25) * 2));
+  CHECK(per_sec(4) == doctest::Approx(per_sec(2)));
+}
+
+TEST_CASE("score: retaliation is converted with each state's conversions") {
+  snap::Snapshot s = base(50);
+  score::Settings p;
+  score::Side x;
+  x.resist = {{2, 1.0}, {6, 0.5}};
+  x.retaliation.flat[{2, false}] = 100;
+  x.retaliation.pct[6] = 100;  // +100% Fire retaliation: reaches what turns into Fire
+  std::vector<std::string> notes;
+  std::vector<score::Converted> memo;
+  std::optional<score::Converted> own;
+  CHECK(score::converted_for(s, x, p, &memo, own, notes).retaliation == doctest::Approx(100));
+  s.conversions = {{2, 6, 50}};  // a buff state's Physical -> Fire
+  CHECK(score::converted_for(s, x, p, &memo, own, notes).retaliation == doctest::Approx(50 + 50 * 2 * 0.5));
+  CHECK(memo.size() == 2);
 }

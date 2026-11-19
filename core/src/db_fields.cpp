@@ -85,6 +85,7 @@ constexpr std::pair<std::string_view, Target> kTable[] = {
     {"defensiveAbsorptionModifier", {kDefense, 39, true}},
     {"defensiveAether", {kDefense, 11, false}},
     {"defensiveAetherModifier", {kDefense, 11, true}},
+    {"defensiveAllResistance", {kDefense, 60, false}},  // spread by resist_spread()
     {"defensiveBleeding", {kDefense, 15, false}},
     {"defensiveBleedingModifier", {kDefense, 15, true}},
     // DefenseAttributeMisc_Block*::AddToAccumulator 0x2016C0: one defense entry; utility::defense_raw sums both slots.
@@ -98,6 +99,8 @@ constexpr std::pair<std::string_view, Target> kTable[] = {
     {"defensiveConvert", {kDefense, 51, false}},
     {"defensiveCrowdControl", {kDefense, 54, false}},
     {"defensiveDisruption", {kDefense, 13, false}},
+    {"defensiveElementalModifier", {kDefense, 58, true}},     // spread by resist_spread() (0x2021A0); no record has it
+    {"defensiveElementalResistance", {kDefense, 58, false}},  // spread by resist_spread()
     {"defensiveFear", {kDefense, 52, false}},
     {"defensiveFire", {kDefense, 6, false}},
     {"defensiveFireModifier", {kDefense, 6, true}},
@@ -190,10 +193,27 @@ constexpr FlatDamage kFlat[] = {
     {"offensiveElementalMin", "offensiveElementalMax", "", "offensiveElementalChance", 58},
 };
 
+constexpr RetaliationField kRetaliation[] = {
+    {"retaliationPhysicalMin", "retaliationPhysicalMax", "retaliationPhysicalChance", "retaliationPhysicalModifier", 2},
+    {"retaliationPierceMin", "retaliationPierceMax", "retaliationPierceChance", "retaliationPierceModifier", 4},
+    {"retaliationColdMin", "retaliationColdMax", "retaliationColdChance", "retaliationColdModifier", 5},
+    {"retaliationFireMin", "retaliationFireMax", "retaliationFireChance", "retaliationFireModifier", 6},
+    {"retaliationPoisonMin", "retaliationPoisonMax", "retaliationPoisonChance", "retaliationPoisonModifier", 7},
+    {"retaliationLightningMin", "retaliationLightningMax", "retaliationLightningChance", "retaliationLightningModifier", 8},
+    {"retaliationLifeMin", "retaliationLifeMax", "retaliationLifeChance", "retaliationLifeModifier", 9},
+    {"retaliationChaosMin", "retaliationChaosMax", "retaliationChaosChance", "retaliationChaosModifier", 10},
+    {"retaliationAetherMin", "retaliationAetherMax", "retaliationAetherChance", "retaliationAetherModifier", 11},
+    {"retaliationElementalMin", "retaliationElementalMax", "retaliationElementalChance", "retaliationElementalModifier", 58},
+    {"", "", "", "retaliationTotalDamageModifier", 60},
+};
+
 using namespace combat_attr;
 constexpr int kAllDirect[] = {kPhysical, kPierce, kCold, kFire, kPoison, kLightning, kLife, kChaos, kAether};
 constexpr int kAllDot[] = {kPhysical, kCold, kFire, kPoison, kLightning, kLife, kChaos, kAether, kBleeding};
 constexpr int kElementalTypes[] = {kCold, kFire, kLightning};
+// DefenseAttributeAbs_AllResistance::AddToAccumulator 0x200C30 adds one flat CombatAttributeAbsDefense entry per type,
+// in this order; DefenseAttributeAbs_ElementalResistance::AddToAccumulator 0x200A70 does the same for 5, 6, 8.
+constexpr int kAllResists[] = {kPhysical, kPierce, kFire, kCold, kLightning, kAether, kChaos, kLife, kPoison, kBleeding};
 
 }  // namespace
 
@@ -226,7 +246,14 @@ std::span<const int> spread(int type, bool dot) {
   return {};
 }
 
+std::span<const int> resist_spread(int type) {
+  if (type == combat_attr::kAll) return kAllResists;
+  if (type == combat_attr::kElemental) return kElementalTypes;
+  return {};
+}
+
 std::span<const FlatDamage> flat_damage() { return kFlat; }
+std::span<const RetaliationField> retaliation() { return kRetaliation; }
 
 namespace {
 constexpr std::string_view kWeaponFlags[] = {

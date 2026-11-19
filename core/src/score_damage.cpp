@@ -302,7 +302,8 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
   SkillDamage out;
   if (sk.current_level == 0) return out;
   const Pool own = converted ? Pool{} : main_converted(raw, g, global_pairs(s.conversions), notes);
-  const double sum = final_damage(s, p, raw, g, converted ? *converted : own, resist, parts);
+  const Pool& pool = converted ? *converted : own;
+  const double sum = final_damage(s, p, raw, g, pool, resist, parts) + pool.retaliation;
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double crit_bonus = (crit_row ? crit_row->damage_modifier : 0) + raw.crit / 100;
   double pth = 0;
@@ -331,27 +332,40 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
                " hit " + fmt(h.chance, 2) + " crit " + fmt(h.crit_chance, 2) + "+" + fmt(crit_bonus, 2) + " x" +
                fmt(h.multiplier, 3) + pace + " = " + fmt(out.value);
   if (raw.sources.size() > 1) out.inputs += " (dmg by source: " + skill_parts(s, p, raw, g, resist, notes) + ")";
+  if (pool.retaliation > 0) out.inputs += " (retaliation added " + fmt(pool.retaliation) + ")";
   return out;
 }
 
 // `memo` is shared by a side's buff states.
-const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
+const Converted& converted_for(const snap::Snapshot& s, const Side& x, const Settings& p, std::vector<Converted>* memo,
                                std::optional<Converted>& own, std::vector<std::string>& notes) {
   if (memo)
     for (const auto& c : *memo)
       if (same(c.conversions, s.conversions)) return c;
   Converted c{s.conversions, {}, {}};
   const Conversions global = global_pairs(s.conversions);
-  for (const auto& m : x.mains)
+  for (const auto& m : x.mains) {
     c.mains.push_back(m.skill && m.skill->current_level != 0 ? main_converted(m.raw, x.gear, global, notes) : Pool{});
-  for (const auto& e : x.hits) c.hits.push_back(e.pet ? Amounts{} : convert_pairs(e.flat, {}, global, notes));
+    if (m.skill && m.skill->current_level != 0)
+      c.mains.back().retaliation = retaliation_amount(m.raw.retaliation, m.raw.conversion, global, x, p, notes);
+  }
+  for (const auto& e : x.hits) {
+    Converted::Hit h;
+    if (!e.pet) {
+      h.flat = convert_pairs(e.flat, {}, global, notes);
+      for (const auto& d : e.dots) h.dots.emplace_back(d.seconds, convert_pairs({{d.key, d.amount}}, {}, global, notes));
+      h.retaliation = retaliation_amount(e.retaliation, {}, global, x, p, notes);
+    }
+    c.hits.push_back(std::move(h));
+  }
+  c.retaliation = retaliation_amount(x.retaliation, {}, global, x, p, notes);
   if (!memo) return own.emplace(std::move(c));
   memo->push_back(std::move(c));
   return memo->back();
 }
 
 Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv,
-                   double mult) {
+                   double mult, const effects::Rates& now) {
   Extra out;
   const auto* crit_row = find(s.damage_modifiers, kCritDamage);
   const double hit = attack(s, p, crit_row ? crit_row->damage_modifier : 0, x.gear.enemy_da).multiplier;
@@ -373,18 +387,28 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bo
   };
   for (std::size_t i = 0; i < x.hits.size(); ++i) {
     const auto& e = x.hits[i];
+    const double per_sec = e.rate(now, x.rates);
     double per_use = 0;
     if (e.pet) {
       for (const auto& [k, v] : e.flat) per_use += v * resist(k.first) * type_weight(p, k);
       per_use *= e.pet_hit;
     } else {
-      for (const auto& [k, v] : conv.hits[i]) per_use += v * scale(k);
-      per_use *= hit * mult;
+      for (const auto& [k, v] : conv.hits[i].flat) per_use += v * scale(k);
+      // A DoT from one source does not stack on a target: a new use only takes over from the running one.
+      for (const auto& [secs, a] : conv.hits[i].dots) {
+        const double f = per_sec > 0 && secs > 0 ? std::min(1.0, 1 / (per_sec * secs)) : 1;
+        for (const auto& [k, v] : a) per_use += f * v * scale(k);
+      }
+      per_use = (per_use + conv.hits[i].retaliation) * hit * mult;
     }
-    out.per_sec += e.per_sec * per_use;
+    out.per_sec += per_sec * per_use;
     if (explain)
       out.inputs += " " + stem(e.record) + (e.pet ? " (pet) " : e.player_scaled ? " (player-scaled pet) " : " ") +
-                  fmt(e.per_sec, 2) + "/s x " + fmt(per_use);
+                  fmt(per_sec, 2) + "/s x " + fmt(per_use);
+  }
+  if (conv.retaliation > 0) {
+    out.per_sec += p.incoming_hits_per_sec * conv.retaliation;
+    if (explain) out.inputs += " retaliation " + fmt(p.incoming_hits_per_sec, 2) + " hits/s x " + fmt(conv.retaliation) + " per hit";
   }
   return out;
 }

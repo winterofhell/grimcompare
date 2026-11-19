@@ -149,7 +149,9 @@ std::string off_sheet(const std::tuple<fields::Kind, int, bool>& key, double v, 
            pretty("default: " + std::string(names::char_attribute(type)));
   }
   if (kind == fields::Kind::Defense) {
-    if (type == combat_attr::kProtection || find(b.off.resists, type) || find(b.on.resists, type)) return "";
+    if (type == combat_attr::kProtection || !fields::resist_spread(type).empty() || find(b.off.resists, type) ||
+        find(b.on.resists, type))
+      return "";  // resist lines show them
     // 16: defensiveTotalSpeedResistance, the engine's "TotalSpeed".
     const std::string name = type == combat_attr::kTotalSpeed ? "Slow resist" : pretty("default: " + std::string(names::combat_attribute(type)));
     return signed_num(v, 0) + "% " + name;

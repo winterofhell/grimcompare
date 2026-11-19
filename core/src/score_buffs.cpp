@@ -2,6 +2,8 @@
 #include <array>
 #include <tuple>
 
+#include "gdc/classes.h"
+#include "gdc/db_fields.h"
 #include "gdc/stat_model.h"
 
 #include "score_internal.h"
@@ -29,8 +31,6 @@ double held_seconds(const arz::Record* rec, const arz::Record* buff, std::uint32
   return held;
 }
 
-using Modifiers = std::vector<std::pair<std::string, std::uint32_t>>;
-
 // damageAbsorptionPercent / 100 and damageAbsorption / one hit, the skill's plus its modifiers' (Mark of Torment).
 std::pair<double, double> absorption(const arz::Record& stats, std::uint32_t lv, const Modifiers& mods,
                                      const arz::Database& db, double hit) {
@@ -43,19 +43,33 @@ std::pair<double, double> absorption(const arz::Record& stats, std::uint32_t lv,
   return {std::clamp(pct / 100, 0.0, 1.0), hit > 0 ? std::clamp(flat / hit, 0.0, 1.0) : 0.0};
 }
 
-Modifiers linked(const snap::Snapshot& s, const snap::Skill& sk) {
-  Modifiers out;
-  for (const std::uint32_t id : sk.modifier_ids)
-    for (const auto& m : s.skills)
-      if (m.id == id && m.current_level > 0) out.emplace_back(m.record, m.current_level);
-  for (const auto& m : s.item_skill_modifiers)
-    if (m.skill_id == sk.id && !m.modifier_record.empty()) out.emplace_back(m.modifier_record, 1);
-  return out;
+// A Skill_WeaponPool_ChargedScaling main skill holds its charges (skill_raw()). While charged,
+// CollectPassiveCharAttributes 0x5113F0 and CollectPassiveDefenseAttributes 0x5116F0 add the skill's and its
+// modifiers' character and defense stats at 1, CollectPassiveOffensiveModifierAttributes 0x511520 the skill's % at
+// the charge scale and its modifiers' %. Its own collectors at capture holding stats: charged then, in the totals.
+// shortcut: with no character or defense stat to show it, a capture is taken as uncharged — revisit when the
+// snapshot records the charge count (Skill_WeaponPool_ChargedScaling+0x610).
+void add_charged(const snap::Snapshot& s, const Side& side, const arz::Database& db, std::vector<Buff>& out) {
+  for (const auto& m : side.mains) {
+    const arz::Record* rec = m.skill && m.skill->current_level > 0 ? db.record(m.skill->record) : nullptr;
+    if (!rec || !classes::is_a(rec->cls, "Skill_WeaponPool_ChargedScaling")) continue;
+    if (m.skill->passive && (!m.skill->passive->char_attributes.empty() || !m.skill->passive->defense.empty())) continue;
+    if (std::any_of(out.begin(), out.end(), [&](const Buff& b) { return b.record == m.skill->record; })) continue;
+    const std::uint32_t lv = m.skill->current_level;
+    Buff b{m.skill->record, 1, "charged while it is a main skill", model::buff_effect(*rec, lv)};
+    const double scale = max_charge_scale(*rec, lv);
+    for (auto& [k, v] : b.effect.stats)
+      if (std::get<0>(k) == fields::Kind::Damage) v *= scale;
+    for (const auto& [mr, ml] : modifiers_of(s, *m.skill))
+      if (const arz::Record* x = db.record(mr))
+        for (const auto& [k, v] : model::buff_effect(*x, ml).stats) b.effect.stats[k] += v;
+    if (b.matters()) out.push_back(std::move(b));
+  }
 }
 
 }  // namespace
 
-std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, const arz::Database& db) {
+std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Side& side, const Settings& p, const arz::Database& db) {
   std::vector<Buff> out;
   const double cdr = utility::cooldown_reduction(s);
   for (const auto& sk : s.skills) {
@@ -65,7 +79,7 @@ std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, cons
     Buff b{sk.record, 1, {}, model::buff_effect(s, sk, db)};
     if (const arz::Record* rec = db.record(sk.record)) {
       const arz::Record* buff = db.record(rec->string("buffSkillName"));
-      std::tie(b.absorb_pct, b.absorb_hit) = absorption(buff ? *buff : *rec, sk.current_level, linked(s, sk), db, enemy_hit(s, p, false));
+      std::tie(b.absorb_pct, b.absorb_hit) = absorption(buff ? *buff : *rec, sk.current_level, modifiers_of(s, sk), db, enemy_hit(s, p, false));
     }
     if (const auto o = p.uptime.find(sk.record); !p.recast_buffs && o != p.uptime.end()) {
       b.uptime = o->second;
@@ -79,6 +93,7 @@ std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, cons
     }
     out.push_back(std::move(b));
   }
+  add_charged(s, side, db, out);
   return out;
 }
 
@@ -160,7 +175,7 @@ BuffView buff_view(const snap::Snapshot& s, const std::vector<Skill>& skills, co
   std::vector<std::string> notes;
   const Side character = side(s, skills, p, *db, {}, notes);
   const Procs triggered = procs(s, character, p, *db);
-  const std::vector<Buff> learned = learned_buffs(s, p, *db);
+  const std::vector<Buff> learned = learned_buffs(s, character, p, *db);
   std::vector<Buff> all = learned;
   for (const auto& b : triggered.buffs)
     if (std::none_of(all.begin(), all.end(), [&](const Buff& o) { return o.record == b.record; })) all.push_back(b);

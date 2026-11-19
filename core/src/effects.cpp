@@ -248,6 +248,11 @@ void Builder::trigger(Effect& e, const arz::Record& skill, double chance, std::s
   }
   const double cooldown = summed(e, skill, "skillCooldownTime");
   e.per_sec = chance > 0 ? 1 / (recharge(cooldown, own) + 1 / (chance * rate)) : 0;
+  e.on = trigger == "AttackEnemy" ? Effect::On::kAttack
+         : trigger == "AttackEnemyCrit" ? Effect::On::kCrit
+         : trigger == "WeaponPool" ? Effect::On::kWeaponPool : Effect::On::kOther;
+  e.chance = chance;
+  e.recharge = recharge(cooldown, own);
   e.origin = Origin::Derived;
   e.basis = fmt(chance * 100, 0) + "% " + what + " x " + fmt(rate, 2) + "/s" +
             (cooldown > 0 ? ", cooldown " + recharge_text(cooldown, own) : "") + e.basis;
@@ -413,7 +418,10 @@ Collected collect(const snap::Snapshot& s, const arz::Database& db, const Rates&
     Rates r = rates;
     r.weapon /= total;
     out = build(r);
-    for (auto& e : out.effects) e.pool_chance /= total;
+    for (auto& e : out.effects) {
+      e.pool_chance /= total;
+      if (e.on == Effect::On::kWeaponPool) e.chance /= total;  // its rate was weapon / total
+    }
   }
   return out;
 }

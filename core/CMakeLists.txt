@@ -42,6 +42,7 @@ add_library(gdc_core STATIC
   src/score_match.cpp
   src/score_other.cpp
   src/score_preset.cpp
+  src/score_retaliation.cpp
   src/score_side.cpp
   src/score_skills.cpp
   src/score_states.cpp

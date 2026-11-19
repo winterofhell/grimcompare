@@ -77,16 +77,17 @@ bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   return !flat_parts(db, r, level).empty() || at_level(r, "weaponDamagePct", level) > 0;
 }
 
-// `source`: names the record's flat damage in Raw::sources.
-void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out, std::string_view source) {
+// `source`: names the record's flat damage in Raw::sources. `scale`: on everything but cooldown and conversions.
+void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out, std::string_view source,
+                double scale) {
   Amounts own;
-  add_flat(db, r, level, 1, own);
+  add_flat(db, r, level, scale, own);
   for (const auto& [k, v] : own) out.flat[k] += v;
   if (!own.empty() && !source.empty()) out.sources.emplace_back(source, std::move(own));
   for (const auto& [type, field] : kDotDuration)
-    if (const double v = at_level(r, field, level); v != 0) out.duration[type] += v;
+    if (const double v = at_level(r, field, level); v != 0) out.duration[type] += v * scale;
   for (const auto& [field, t] : fields::damage_modifiers()) {
-    const double v = at_level(r, field, level);
+    const double v = at_level(r, field, level) * scale;
     if (v == 0) continue;
     if (t.type == kElemental || t.type == kAll)
       for (int x : fields::spread(t.type, t.modifier)) out.pct[{x, t.modifier}] += v;
@@ -99,11 +100,11 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   // (CombatAttribute_DamageMultiplier::Execute 0x117E50: every damage type, max(0, 1 + value) × 100 to ScaleDamage
   // 0x113930 / 0x114360, which scales the damage fields and leaves the % sum). So entries compound and multiply
   // the skill's damage after its additive %.
-  if (const double m = at_level(r, "offensiveDamageMultModifier", level); m != 0) out.mult *= std::max(0.0, 1 + m / 100);
-  out.weapon_pct += at_level(r, "weaponDamagePct", level);
-  out.crit += at_level(r, "offensiveCritDamageModifier", level);
+  if (const double m = at_level(r, "offensiveDamageMultModifier", level); m != 0) out.mult *= std::max(0.0, 1 + m * scale / 100);
+  out.weapon_pct += at_level(r, "weaponDamagePct", level) * scale;
+  out.crit += at_level(r, "offensiveCritDamageModifier", level) * scale;
   out.cooldown += at_level(r, "skillCooldownTime", level);
-  out.leech += at_level(r, "offensiveLifeLeechMin", level);
+  out.leech += at_level(r, "offensiveLifeLeechMin", level) * scale;
   for (const auto& [in, outk, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
                                       std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
     const int from = damage_type_named(r.string(in)), to = damage_type_named(r.string(outk));
@@ -112,15 +113,41 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   }
 }
 
+double max_charge_scale(const arz::Record& r, std::uint32_t level) {
+  const auto it = r.fields.find("skillChargeMultipliers");
+  if (it == r.fields.end() || it->second.numbers.empty()) return 1;
+  const auto& m = it->second.numbers;
+  const double charges = at_level(r, "skillChargeLevel", level);
+  const std::size_t i = charges >= 1 ? std::min(static_cast<std::size_t>(charges) - 1, m.size() - 1) : m.size() - 1;
+  return m[i] / 100;  // 0x7A6FA0: 0.01
+}
+
+Modifiers modifiers_of(const snap::Snapshot& s, const snap::Skill& sk) {
+  Modifiers out;
+  for (const std::uint32_t id : sk.modifier_ids)
+    for (const auto& m : s.skills)
+      if (m.id == id && m.current_level > 0) out.emplace_back(m.record, m.current_level);
+  for (const auto& m : s.item_skill_modifiers)
+    if (m.skill_id == sk.id && !m.modifier_record.empty()) out.emplace_back(m.modifier_record, 1);
+  return out;
+}
+
 // Records without damage (Skill_AttackBuffRadius) carry it on their buffSkillName record.
 Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Database& db, std::vector<std::string>& notes) {
   Raw raw;
   const arz::Record* rec = db.record(sk.record);
   if (!rec) return raw;
   raw.speed = classes::speed(rec->cls);
+  // Skill_WeaponPool_ChargedScaling (Savagery, Righteous Fervor): CollectLocalOffensiveDamageAttributes 0x510E90,
+  // CollectLocalOffensiveModifierAttributes 0x510F80 and CollectLocalWeaponDamage 0x511030 add the skill's own
+  // damage, % and weapon % at the current charge scale; its modifiers' at 1. IncrementCharge 0x510100 and
+  // DecrementCharge 0x5102A0 move one charge at a time, each kept skillChargeDuration (2 s) without a use.
+  // shortcut: sustained combat keeps the charges at the level's max (one use per skillChargeDuration is enough); the
+  // ramp after a pause is not counted — revisit with a build that attacks less often than that.
+  const double scale = classes::is_a(rec->cls, "Skill_WeaponPool_ChargedScaling") ? max_charge_scale(*rec, sk.current_level) : 1;
   if (!has_damage(db, *rec, sk.current_level))
     if (const arz::Record* buff = db.record(rec->string("buffSkillName"))) rec = buff;
-  add_record(db, *rec, sk.current_level, raw, stem(sk.record));
+  add_record(db, *rec, sk.current_level, raw, stem(sk.record), scale);
   for (const std::uint32_t id : sk.modifier_ids)
     for (const auto& m : s.skills)
       if (m.id == id && m.current_level > 0)

@@ -35,6 +35,8 @@ for cls, chance, value in tsv('DefenseAttributeFields.tsv'):
         if f: field[f] = ('defense', types.get(cls, -1), cls, role)
 
 BASE = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15}
+# Retaliation the Damage term reads under [damage] retaliation (gdc::fields::retaliation()).
+RETALIATION_DAMAGE = re.compile(r'retaliation(Physical|Pierce|Cold|Fire|Poison|Lightning|Life|Chaos|Aether|Elemental)(Min|Max|Chance|Modifier)$|retaliationTotalDamageModifier$')
 def how(f):
     """(status, text). status: scored | default | zero | no."""
     if re.match(r'augment(Skill|Mastery)(Name|Level)\d|augmentAllLevel', f):
@@ -71,7 +73,9 @@ def how(f):
         return 'scored', 'Other `cooldown_reduction` (items only)'
     if f == 'skillManaCostReduction':
         return 'scored', 'Other `skill_cost_reduction` (items only)'
-    if f in ('skillProjectileSpeedModifier', 'skillComboChargeSpendReduction'):
+    if f == 'skillComboChargeSpendReduction':
+        return 'scored', 'Damage: chance to keep combo charges for cooldown main skills (Character::SpendComboCharges 0x603F0); not in Other'
+    if f == 'skillProjectileSpeedModifier':
         return 'default', 'Other `default` weight per 100, named in Shift (skill attribute)'
     if f == 'offensivePierceRatioMin':
         return 'default', 'Other `default` weight per 100, named in Shift (armor piercing, item offense type 3; weapons are not compared)'
@@ -117,7 +121,9 @@ def how(f):
         if t in table: return 'scored', table[t]
         return 'default', 'Other `default` weight per 100, named in Shift (%s)' % cls
     if kind == 'retaliation':
-        return 'scored', 'Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1)'
+        if RETALIATION_DAMAGE.match(f):
+            return 'scored', 'Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1); Damage instead under `[damage] retaliation = true` (preset `retaliation`)'
+        return 'scored', 'Other `retaliation` / `retaliation_modifier` (weight 0 in plague-garden by design: guide §1); under `[damage] retaliation = true` not counted (shortcut: retaliation DoT and crowd control)'
     if role in ('DurationMin', 'DurationMax'): return 'scored', 'Damage: DoT duration of the flat damage it belongs to'
     if t in BASE or t in (1, 58, 60):
         if role == 'Modifier': return 'scored', 'Damage: % of that final type after conversions (direct and duration separately: engine)'
@@ -240,8 +246,12 @@ def mod_how(f):
         return 'no', 'not scored: buff / debuff duration of a modifier is not read (uptimes use the skill record)'
     if re.match(r'(refreshCooldown|refreshDuration)\w+$', f):
         return 'no', 'not scored: triggered cooldown / duration refresh is not modeled'
+    if f == 'skillComboChargeLevel':
+        return 'scored', 'Damage: combo charges the modified skill builds, for cooldown main skills (SkillManager::IncrementComboCharge 0x53F990, Skill::CollectComboMultiplier 0x4993D0)'
+    if f == 'skillComboChargeDuration':
+        return 'no', 'not scored: combo charge expiry is not modeled'
     if re.match(r'(projectile\w+|skillTarget\w+|beam\w+|wave\w+|explosionRadius|spark\w+|targetingMode|'
-                r'overwriteBaseSkill|petBurstSpawn|petChanges|skillComboCharge\w+)$', f):
+                r'overwriteBaseSkill|petBurstSpawn|petChanges)$', f):
         return 'no', 'not scored: area, targets, projectiles or behaviour; the model is one target, one use'
     if f == 'offensiveDamageMultModifier':
         return 'scored', MAIN + '"Total Damage Modified by": multiplies the skill\'s damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50); on a timed buff, every hit of the player\'s while it is up'
@@ -253,6 +263,8 @@ def mod_how(f):
         return 'no', 'not scored: skill charges are not modeled'
     if f.startswith(('defensive', 'character')):
         return 'no', 'not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled")'
+    if f == 'retaliationDamagePct' or RETALIATION_DAMAGE.match(f):
+        return 'scored', 'Damage, only under `[damage] retaliation = true`: the modified skill\'s % Retaliation Added to Attack, or its retaliation while the skill is up'
     if f.startswith('retaliation'):
         return 'no', 'not scored: retaliation from a skill modifier is not read'
     if re.match(r'offensive\w+', f):

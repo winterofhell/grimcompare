@@ -714,6 +714,37 @@ TEST_CASE("score: a weapon pool attack replaces default attacks by its chance (i
   CHECK(r.after.find("replaced weapon pool uses 0.200") != std::string::npos);
 }
 
+TEST_CASE("score: an attack speed buff speeds weapon pool attacks with the uses they take (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s;
+  s.level = 94;
+  s.attack_speed = 2;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  learn(s, 1, "records/skills/default/defaultweaponattack.dbr", 1);
+  learn(s, 2, "records/skills/playerclass04/wpattack1.dbr", 0);  // Amarasta's Quick Cut: no DoT
+  snap::Item sword = piece(0, "records/items/gearweapons/swords1h/c005_sword.dbr");
+  sword.stats->offensive_damage.push_back({2, false, 100, 100});
+  s.equipped.push_back(sword);
+  score::Preset p;
+  p.skills = {"records/skills/default/defaultweaponattack.dbr"};
+  p.enemy_resist[4] = 1000;  // Enchant's +100% Pierce reaches only Quick Cut's Pierce: none gets through
+  auto ratio = [&](bool buffed) {
+    snap::Snapshot before = s;
+    if (buffed) {  // Nightblade's Enchant at 12: +14% total speed, 60 s every 8 s, so always up
+      learn(before, 3, "records/skills/playerclass04/nightbladeenchant1.dbr", 12);
+      before.skills.back().buff_active = false;
+    }
+    snap::Snapshot after = before;
+    after.skills[1].level = after.skills[1].current_level = 4;  // 19%
+    return score::compare(before, after, score::main_skills(before, p, db), p, db).ratio.damage;
+  };
+  // Each use is the default attack or Quick Cut, whatever the speed: the gain is the same with the buff.
+  const double plain = ratio(false);
+  CHECK(plain > 1);
+  CHECK(ratio(true) == doctest::Approx(plain).epsilon(1e-6));
+}
+
 TEST_CASE("score: a weapon pool attack on cooldown replaces only the uses it fires on (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) return;

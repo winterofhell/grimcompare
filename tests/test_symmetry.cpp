@@ -309,3 +309,28 @@ TEST_CASE("symmetry: synthetic rings, off-hands and weapons, items that cannot b
   CHECK(scored[0].percent < *scored[0].itself);
   check(tight, ring, 6, 4, "requirement breakage");
 }
+
+TEST_CASE("symmetry: a retaliation swap under [damage] retaliation, with a conversion on the item (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  const auto base = snap::from_json(read(fs::path(GDC_SOURCE_DIR) / "tests/fixtures/snapshots/lvl16-wp-lhand-shield.json"));
+  std::string error;
+  const auto p = score::parse(read(fs::path(GDC_SOURCE_DIR) / "presets/retaliation.toml"), error);
+  REQUIRE_MESSAGE(p, error);
+  REQUIRE(p->retaliation_damage);
+  // Retaliation on each side is converted with that side's conversions: the ring's Physical -> Fire goes with it.
+  snap::Item ring = made("records/items/gearaccessories/rings/a002_ring02.dbr", 960101);
+  snap::Damage ret;
+  ret.type = 2;
+  ret.min = 300, ret.max = 500;
+  ring.stats->retaliation = {ret};
+  ring.stats->retaliation_modifiers = {pct(6, 80, 0)};
+  ring.stats->conversions = {{2, 6, 50}};
+  for (int finger : {4, 5}) {
+    const auto r = round_trip(base, ring, 6, finger, *p, db);
+    REQUIRE(r);
+    INFO("finger " << finger << ": x " << r->x << " y " << r->y);
+    CHECK(r->x > 0);
+    CHECK(r->off() < kTolerance);
+  }
+}

@@ -24,6 +24,8 @@ const Target* damage_modifier(std::string_view field);
 std::span<const std::pair<std::string_view, Target>> damage_modifiers();
 // Spread targets as seen in fixture b002e_torso.
 std::span<const int> spread(int type, bool dot);
+// Defense 58 (defensiveElementalResistance) / 60 (defensiveAllResistance): the flat resists the engine adds instead.
+std::span<const int> resist_spread(int type);
 
 // Crit damage: percent in records, fraction in row 59.
 const Target* lookup(std::string_view field, double& scale);
@@ -35,6 +37,13 @@ struct FlatDamage {
   int type;
 };
 std::span<const FlatDamage> flat_damage();
+// RetaliationAttributeAbs_* (LoadValueMin / Max / Chance) and RetaliationAttributeAbsMod_* (LoadModifier) of the
+// damage types; 58 / 60 unspread, 60 has no flat field.
+struct RetaliationField {
+  std::string_view min, max, chance, modifier;
+  int type;
+};
+std::span<const RetaliationField> retaliation();
 // skill_base.tpl "Qualifying Weapons"; engine check not traced.
 bool weapon_flag(std::string_view field);
 bool weapon_gated(const arz::Record& skill);

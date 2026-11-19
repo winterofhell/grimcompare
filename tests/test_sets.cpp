@@ -179,3 +179,30 @@ TEST_CASE("sets: score counts the set's flat damage at the equipped piece count"
   // attribute factors 1 at 0 Cunning / Spirit).
   CHECK(r.ratio.damage == doctest::Approx(13.5).epsilon(0.01));
 }
+
+TEST_CASE("sets: an elemental resist bonus reaches Cold, Fire and Lightning and the score") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  // The Spellscourge (itemset_d110): defensiveElementalResistance [0, 20, 20, 20].
+  constexpr const char* kSpellscourge = "records/items/lootsets/itemset_d110.dbr";
+  snap::Snapshot s;
+  s.level = 94;
+  s.defense_cap = 80;
+  s.char_attributes = {{4, 10000, 0, 10000, 0}};
+  for (int t : {5, 6, 8}) s.defense.push_back({t, 40, 0, 0, 0, 0});
+  s.equipped = {piece(7, "records/items/gearhead/d117_head.dbr", kSpellscourge)};
+  const auto two = model::swap(s, piece(-1, "records/items/gearshoulders/d115_shoulder.dbr", kSpellscourge), 9, db);
+  REQUIRE(two.sets.size() == 1);
+  CHECK(two.sets[0].after == 2);
+  CHECK(two.sets[0].unmodeled.empty());
+  const model::Sheet sheet = model::sheet(two.after);
+  for (int t : {5, 6, 8}) {
+    const auto x = std::find_if(sheet.resists.begin(), sheet.resists.end(), [&](const model::Resist& r) { return r.type == t; });
+    REQUIRE(x != sheet.resists.end());
+    CHECK(x->uncapped == doctest::Approx(60));
+  }
+  score::Preset p;
+  const auto r = score::compare(s, two.after, {}, p, db);
+  CHECK(r.ratio.survival > 1);
+  CHECK(std::any_of(r.contributions.begin(), r.contributions.end(), [](const score::Contribution& c) { return c.stat == "resist:6"; }));
+}

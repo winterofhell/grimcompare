@@ -117,8 +117,11 @@ void add_to(snap::ItemStats& passive, const Contribution& delta) {
       auto& c = row(passive.char_attributes, type);
       (modifier ? c.modifier : c.value) += static_cast<float>(v);
     } else {
-      auto& c = row(passive.defense, type);
-      (modifier ? c.defense_modifier : c.defense) += static_cast<float>(v);
+      const std::span<const int> spread = fields::resist_spread(type);
+      for (int t : spread.empty() ? std::span<const int>(&type, 1) : spread) {
+        auto& c = row(passive.defense, t);
+        (modifier ? c.defense_modifier : c.defense) += static_cast<float>(v);
+      }
     }
   }
 }
@@ -234,6 +237,8 @@ void buffed(const snap::Snapshot& s, std::span<const std::pair<const BuffEffect*
   out.defense = s.defense;
   out.damage_modifiers = s.damage_modifiers;
   out.conversions = s.conversions;
+  out.attack_speed = s.attack_speed;  // derive_speeds() moves these; a state with no buff up keeps s's
+  out.cast_speed = s.cast_speed;
   AllDeltas all;
   bool any = false;
   for (const auto& [e, share] : buffs) {

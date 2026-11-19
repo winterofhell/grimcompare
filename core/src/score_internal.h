@@ -129,6 +129,12 @@ inline std::string stem(const std::string& record) {
 using Key = std::pair<int, bool>;
 using Amounts = std::map<Key, double>;
 
+// Retaliation before conversion: flat per hit by type (58 unspread, as convert_pairs() takes it), % by single type.
+struct Retaliation {
+  Amounts flat;
+  std::map<int, double> pct;
+};
+
 struct Raw {
   Amounts flat;            // dot: per second x duration
   Amounts pct;             // 58 / 60 spread
@@ -141,6 +147,8 @@ struct Raw {
   double cooldown = 0;     // modifiers add negative values
   double leech = 0;        // own ADCtH plus modifiers' (Bramblevine)
   Conversions conversion;  // in the order CollectLocalConversionAttributes adds them
+  // % Retaliation Added to Attack per use: the retaliation it adds, flat already x the pct (retaliation_damage).
+  Retaliation retaliation;
 };
 
 struct Gear {
@@ -212,11 +220,13 @@ struct Utility {
 struct Main {
   const snap::Skill* skill = nullptr;  // null: not in the snapshot
   Raw raw;
+  double weight = 0;
   double pool = 0;  // weapon pool skills: the main skill weight whose uses a Skill_WPAttack_* can take
   // Skill_WeaponPool_ChargedFinale (Cadence): skillChargeLevel plain weapon hits, then the skill's own hit. A weapon
   // pool attack can take a plain hit, never the finale.
   double charges = 0;
   Raw plain;  // a plain hit: 100% weapon damage
+  double combo = 0;  // skillComboChargeLevel, the skill's and its modifiers': the combo charges its hits build up to
   double pool_share() const { return charges > 0 ? charges / (charges + 1) : 1; }
 };
 
@@ -230,13 +240,36 @@ struct Side {
     std::string record;
     bool pet = false;            // Class Pet: pet bonuses, not the player's
     bool player_scaled = false;  // uses the player's bonuses, like a proc
-    double per_sec = 0;
+    double per_sec = 0;          // at Side::rates
     Amounts flat;                // Class Pet: with the pet's % and attribute bonuses applied
+    // The record's own DoT, each kept apart: past one use per seconds (x the duration modifier) a use adds no DoT.
+    struct Dot {
+      Key key;
+      double amount = 0, seconds = 0;
+    };
+    std::vector<Dot> dots;
     double pet_hit = 1;          // Class Pet: expected hit multiplier at the pet's OA
+    Retaliation retaliation;     // as Raw::retaliation
+    double pool_chance = 0;      // Skill_WPAttack_*: the share of weapon pool skill uses it can take
+    effects::Effect::On on = effects::Effect::On::kOther;
+    double chance = 0, recharge = 0;
+    // Uses/s at the rates `now` (a buff state's speeds), from per_sec at `base`: 1 / (recharge + 1 / (chance x
+    // rate)) scaled, so merged sources keep their sum.
+    double rate(const effects::Rates& now, const effects::Rates& base) const {
+      auto at = [&](const effects::Rates& r) {
+        const double x = on == effects::Effect::On::kAttack ? r.action
+                         : on == effects::Effect::On::kCrit ? r.action * r.crit : r.weapon;
+        return x > 0 ? 1 / (recharge + 1 / (chance * x)) : 0;
+      };
+      if (on == effects::Effect::On::kOther || chance <= 0) return per_sec;
+      const double b = at(base);
+      return b > 0 ? per_sec * at(now) / b : 0;
+    }
   };
   std::vector<Hit> hits;
   std::map<std::string, std::string> hits_unknown;
-  double pooled = 0;  // share of weapon pool skill uses the Skill_WPAttack_* hits take
+  effects::Rates rates;     // the trigger rates of the snapshot's own speeds
+  Retaliation retaliation;  // per hit taken (retaliation_damage)
 };
 
 // Procs and pets per second (MECHANICS §4).
@@ -250,13 +283,20 @@ struct Extra {
 // what the skill's own % adds (damage × skill % / 100, carried through conversion).
 struct Pool {
   Amounts base, bonus;
+  double retaliation = 0;  // Raw::retaliation final, before the hit roll
 };
 
 // Converted once per conversion set; buff states mostly share one.
 struct Converted {
   std::vector<snap::Conversion> conversions;
   std::vector<Pool> mains;     // per Side::mains entry, empty for one not learned
-  std::vector<Amounts> hits;   // per Side::hits entry, empty for a pet's
+  struct Hit {
+    Amounts flat;
+    std::vector<std::pair<double, Amounts>> dots;  // Side::Hit::dots: seconds, converted
+    double retaliation = 0;
+  };
+  std::vector<Hit> hits;       // per Side::hits entry, empty for a pet's
+  double retaliation = 0;      // per hit taken, final
 };
 
 struct Eval {
@@ -296,10 +336,25 @@ std::map<int, double> dot_seconds(const arz::Record& r, std::uint32_t level);
 void add_pair(Conversions& c, int from, int to, double pct);
 bool has_damage(const arz::Database& db, const arz::Record& r, std::uint32_t level);
 void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t level, Raw& out,
-                std::string_view source = {});
+                std::string_view source = {}, double scale = 1);
+// Skill_WeaponPool_ChargedScaling::GetMaxChargeScale 0x5103C0: skillChargeMultipliers[skillChargeLevel - 1] / 100 (the
+// last entry past the end), 1 without multipliers.
+double max_charge_scale(const arz::Record& r, std::uint32_t level);
 Raw skill_raw(const snap::Snapshot& s, const snap::Skill& sk, const arz::Database& db, std::vector<std::string>& notes);
+// A skill's modifiers with their levels: learned ones at their level, item ones at 1.
+using Modifiers = std::vector<std::pair<std::string, std::uint32_t>>;
+Modifiers modifiers_of(const snap::Snapshot& s, const snap::Skill& sk);
 bool skill_on(const snap::Skill& sk, const arz::Record& r);
 bool attack_class(std::string_view cls);
+
+// score_retaliation.cpp
+// Settings::retaliation_damage: retaliation per hit taken into Side::retaliation, % Retaliation Added to Attack into
+// the main skills' Raw::retaliation and the hits'.
+void add_retaliation(const snap::Snapshot& s, const Settings& p, const arz::Database& db, const Procs& procs,
+                     const std::vector<Buff>& learned, Side& side);
+// Final amount: conversions, the retaliation % of the final type, the enemy's resists and the preset's type weights.
+double retaliation_amount(const Retaliation& t, const Conversions& local, const Conversions& global, const Side& side,
+                          const Settings& p, std::vector<std::string>& notes);
 
 // score_conversion.cpp
 void split_elemental(Amounts& a);
@@ -322,11 +377,11 @@ std::string skill_parts(const snap::Snapshot& s, const Settings& p, const Raw& r
                         const std::map<int, double>* resist, std::vector<std::string>& notes);
 // Settings::offtarget_weight for a type no conversion can turn into one of the build's, else 1.
 double type_weight(const Settings& p, Key k);
-const Converted& converted_for(const snap::Snapshot& s, const Side& x, std::vector<Converted>* memo,
+const Converted& converted_for(const snap::Snapshot& s, const Side& x, const Settings& p, std::vector<Converted>* memo,
                                std::optional<Converted>& own, std::vector<std::string>& notes);
-// `mult`: the state's buff damage multiplier, the player's own hits only.
+// `mult`: the state's buff damage multiplier, the player's own hits only. `now`: the state's trigger rates.
 Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bool explain, const Converted& conv,
-                   double mult = 1);
+                   double mult, const effects::Rates& now);
 
 // score_survival.cpp
 Survival survival(const snap::Snapshot& s, const Procs& x, double absorbed, const Settings& p, const arz::Database* db,
@@ -341,7 +396,8 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
           const Amounts& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
 
 // score_buffs.cpp
-std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Settings& p, const arz::Database& db);
+// Cast buffs not in the totals at capture, and charged Skill_WeaponPool_ChargedScaling main skills of `side`.
+std::vector<Buff> learned_buffs(const snap::Snapshot& s, const Side& side, const Settings& p, const arz::Database& db);
 Procs procs(const snap::Snapshot& s, const Side& x, const Settings& p, const arz::Database& db);
 // Returns the absorbed share; `mult`: the buffs' damage multiplier in this state.
 double state(const snap::Snapshot& s, const Procs& pr, const std::vector<Buff>& learned,

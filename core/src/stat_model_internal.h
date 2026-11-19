@@ -113,6 +113,10 @@ struct AllDeltas {
         }
         continue;
       }
+      if (kind == fields::Kind::Defense && !fields::resist_spread(type).empty()) {
+        for (int t : fields::resist_spread(type)) (modifier ? def[t].second : def[t].first) += v;
+        continue;
+      }
       auto& d = kind == fields::Kind::Char ? chr[type] : kind == fields::Kind::Defense ? def[type] : dmg[type];
       (modifier ? d.second : d.first) += v;
     }

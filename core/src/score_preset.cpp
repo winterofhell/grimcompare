@@ -169,6 +169,10 @@ bool damage_table(Parser& ps, const toml::table& root, const std::string& w, Set
     }
     if (const auto r = number_key(ps, kDamageNumbers, k, v, p)) return *r;
     if (k == "conversion_warn") return conversion_pairs(ps, v, k, p.conversion_warn);
+    if (k == "retaliation") {
+      if (const auto b = v.value<bool>(); b && v.is_boolean()) return p.retaliation_damage = *b, true;
+      return ps.fail(v, "retaliation must be true or false");
+    }
     return ps.unknown(v, w + "damage", k);
   });
 }

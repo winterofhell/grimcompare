@@ -132,6 +132,7 @@ void write_damage(std::string& o, const Settings& from, const std::vector<Skill>
   line(o, "pet_attack_rate", number(from.pet_attack_rate));
   line(o, "kills_per_sec", number(from.kills_per_sec));
   line(o, "offtarget_weight", number(from.offtarget_weight));
+  line(o, "retaliation", from.retaliation_damage ? "true" : "false");
   std::string cw;
   for (const auto& [a, b] : from.conversion_warn) cw += (cw.empty() ? "" : ", ") + toml_string(conversion_name(a) + "->" + conversion_name(b));
   line(o, "conversion_warn", "[" + cw + "]");

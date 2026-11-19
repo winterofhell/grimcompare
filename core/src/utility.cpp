@@ -38,7 +38,7 @@ constexpr Stat kStats[] = {
 
 using char_attr::kBlockRecovery, char_attr::kDodge, char_attr::kDeflect, char_attr::kExperience;
 using combat_attr::kLifeLeech, combat_attr::kTotalDamageReduction, combat_attr::kBlockChance, combat_attr::kBlockAmount;
-constexpr int kCooldown = 1, kCost = 2;
+constexpr int kCooldown = 1, kCost = 2, kComboKeep = 4;
 
 // Read elsewhere or keyed here.
 const std::set<int> kCharCovered = {1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 21, 22, 23, 24, kBlockRecovery, kDodge, kDeflect, kExperience};
@@ -216,6 +216,7 @@ bool holds(std::string_view w, const Context& c) {
 Values values(const snap::Snapshot& s, const arz::Database* db) { return values(s, item_values(s, db)); }
 
 double cooldown_reduction(const snap::Snapshot& s) { return std::clamp(skill_attribute(s, kCooldown) / 100, 0.0, 1.0); }
+double combo_keep(const snap::Snapshot& s) { return std::clamp(skill_attribute(s, kComboKeep) / 100, 0.0, 1.0); }
 
 Values values(const snap::Snapshot& s, Values out) {
   const model::Sheet sh = model::sheet(s);
@@ -252,7 +253,8 @@ Values item_values(const snap::Snapshot& s, const arz::Database* db) {
   k["experience"] = max_level > 0 ? char_total(s, kExperience) / 100 * std::max(0.0, 1 - s.level / max_level) : 0;
 
   for_skill_attributes(s, [&](int type, double v) {
-    if (type != kCooldown && type != kCost && v != 0) out.unlisted[label("skill", type, names::skill_attribute(type))] += v / 100;
+    // Combo Charge Spend Reduction: Damage only (combo_keep).
+    if (type != kCooldown && type != kCost && type != kComboKeep && v != 0) out.unlisted[label("skill", type, names::skill_attribute(type))] += v / 100;
   });
   // shortcut: no character total for these, so skills' parts are not seen — revisit when the capture reads the
   // character's offensive accumulators.

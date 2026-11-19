@@ -13,6 +13,7 @@ Other other(const snap::Snapshot& s, const Utility& u, const Settings& p, bool e
   auto weight = [&](const std::string& key) {
     const auto it = p.other.find(key);
     if (it == p.other.end()) return 0.0;
+    if (p.retaliation_damage && (key == "retaliation" || key == "retaliation_modifier")) return 0.0;  // in Damage
     for (const auto& w : it->second.when)
       if (!utility::holds(w, ctx)) return 0.0;
     return it->second.weight;

@@ -40,6 +40,7 @@ Exponents a / b / c, threat shares, Other weights, `melee_share`, `damage_reduct
 - `[damage] skill_weights = "points"`: main skills weigh by points spent, so a 1-point skill does not count like a maxed one. A skill's points are its own plus its learned modifiers' and transmuter's (Bloody Pox 1 / Wasting 12 / Black Death 12 = 25), so +levels to a modifier score through the skill it modifies. Auto mode ranks skills by the same sum.
 - `[damage] offtarget_weight` (decision 2026-11-18, default 1.0, per stage): damage of an off-target type counts × this, its flat damage and its % bonuses alike, in main skills, procs and pets. Off-target = not one of `[match] damage` and no conversion can turn it into one: every damage type but Bleeding is some record's `conversionInType` in the 1.3.1.1 database and converts into every other, nothing converts into Bleeding, a conversion keeps a part's DoT flag and never moves DoT into Pierce, Chaos or Aether (`docs/MECHANICS.md` §2). So for `plague-garden` (acid, poison) only Bleeding is off-target; Vitality counts in full because gear can convert it. Both sides of a swap use the same weights, so A → B and B → A stay exact opposites. No `[match] damage`: nothing is off-target.
 - `[damage] skills`: only the listed skills with points are scored; while none has points (a levelling character), the main skills are picked as auto does (1.0.0).
+- `[damage] retaliation` (default `false`): `true` counts retaliation damage (per incoming hit, `[survival] incoming_hits_per_sec`) and % Retaliation Added to Attack in Damage, and the `[other]` keys `retaliation` / `retaliation_modifier` then weigh nothing (`docs/MECHANICS.md` §5). The `retaliation` preset sets it.
 
 ### `plague-garden` stages (design choices from the Plague Garden guide's levelling plan)
 | Stage | Applies when | Main skills | `offtarget_weight` (Bleeding) |
@@ -101,7 +102,7 @@ Templates (`presets/*.toml`; all ten masteries; every weight is a design choice,
 | `chaos-conversion-caster` | caster, Chaos ≥ 50% | `conversion_warn = ["*->*"]`, retaliation 0 |
 | `physical-melee` | melee, Physical + Internal Trauma ≥ 50% | life leech 0.6, `physical->*` warns, retaliation 0 |
 | `pet` | pet | other 0.35, pet bonus 1.0 when pets (pet damage in Damage, experimental) |
-| `retaliation` | retaliation | retaliation 0.5, retaliation % 0.5 |
+| `retaliation` | retaliation | `[damage] retaliation = true`: retaliation and % Retaliation Added to Attack count in Damage |
 
 `plague-garden` adds `archetype = "caster"`. Tests (`tests/test_presets.cpp`, DB-backed): each template is picked for a synthetic character. Trap skills do not count as pets. Without `modifier_ids`, a pet modifier does not count. winterpoison (level 15, store #0021) gets `plague-garden` by name (0.9.5); under another name, and winterofhell (level 96), get no template.
 

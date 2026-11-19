@@ -67,6 +67,8 @@ struct Settings {
   // Damage of a type that is not one of match_damage and that no conversion can turn into one counts x this.
   double offtarget_weight = 1.0;
   int auto_skills = 3;
+  // [damage] retaliation: retaliation and % Retaliation Added to Attack count in Damage, not Other.
+  bool retaliation_damage = false;
   double filler_weight = 0.5;
   double enemy_da_per_level = 0;    // 0 = monster table (gdc/enemy.h)
   double pet_attack_rate = 0;       // 0 = estimated from the pet record (experimental, effects::pets)

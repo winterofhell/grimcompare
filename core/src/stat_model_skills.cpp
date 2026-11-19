@@ -20,6 +20,16 @@ void engine_check(const snap::Snapshot& s, const snap::Skill& sk, std::uint32_t 
       if (c.defense_modifier != 0) engine[{fields::Kind::Defense, c.type, true}] += c.defense_modifier;
     }
     for (const auto& [k, v] : attached) at_from[k] += v;
+    for (auto it = at_from.begin(); it != at_from.end();) {  // the engine holds Elemental / All resist spread
+      const auto [kind, type, modifier] = it->first;
+      if (kind != fields::Kind::Defense || fields::resist_spread(type).empty()) {
+        ++it;
+        continue;
+      }
+      const double v = it->second;
+      it = at_from.erase(it);
+      for (int t : fields::resist_spread(type)) at_from[{kind, t, modifier}] += v;
+    }
     std::erase_if(at_from, [](const auto& kv) { return kv.second == 0 || std::get<0>(kv.first) == fields::Kind::Damage; });
     const bool same = engine.size() == at_from.size() &&
                       std::all_of(engine.begin(), engine.end(), [&](const auto& kv) {

@@ -3,11 +3,51 @@
 #include <numeric>
 
 #include "gdc/stat_model.h"
+#include "gdc/utility.h"
 
 #include "score_internal.h"
 
 namespace gdc::score {
 namespace {
+
+// GameEngine::GetComboChargeMultiplier 0x2D8D20: skillComboChargeMultipliers[charges - 1], the last past the end;
+// between whole charges, the line between their entries.
+double combo_pct(const arz::Database& db, double charges) {
+  const arz::Record* r = db.record("records/game/gameengine.dbr");
+  if (!r || charges <= 0) return 0;
+  const auto it = r->fields.find("skillComboChargeMultipliers");
+  if (it == r->fields.end() || it->second.numbers.empty()) return 0;
+  const auto& m = it->second.numbers;
+  auto at = [&](double n) { return n < 1 ? 0.0 : m[std::min(static_cast<std::size_t>(n), m.size()) - 1]; };
+  const double whole = std::floor(charges);
+  return at(whole) + (at(whole + 1) - at(whole)) * (charges - whole);
+}
+
+// Combo charges (Onslaught). SkillManager::IncrementComboCharge 0x53F990: one per hit of a skill with
+// skillComboChargeLevel, up to that level. Skill::CollectComboMultiplier 0x4993D0: a skill whose cooldown runs
+// (GetCooldownTotal 0x491270 > 0) gets DamageScaleInfo 100 (0x7A710C) + GetComboChargeMultiplier(charges) %, then
+// Character::SpendComboCharges 0x603F0 spends them unless a roll keeps them (utility::combo_keep).
+// Charges at a cooldown skill's use: the builder's uses between two cooldown skill uses, over the spend chance.
+// shortcut: the strongest builder at its own rate fills the time between cooldown skill uses; the charge time gate
+// (GameEngine+0x1080 / attack speed), the skillComboChargeDuration expiry, procs with cooldowns spending charges and
+// the DamageScaleInfo consumer (taken as a multiplier on the whole hit) are not traced — revisit with an in-game
+// Onslaught + cooldown skill test.
+void combo(const snap::Snapshot& s, const Side& side, const arz::Database& db, std::vector<SkillDamage>& skills, bool explain) {
+  double cap = 0, rate = 0, spends = 0;
+  for (std::size_t k = 0; k < side.mains.size(); ++k) {
+    if (side.mains[k].combo > 0 && skills[k].rate > 0) cap = std::max(cap, side.mains[k].combo), rate = std::max(rate, skills[k].rate);
+    if (skills[k].cooldown > 0 && skills[k].per_use > 0) spends += skills[k].uses;
+  }
+  if (cap <= 0 || spends <= 0) return;
+  const double keep = utility::combo_keep(s);
+  const double charges = keep < 1 ? std::min(cap, rate / spends / (1 - keep)) : cap;
+  const double f = 1 + combo_pct(db, charges) / 100;
+  for (auto& d : skills)
+    if (d.cooldown > 0 && d.per_use > 0) {
+      d.value *= f, d.per_use *= f, d.plain *= f;
+      if (explain) d.inputs += " x" + fmt(f, 3) + " combo (" + fmt(charges, 2) + " charges)";
+    }
+}
 
 // `explain`: build log text; only the shown state needs it.
 // `mult`: the state's buff damage multiplier.
@@ -17,7 +57,7 @@ Eval eval(const snap::Snapshot& s, double absorbed, const Side& side, const Proc
   Eval e;
   if (db) {
     std::optional<Converted> own;
-    const Converted& conv = converted_for(s, side, converted, own, notes);
+    const Converted& conv = converted_for(s, side, p, converted, own, notes);
     for (std::size_t k = 0; k < side.mains.size(); ++k) {
       const auto& m = side.mains[k];
       e.skills.push_back(m.skill ? skill_damage(s, *m.skill, m.raw, side.gear, p, notes, nullptr, &side.resist, explain, &conv.mains[k])
@@ -35,15 +75,30 @@ Eval eval(const snap::Snapshot& s, double absorbed, const Side& side, const Proc
       d.value *= mult, d.per_use *= mult, d.plain *= mult;
       if (explain && mult != 1 && !e.skills.back().inputs.empty()) e.skills.back().inputs += " x" + fmt(mult, 3) + " buff mult";
     }
-    e.extra = extra_damage(s, side, p, explain, conv, mult);
-    // Weapon pool attacks are counted whole in extra; the weapon pool skill uses they take come off here, so the main
-    // skills' values keep their per-use meaning.
+    combo(s, side, *db, e.skills, explain);
+    // The trigger rates at this state's speeds (as rates() in score_side.cpp): the main skills' uses/s, the crit
+    // chance, the weapon pool skills' uses, whose share the weapon pool attacks take.
+    effects::Rates now;
     double replaced = 0;
-    for (std::size_t k = 0; k < side.mains.size(); ++k)
-      replaced += side.mains[k].pool * side.mains[k].pool_share() * e.skills[k].plain * e.skills[k].rate;
-    if (side.pooled > 0 && replaced > 0) {
-      e.extra.per_sec -= side.pooled * replaced;
-      if (explain) e.extra.inputs += " replaced weapon pool uses " + fmt(side.pooled, 3) + " x " + fmt(replaced) + "/s";
+    for (std::size_t k = 0; k < side.mains.size(); ++k) {
+      const Main& m = side.mains[k];
+      if (!m.skill) continue;
+      const double rate = use_rate(s, *m.skill, m.raw);
+      now.action += m.weight * rate;
+      const double uses = m.pool * m.pool_share() * rate;
+      now.weapon += uses;
+      replaced += uses * e.skills[k].plain;
+    }
+    now.crit = attack(s, p, 0, {}).crit_chance;
+    e.extra = extra_damage(s, side, p, explain, conv, mult, now);
+    // Weapon pool attacks are counted whole in extra; the weapon pool skill uses they take come off here, so the main
+    // skills' values keep their per-use meaning. Only the uses each fires on: a cooldown keeps it under its chance.
+    double pooled = 0;
+    for (const auto& h : side.hits)
+      if (h.pool_chance > 0 && now.weapon > 0) pooled += std::min(h.pool_chance, h.rate(now, side.rates) / now.weapon);
+    if (pooled > 0 && replaced > 0) {
+      e.extra.per_sec -= pooled * replaced;
+      if (explain) e.extra.inputs += " replaced weapon pool uses " + fmt(pooled, 3) + " x " + fmt(replaced) + "/s";
     }
   }
   e.survival = survival(s, procs, absorbed, p, db, explain);
@@ -79,7 +134,8 @@ Scored score_side(const snap::Snapshot& s, const std::vector<Skill>& skills, con
   }
   out.side = side(s, skills, p, *db, base, notes, captured);
   out.procs = procs(s, out.side, p, *db);
-  const std::vector<Buff> learned = learned_buffs(s, p, *db);
+  const std::vector<Buff> learned = learned_buffs(s, out.side, p, *db);
+  if (p.retaliation_damage) add_retaliation(s, p, *db, out.procs, learned, out.side);
   std::vector<const Buff*> open = open_buffs(learned, out.procs.buffs);
   if (open.size() > kMaxEnumerated) open.resize(kMaxEnumerated);
   for (const Buff* b : open) out.buffs += (out.buffs.empty() ? "" : ", ") + stem(b->record) + " up " + fmt(b->uptime, 3) + " (" + b->basis + ")";

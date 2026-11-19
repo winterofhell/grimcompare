@@ -43,6 +43,8 @@ Values item_values(const snap::Snapshot& s, const arz::Database* db);
 Values values(const snap::Snapshot& s, Values items);
 // Game.dll 0x4917E0, cooldown x (1 - CDR) (MECHANICS §4).
 double cooldown_reduction(const snap::Snapshot& s);
+// Character::SpendComboCharges 0x603F0: the chance a use keeps the combo charges, Combo Charge Spend Reduction / 100.
+double combo_keep(const snap::Snapshot& s);
 
 // Only the strongest "reduced target's damage" debuff applies (the guide).
 double block(const snap::Snapshot& s, const arz::Database* db, double hit, double hits_per_sec);

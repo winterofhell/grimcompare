@@ -47,6 +47,10 @@ struct Effect {
   double life_below = 0;
   // Skill_WPAttack_*: the share of weapon pool skill uses it replaces.
   double pool_chance = 0;
+  // Triggered by the player's attacks (AttackEnemy, AttackEnemyCrit, Skill_WPAttack_*): per_sec is
+  // 1 / (recharge + 1 / (chance x the Rates entry `on` names)), so a caller can redo it at other speeds.
+  enum class On { kOther, kAttack, kCrit, kWeaponPool } on = On::kOther;
+  double chance = 0, recharge = 0;
   Origin origin = Origin::Default;
   std::string basis;
   std::vector<std::pair<std::string, std::uint32_t>> modifiers;

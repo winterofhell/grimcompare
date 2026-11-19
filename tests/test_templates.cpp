@@ -86,6 +86,45 @@ TEST_CASE("templates: retaliation on an Oathkeeper with Presence of Virtue and F
   CHECK(b.chr(16, 0, 10) == 0);                  // cast speed: not the cap here
   CHECK(b.chr(15, 0, 10) > 0);                   // attack speed: the filler attack
   CHECK(b.ring([](snap::ItemStats&) {}, "records/items/gearaccessories/rings/c215_ring.dbr") > 0);  // +2 Presence of Virtue
+  // [damage] retaliation = true: retaliation is Damage here, Other for any other preset.
+  snap::Item flat = bare(kFinger, kRing);
+  flat.stats->retaliation = {{2, false, 200, 300}};
+  const auto own = b.worth(flat);
+  CHECK(own.ratio.damage > 1);
+  CHECK(own.ratio.other == doctest::Approx(1));
+  Build plain("default.toml", kSword);
+  plain.s = b.s;
+  const auto other = plain.worth(flat);
+  CHECK(other.ratio.damage == doctest::Approx(1));
+  CHECK(other.ratio.other > 1);
+  // More retaliation % is more Damage.
+  snap::Item more = flat;
+  more.stats->retaliation_modifiers = {pct(2, 100, 0)};
+  CHECK(b.worth(more).ratio.damage > own.ratio.damage);
+}
+
+TEST_CASE("retaliation: % Retaliation Added to Attack scales the character's retaliation (installed game; skips if absent)") {
+  Build b("retaliation.toml", kSword);
+  if (!b.db) return;
+  b.learn("records/skills/playerclass09/_classtraining_class09.dbr", 50);
+  b.learn("records/skills/playerclass01/_classtraining_class01.dbr", 32);
+  b.toggle_on(b.learn("records/skills/playerclass09/presenceofvirtue1.dbr", 16));
+  // Counter Strike: retaliationDamagePct on its own record (Skill_OnHitAttackRadius).
+  const char* counter = "records/skills/playerclass01/counterstrike1.dbr";
+  b.learn(counter, 12);
+  b.preset.skills = {counter};
+  snap::Item flat = bare(kFinger, kRing);
+  flat.stats->retaliation = {{2, false, 200, 300}};
+  const auto r = b.worth(flat);
+  CHECK(r.ratio.damage > 1);
+  // Without a retaliationDamagePct the attack gains nothing from retaliation; only hits taken do.
+  score::Preset off = b.preset;
+  off.skills = {"records/skills/playerclass01/shieldhammer1.dbr"};
+  Build other(off, kSword);
+  other.s = b.s;
+  other.learn("records/skills/playerclass01/shieldhammer1.dbr", 8);
+  CHECK(r.after.find("(retaliation added ") != std::string::npos);
+  CHECK(other.worth(flat).after.find("(retaliation added ") == std::string::npos);
 }
 
 TEST_CASE("templates: pet on an Occultist with Hellhound; player-scaled summons apart (installed game; skips if absent)") {
