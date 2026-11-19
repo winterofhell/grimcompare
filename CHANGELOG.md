@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4 (2026-11-19)
+
+- Savagery and Righteous Fervor: the hit is scored at the level's full charges, and the charged bonuses (OA, attack speed, damage) apply to all your other hits while the skill is a main skill. The skill's own % is counted once on its own hit, as the game does.
+- Onslaught combo charges raise the damage of cooldown main skills. Combo Charge Spend Reduction now counts in Damage and no longer in Other.
+- New `[damage] retaliation = true` preset option, on in the `retaliation` template: retaliation damage and "% Retaliation Added to Attack" count in Damage, after each side's conversions, instead of as Other weights.
+- On-attack and on-crit procs, their DoT cap and weapon pool attacks follow the attack speed of each buff state, so speed buffs that are up only part of the time now change proc damage.
+- Elemental and All resistance on set bonuses, passives and buffs now reach Fire, Cold and Lightning (and the other resists for All).
+
 ## 1.0.3 (2026-11-19)
 
 - Item and set skill modifiers that were shown as unscored now count: enemy OA and DA reduction, enemy damage reduction, damage absorption, block and resistances on buffs, and "+x% Chance to be Used" on weapon pool attacks.
