@@ -353,6 +353,14 @@ constexpr Target kPlanned[] = {
      "?classInfo@SkillActivated@GAME@@1VRTTI_ClassInfo@2@B"},  // 0xa5bfd0
     {Module::Game, Kind::Call, false, "pets", "SkillManager::GetDefaultSkillId",
      "?GetDefaultSkillId@SkillManager@GAME@@UEBAIW4DefaultSkill@2@@Z"},  // 0x52ec10
+    // Engine damage check (schema 15): the sheet DPS numbers per skill. RVAs 1.3.1.2.
+    {Module::Game, Kind::Call, false, "skill_dps", "Player::CalculateSkillDps",
+     "?CalculateSkillDps@Player@GAME@@QEAAXIAEAV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@"
+     "AEAUSkillAttackInfo@2@AEAMAEAVCombatAttributeAccumulator@2@3I@Z"},  // 0x3dfd30
+    {Module::Game, Kind::Call, false, "skill_dps", "CombatAttributeDurDamage::GetDuration",
+     "?GetDuration@CombatAttributeDurDamage@GAME@@UEBAMXZ"},  // 0x1142a0
+    {Module::Game, Kind::Data, false, "skill_dps", "CombatAttributeDurDamage::vftable",
+     "??_7CombatAttributeDurDamage@GAME@@6B@"},  // 0x7334e0
 };
 
 std::unordered_map<std::string_view, const pe::Export*> by_name(std::span<const pe::Export> ex) {

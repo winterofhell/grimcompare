@@ -9,7 +9,7 @@
 namespace gdc::snap {
 
 // Schema written; from_json reads kMinSchema..kSchema.
-inline constexpr int kSchema = 14;
+inline constexpr int kSchema = 15;
 inline constexpr int kMinSchema = 2;
 
 // Save key, as GameEngine::GetPlayerFolder builds it.
@@ -181,6 +181,18 @@ struct Pet {
   std::vector<PetSkill> skills;        // SkillManager::GetSkillList of the pet
 };
 
+// Schema 15: Player::CalculateSkillDps 0x3DFD30 (1.3.1.2), the engine's own sheet DPS numbers for one skill.
+struct SkillDps {
+  std::uint32_t skill_id = 0;
+  std::string record;
+  // The skill cannot be used with the current weapons: the engine computed the default attack instead.
+  bool default_attack = false;
+  float dps = 0;
+  // Processed entries (all %, conversions and multipliers applied): per use, a DoT per second with `duration` after
+  // its duration %. Chance entries at expected value.
+  std::vector<Damage> main_hand, off_hand;
+};
+
 struct Snapshot {
   int schema = kSchema;
   std::string mod_version;
@@ -220,6 +232,7 @@ struct Snapshot {
   std::uint32_t tooltip_age_ms = 0;
   std::vector<Item> inventory;
   std::vector<Pet> pets;
+  std::vector<SkillDps> skill_dps;
 };
 
 std::string to_json(const Snapshot& s, int indent = 2);

@@ -233,6 +233,16 @@ J item_skill_modifier(const ItemSkillModifier& m) {
   return j;
 }
 
+J skill_dps(const SkillDps& d) {
+  J j{{"skill_id", d.skill_id}};
+  put(j, "record", d.record);
+  put(j, "default_attack", d.default_attack);
+  put(j, "dps", d.dps);
+  put_list(j, "main_hand", d.main_hand, damage);
+  put_list(j, "off_hand", d.off_hand, damage);
+  return j;
+}
+
 J pth(const PthTable& t) {
   J j = J::object();
   j["minimum"] = widen(t.minimum);
@@ -293,6 +303,7 @@ std::string to_json(const Snapshot& s, int indent) {
   put(j, "tooltip_age_ms", s.tooltip_age_ms);
   put_list(j, "inventory", s.inventory, item);
   put_list(j, "pets", s.pets, pet);
+  put_list(j, "skill_dps", s.skill_dps, skill_dps);
   return indent < 0 ? j.dump() : j.dump(indent) + "\n";
 }
 

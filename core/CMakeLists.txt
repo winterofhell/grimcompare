@@ -24,6 +24,7 @@ add_library(gdc_core STATIC
   src/db_fields.cpp
   src/store.cpp
   src/calibrate.cpp
+  src/calibrate_damage.cpp
   src/tooltip.cpp
   src/tooltip_compare.cpp
   src/tooltip_result.cpp

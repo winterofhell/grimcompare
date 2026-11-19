@@ -63,6 +63,7 @@ Take snapshot_take(snap::Snapshot& s, snap::Spares& spare, const std::vector<std
   ok = guarded("item_skill_modifiers", sec_item_skill_modifiers, c) && ok;
   ok = guarded("item_skills", sec_item_skills, c) && ok;
   ok = guarded("pets", sec_pets, c) && ok;
+  if (api.skill_dps_ok) ok = guarded("skill_dps", sec_skill_dps, c) && ok;
   ok = guarded("equipped", sec_equipped, c) && ok;
   ok = guarded("tooltip", sec_tooltip, c) && ok;
   if (with_inventory) ok = guarded("inventory", sec_inventory, c) && ok;

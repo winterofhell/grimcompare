@@ -132,6 +132,16 @@ void bind_pets(const Resolve& r) {
   if (!api.pets_ok) log::write("snapshot: pet getters unresolved; pets not read");
 }
 
+// Optional: needs the pet getters' SkillActivated class; vt+0xF0 checked as damage_list() reads it.
+void bind_skill_dps(const Resolve& r) {
+  auto opt = [&](auto& out, std::string_view label) { return bind(r, out, label); };
+  const void* dur_vft = nullptr;
+  api.skill_dps_ok = api.pets_ok && opt(api.skill_dps, "Player::CalculateSkillDps") &&
+                     opt(api.dur_duration, "CombatAttributeDurDamage::GetDuration") &&
+                     opt(dur_vft, "CombatAttributeDurDamage::vftable") && rd<const void*>(dur_vft, 0xF0) == api.dur_duration;
+  if (!api.skill_dps_ok) log::write("snapshot: CalculateSkillDps not verified; engine damage check off");
+}
+
 bool bind_accumulators(const Resolve& r) {
   bool ok = true;
   auto b = [&](auto& out, std::string_view label) { ok = bind(r, out, label) && ok; };
@@ -246,6 +256,7 @@ bool snapshot_init(const Resolve& r) {
   bind_optional(r);
   ok = bind_character(r) && ok;
   bind_pets(r);
+  bind_skill_dps(r);
   ok = bind_accumulators(r) && ok;
   if (!ok || !bind_object_lookup(r) || !verify_vtables(r)) return false;
   build_pass_vtables();

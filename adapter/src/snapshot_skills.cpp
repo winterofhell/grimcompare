@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 
 #include "log.h"
@@ -90,7 +91,81 @@ snap::Skill read_skill(Ctx& c, const void* sk) {
   return s;
 }
 
+// MSVC std::string in its heap layout over our own buffer. CalculateSkillDps only assigns the 27-char
+// "tagSkillDefaultAttackName01" (0x3DFF64), and an assign that fits the capacity copies in place (0x164EB), so the
+// engine never frees or grows it.
+struct NameString {
+  char* data;
+  u64 unused;
+  u64 size;
+  u64 capacity;
+};
+constexpr std::size_t kNameBytes = 256, kAttackInfoBytes = 0x100;  // SkillAttackInfo: CalculateSkillDps writes to +0x38
+constexpr std::size_t kMaxSkillDps = 48;
+
+// One skill through Player::CalculateSkillDps; false: the call faulted.
+bool read_skill_dps(Ctx& c, u32 id, snap::SkillDps& out) {
+  char name[kNameBytes] = {};
+  NameString str{name, 0, 0, kNameBytes - 1};
+  alignas(16) unsigned char info[kAttackInfoBytes] = {};
+  float dps = 0;
+  AccBuf main_buf, off_buf;
+  void* main = nullptr;
+  void* off = nullptr;
+  auto call = [&] {
+    main = api.combat_acc_ctor(main_buf.bytes, kDisplayModifyProcs);
+    off = api.combat_acc_ctor(off_buf.bytes, kDisplayModifyProcs);
+    api.skill_dps(c.player, id, &str, info, &dps, main, off, 0);
+    damage_list(main, out.main_hand, true);
+    damage_list(off, out.off_hand, true);
+  };
+  seh::Fault f;
+  const bool ok = seh::run(call, f);
+  auto drop = [&] {
+    if (main) api.combat_acc_dtor(main);
+    if (off) api.combat_acc_dtor(off);
+  };
+  seh::Fault g;
+  const bool dropped = seh::run(drop, g);
+  out.skill_id = id;
+  out.dps = dps;
+  out.default_attack = str.size != 0;
+  if (ok && dropped) return true;
+  // The other sections stay valid: the snapshot is still complete.
+  const seh::Fault& e = ok ? g : f;
+  char buf[200];
+  std::snprintf(buf, sizeof buf, "skill %s %s: FAULT 0x%08lX at 0x%016llX", out.record.c_str(),
+                ok ? "skill dps cleanup" : "skill dps", e.code, static_cast<unsigned long long>(e.addr));
+  c.s.errors.emplace_back(buf);
+  log::printf("snapshot: %s", buf);
+  return false;
+}
+
 }  // namespace
+
+// Learned activated skills (modifiers count through their skill). A fault turns the check off for the session.
+void sec_skill_dps(Ctx& c) {
+  const void* sm = api.skill_manager(c.player);
+  for (const void* list : {api.skill_list(sm), api.item_skill_list(sm)}) {
+    const Span skills = vec(list, sizeof(void*));
+    for (std::size_t i = 0; i < skills.count && c.s.skill_dps.size() < kMaxSkillDps; ++i) {
+      const void* sk = rd<const void*>(skills.begin, i * sizeof(void*));
+      if (!sk || api.current_level(sk) == 0) continue;
+      const void* ci = class_info(sk);
+      if (!is_a(ci, api.ci_activated) || is_a(ci, api.ci_skill_modifier)) continue;
+      const u32 id = api.object_id(sk);
+      if (std::any_of(c.s.skill_dps.begin(), c.s.skill_dps.end(), [&](const snap::SkillDps& d) { return d.skill_id == id; }))
+        continue;
+      snap::SkillDps& d = c.s.skill_dps.emplace_back();
+      set_cstr(d.record, api.object_name(sk));
+      if (read_skill_dps(c, id, d)) continue;
+      api.skill_dps_ok = false;
+      c.s.skill_dps.clear();
+      log::write("snapshot: CalculateSkillDps faulted; engine damage check off");
+      return;
+    }
+  }
+}
 
 void sec_skills(Ctx& c) {
   const void* sm = api.skill_manager(c.player);

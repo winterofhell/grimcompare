@@ -108,14 +108,16 @@ Totals added(const arz::Record& r, std::uint32_t level, const Modifiers& mods, c
 // CombatAttributeAccumulator: conversions, then ModifyDamage with the retaliation % of the final type; the enemy's
 // resists and the preset's type weights as for any hit. Done per buff state (converted_for), with its conversions.
 double retaliation_amount(const Retaliation& t, const Conversions& local, const Conversions& global, const Side& side,
-                          const Settings& p, std::vector<std::string>& notes) {
+                          const Settings& p, std::vector<std::string>& notes, Amounts* parts) {
   if (t.flat.empty()) return 0;
   double sum = 0;
   for (const auto& [k, v] : convert_pairs(t.flat, local, global, notes)) {
     const auto pct = t.pct.find(k.first);
     const auto r = side.resist.find(k.first);
-    sum += v * std::max(0.0, 1 + (pct != t.pct.end() ? pct->second : 0) / 100) *
-           (r != side.resist.end() ? std::max(0.0, r->second) : 1.0) * type_weight(p, k);
+    const double x = v * std::max(0.0, 1 + (pct != t.pct.end() ? pct->second : 0) / 100) *
+                     (r != side.resist.end() ? std::max(0.0, r->second) : 1.0) * type_weight(p, k);
+    sum += x;
+    if (parts) (*parts)[k] += x;
   }
   return sum;
 }

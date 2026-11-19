@@ -16,7 +16,7 @@ bool snapshot_init(const Resolve& resolve);
 
 enum class Take { NoPlayer, Ok, Faulted };
 struct Timing {
-  static constexpr int kMax = 12;
+  static constexpr int kMax = 16;
   struct Section {
     const char* name = nullptr;
     long long us = 0;

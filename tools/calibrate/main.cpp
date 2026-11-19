@@ -10,6 +10,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "gdc/calibrate.h"
 #include "gdc/score.h"
@@ -29,6 +30,7 @@ fs::path game_dir() {
 struct Totals {
   int checked = 0, failed = 0, skipped = 0;
   int req_checked = 0, req_failed = 0;  // schema 7
+  int dmg_skills = 0, dmg_failed = 0, dmg_without = 0;  // schema 15
 };
 
 struct Ctx {
@@ -70,6 +72,22 @@ void report(const std::string& head, const snap::Snapshot& a, const snap::Snapsh
   for (std::size_t i = 1; i < lines.size(); ++i) std::cout << lines[i] << "\n";
 }
 
+// Engine damage check of one snapshot; counts snapshots without engine numbers.
+void damage_check(const std::string& head, const snap::Snapshot& s, const Ctx& x, Totals& t) {
+  if (!x.db) return;
+  if (s.skill_dps.empty()) {
+    ++t.dmg_without;
+    return;
+  }
+  const auto checks = calibrate::damage(s, *x.db);
+  for (const auto& c : checks)
+    if (c.skipped.empty()) {
+      ++t.dmg_skills;
+      if (!c.pass()) ++t.dmg_failed;
+    }
+  for (const auto& l : calibrate::damage_report(checks, head, x.verbose)) std::cout << l << "\n";
+}
+
 snap::Snapshot load_json(const char* path) {
   std::ifstream f(path, std::ios::binary);
   if (!f) throw std::runtime_error(std::string(path) + ": cannot open");
@@ -84,6 +102,7 @@ void calibrate_dir(const fs::path& char_dir, const Ctx& x, Totals& t) {
     t.req_checked += rq.checked;
     t.req_failed += static_cast<int>(rq.mismatches.size());
     for (const auto& m : rq.mismatches) std::cout << "REQ " << r.segment << " #" << r.seq << " " << m << "\n";
+    damage_check(r.segment + " #" + std::to_string(r.seq), r.snapshot, x, t);
     if (prev && !r.full) {
       char head[64];
       std::snprintf(head, sizeof head, "%s #%04u->#%04u", r.segment.c_str(), prev->seq, r.seq);
@@ -101,14 +120,18 @@ int main(int argc, char** argv) {
   bool verbose = false;
   const char* pair[2] = {};
   const char* preset_file = nullptr;
+  std::vector<const char*> singles;
+  bool damage_only = false;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--verbose")) verbose = true;
     else if (!std::strcmp(argv[i], "--char") && i + 1 < argc) only = argv[++i];
     else if (!std::strcmp(argv[i], "--preset") && i + 1 < argc) preset_file = argv[++i];
     else if (!std::strcmp(argv[i], "--pair") && i + 2 < argc) pair[0] = argv[++i], pair[1] = argv[++i];
+    else if (!std::strcmp(argv[i], "--damage")) damage_only = true;
+    else if (argv[i][0] != '-' && damage_only) singles.push_back(argv[i]);
     else if (argv[i][0] != '-' && dir.empty()) dir = argv[i];
     else {
-      std::cerr << "usage: gdc_calibrate [DIR] [--char NAME] [--verbose] [--preset FILE] | --pair BEFORE.json AFTER.json\n";
+      std::cerr << "usage: gdc_calibrate [DIR] [--char NAME] [--verbose] [--preset FILE] | --pair BEFORE.json AFTER.json | --damage FILE.json...\n";
       return 2;
     }
   }
@@ -131,7 +154,9 @@ int main(int argc, char** argv) {
       x.preset = *p;
     }
     Totals t;
-    if (pair[0]) {
+    if (damage_only) {
+      for (const char* f : singles) damage_check(fs::path(f).filename().string(), load_json(f), x, t);
+    } else if (pair[0]) {
       const auto a = load_json(pair[0]), b = load_json(pair[1]);
       x.verbose = true;
       report("pair", a, b, calibrate::check(a, b, db.get()), x, t);
@@ -147,8 +172,10 @@ int main(int argc, char** argv) {
       }
     }
     std::cout << t.checked << " checked, " << t.failed << " failed, " << t.skipped << " skipped; requirements "
-              << t.req_checked << " checked, " << t.req_failed << " disagree with the engine\n";
-    return t.failed || t.req_failed ? 1 : 0;
+              << t.req_checked << " checked, " << t.req_failed << " disagree with the engine; engine damage "
+              << t.dmg_skills << " skill checks, " << t.dmg_failed << " off, " << t.dmg_without
+              << " snapshots without engine numbers\n";
+    return t.failed || t.req_failed || t.dmg_failed ? 1 : 0;
   } catch (const std::exception& e) {
     std::cerr << "gdc_calibrate: " << e.what() << "\n";
     return 2;

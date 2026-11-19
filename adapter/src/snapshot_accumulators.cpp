@@ -112,9 +112,7 @@ void item_combat(const void* item, std::size_t slot_off, void* player, std::vect
   combat_with_procs([&](void* acc) { slot(item, slot_off)(item, acc); }, player, out);
 }
 
-namespace {
-
-void damage_list(const void* acc, std::vector<snap::Damage>& out) {
+void damage_list(const void* acc, std::vector<snap::Damage>& out, bool processed) {
   using IntFn = int (*)(const void*);
   using MinMaxFn = void (*)(const void*, float&, float&);
   using FloatFn = float (*)(const void*);
@@ -134,11 +132,12 @@ void damage_list(const void* acc, std::vector<snap::Damage>& out) {
       rd<MinMaxFn>(vt, 0x78)(attr, d.min, d.max);
     }
     if (d.dot) d.duration = rd<FloatFn>(vt, 0xF0)(attr);
+    // Processed: the duration after its duration %. Another DoT layout reads as 0, unknown.
+    if (d.dot && processed)
+      d.duration = rd<const void*>(vt, 0xF0) == api.dur_duration ? rd<float>(attr, kDurProcessed) : 0;
     out.push_back(d);
   }
 }
-
-}  // namespace
 
 // Every entry exists at any multiplier, so passes line up.
 void item_damage(const void* obj, DamageFn fn, std::vector<snap::Damage>& result) {

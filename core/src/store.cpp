@@ -64,6 +64,7 @@ const Rule kRules[] = {
     {"item_skills", [](const J& e) { return num_or_str(e, "id"); }},  // two items can grant one record
     {"equipped", [](const J& e) { return num_or_str(e, "location"); }},
     {"inventory", [](const J& e) { return num_or_str(e, "id"); }},
+    {"skill_dps", [](const J& e) { return num_or_str(e, "skill_id"); }},
 };
 
 bool numeric(const std::string& k) {

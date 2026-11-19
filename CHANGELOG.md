@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Engine damage check: each snapshot now records the game's own per-type damage for every learned main skill (the numbers its skill tooltip uses). The passive calibration compares them with the model and logs `PASS DMG` / `FAIL DMG` per skill with the per-type gap in `GDCompare.calibration.txt`; Shift shows `! damage model off: <skill>` when they differ by more than 2%.
+- `gdc_calibrate --damage <snapshot.json>...` runs the same check on saved snapshots.
+- Snapshot schema 15 (`skill_dps`); older snapshots still load.
+
 ## 1.0.4 (2026-11-19)
 
 - Savagery and Righteous Fervor: the hit is scored at the level's full charges, and the charged bonuses (OA, attack speed, damage) apply to all your other hits while the skill is a main skill. The skill's own % is counted once on its own hit, as the game does.

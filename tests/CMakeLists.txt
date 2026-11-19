@@ -9,6 +9,7 @@ add_executable(gdc_tests
   test_combat_formulas.cpp
   test_arz.cpp
   test_stat_model.cpp
+  test_calibrate_damage.cpp
   test_db_fields.cpp
   test_store.cpp
   test_tooltip.cpp

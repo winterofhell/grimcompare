@@ -4,6 +4,7 @@
 #include <optional>
 
 #include "gdc/attribute_names.h"
+#include "gdc/calibrate.h"
 #include "gdc/components.h"
 #include "gdc/db_fields.h"
 #include "gdc/requirements.h"
@@ -49,6 +50,7 @@ struct Found {
   score::Memo memo;           // compares with s before
   std::optional<score::BuffView> view;  // s's buffs, the same for every slot
   std::vector<std::string> warnings, unscored, converts, notes;
+  std::vector<std::string> damage_off;  // main skills whose model damage disagrees with the engine's (Shift only)
   std::map<std::string, std::uint32_t> unused;
 };
 
@@ -342,6 +344,7 @@ void slot_lines(std::vector<Line>& out, const Context& ctx, const Slot& slot, bo
 
 void footer_lines(std::vector<Line>& out, const Context& ctx, const Found& found) {
   for (const auto& c : found.converts) out.push_back({Tone::Worse, c});
+  for (const auto& k : found.damage_off) out.push_back({Tone::Warning, "! damage model off: " + k});
   if (!found.unscored.empty())
     for (auto& l : pack("+? unscored: ", "  ", found.unscored, ctx.screen)) out.push_back({Tone::Detail, std::move(l)});
   const auto& warnings = found.warnings;
@@ -384,6 +387,16 @@ std::vector<Line> compare(const snap::Snapshot& raw, const snap::Item& candidate
     scored->push_back(x);
   }
   for (auto& n : found.notes) add_unique(found.warnings, std::move(n));
+  // The engine's own numbers for the captured state (raw: buffs as they were up).
+  if (detail && db && !raw.skill_dps.empty()) {
+    std::vector<std::string> records;
+    for (const auto& k : skills) records.push_back(k.record);
+    const auto checks = calibrate::damage(raw, *db, records);
+    for (const auto& c : checks)
+      if (c.skipped.empty() && !c.pass()) found.damage_off.push_back(labels.skill(c.record));
+    if (log && !found.damage_off.empty())
+      for (auto& l : calibrate::damage_report(checks, raw.character_name)) log->push_back(std::move(l));
+  }
   if (log) {
     for (const auto& w : found.warnings) log->push_back("warning: " + w);
     for (const auto& c : found.converts) log->push_back(c);

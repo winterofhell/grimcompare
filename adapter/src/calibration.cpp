@@ -59,6 +59,14 @@ void record(const snap::Snapshot& s, bool full, const std::string& name, const a
       out.push_back("REQ  " + label + " " + m);
       ++g_failures;
     }
+  // Engine damage check: the snapshot alone, on every one that holds the engine's numbers.
+  if (db && !s.skill_dps.empty()) {
+    const auto checks = calibrate::damage(s, *db);
+    const auto lines = calibrate::damage_report(checks, label);
+    for (const auto& c : checks)
+      if (c.skipped.empty() && !c.pass()) ++g_failures;
+    out.insert(out.end(), lines.begin(), lines.end());
+  }
   if (full || !g_prev) {
     log::printf("calibration: %s starts a chain (%d requirement check(s))", name.c_str(), rq.checked);
   } else if (!db) {

@@ -22,7 +22,10 @@ constexpr float kDamageScale = 1.0f;
 constexpr std::size_t kReplica = 0x538;
 constexpr std::size_t kAccBytes = 0x1000;  // CharAttributeAccumulator writes up to +0x338
 constexpr std::size_t kMaxVector = 4096;
-constexpr int kDamageDirect = 1, kDamageDuration = 2;  // CombatAttributeAbsDamage / DurDamage::GetDamageType
+constexpr int kDamageDirect = 1, kDamageDuration = 2;
+// CombatAttributeDurDamage: the ctor (0x113E10) sets +0x24 and +0x28 to the duration; Process (0x113F30) applies the
+// duration % to +0x24 only, GetDuration (0x1142A0) returns +0x28.
+constexpr std::size_t kDurProcessed = 0x24;  // CombatAttributeAbsDamage / DurDamage::GetDamageType
 // CollectWeaponDamage's inline values: chance stats at expected value.
 constexpr bool kDisplayModifyProcs = true;
 constexpr std::size_t kSlotGetValues = 0x110;  // CombatAttributeDamage_BasePhysical vftable 0x7358E8
@@ -112,6 +115,11 @@ struct Api {
   const void *ci_character = nullptr, *ci_activated = nullptr;
   u32 (*default_skill_id)(const void*, int) = nullptr;  // SkillManager::GetDefaultSkillId(DefaultSkill)
   bool pets_ok = false;
+  // Optional (snapshot schema 15): (player, skill id, std::string& name, SkillAttackInfo&, float& dps, main hand,
+  // off hand, 0), as Player::CalculateDps 0x3DFA10 (1.3.1.2) calls it.
+  void (*skill_dps)(void*, u32, void*, void*, float*, void*, void*, u32) = nullptr;
+  const void* dur_duration = nullptr;  // CombatAttributeDurDamage::GetDuration, vt+0xF0 of its family
+  bool skill_dps_ok = false;
 
   void* (*char_acc_ctor)(void*) = nullptr;
   void (*char_acc_dtor)(void*) = nullptr;
@@ -262,6 +270,8 @@ float mult_excluded(void* acc, float chance);
 float mult_probe(void* acc, float chance);
 void item_combat(const void* item, std::size_t slot_off, void* player, std::vector<snap::CombatTotals>& out);
 void item_damage(const void* obj, DamageFn fn, std::vector<snap::Damage>& result);
+// The +0x08 damage entries; `processed`: entries after Process, a DoT's duration with its duration %.
+void damage_list(const void* acc, std::vector<snap::Damage>& out, bool processed = false);
 DamageFn damage_slot(const void* obj, std::size_t off);
 void skill_attributes(const void* obj, AccFn fn, std::vector<snap::SkillAttribute>& out);
 void conversions(const void* obj, AccFn fn, std::vector<snap::Conversion>& out);
@@ -286,6 +296,8 @@ void sec_skill_attributes(Ctx& c);
 void sec_skills(Ctx& c);
 void sec_item_skills(Ctx& c);
 void sec_item_skill_modifiers(Ctx& c);
+
+void sec_skill_dps(Ctx& c);
 
 // snapshot_pets.cpp
 void sec_pets(Ctx& c);

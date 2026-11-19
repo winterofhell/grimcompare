@@ -232,6 +232,17 @@ ItemSkillModifier read_item_skill_modifier(const J& j) {
   return m;
 }
 
+SkillDps read_skill_dps(const J& j) {
+  SkillDps d;
+  get(j, "skill_id", d.skill_id);
+  get(j, "record", d.record);
+  get(j, "default_attack", d.default_attack);
+  get(j, "dps", d.dps);
+  get_list(j, "main_hand", d.main_hand, read_damage);
+  get_list(j, "off_hand", d.off_hand, read_damage);
+  return d;
+}
+
 PthTable read_pth(const J& j) {
   PthTable t;
   get(j, "minimum", t.minimum);
@@ -298,6 +309,7 @@ Snapshot from_json(std::string_view text) {
     get(j, "tooltip_age_ms", s.tooltip_age_ms);
     get_list(j, "inventory", s.inventory, read_item);
     get_list(j, "pets", s.pets, read_pet);
+    get_list(j, "skill_dps", s.skill_dps, read_skill_dps);
     return s;
   } catch (const nlohmann::json::exception& e) {
     throw std::runtime_error(std::string("snapshot JSON: ") + e.what());

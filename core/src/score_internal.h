@@ -354,7 +354,7 @@ void add_retaliation(const snap::Snapshot& s, const Settings& p, const arz::Data
                      const std::vector<Buff>& learned, Side& side);
 // Final amount: conversions, the retaliation % of the final type, the enemy's resists and the preset's type weights.
 double retaliation_amount(const Retaliation& t, const Conversions& local, const Conversions& global, const Side& side,
-                          const Settings& p, std::vector<std::string>& notes);
+                          const Settings& p, std::vector<std::string>& notes, Amounts* parts = nullptr);
 
 // score_conversion.cpp
 void split_elemental(Amounts& a);

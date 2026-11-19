@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gdc/arz.h"
+#include "gdc/score.h"
 #include "gdc/snapshot.h"
 
 namespace gdc::calibrate {
@@ -30,6 +31,28 @@ std::string swapped(const Check& c, const snap::Snapshot& before, const snap::Sn
 
 std::vector<std::string> report(const Check& c, const snap::Snapshot& before, const snap::Snapshot& after,
                                 const std::string& label, bool verbose = false);
+
+// Engine damage check (snapshot schema 15): the model's damage per use of each attack skill, per type, against
+// Player::CalculateSkillDps in the same snapshot. Uses the snapshot as captured, buffs up as they were.
+struct TypeDiff {
+  score::DamageKey key;  // Elemental split in thirds, as the model does
+  double model = 0, engine = 0;
+  double engine_seconds = 0;  // DoT: the engine's duration after its duration %
+};
+struct SkillDamageCheck {
+  std::string record;
+  std::string skipped;          // non-empty: not compared, why
+  std::vector<TypeDiff> types;  // every type either side deals
+  bool pass() const;
+};
+// Off: more than 2% of the larger side and more than 1 damage.
+bool damage_off(const TypeDiff& d);
+// `records`: only these skills; empty = every skill the snapshot has engine numbers for.
+std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Database& db,
+                                     const std::vector<std::string>& records = {});
+// PASS / FAIL per compared skill, then the types of a FAIL; SKIP lines only when verbose.
+std::vector<std::string> damage_report(const std::vector<SkillDamageCheck>& checks, const std::string& label,
+                                       bool verbose = false);
 
 struct RequirementCheck {
   int checked = 0;
