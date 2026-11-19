@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.3 (2026-11-19)
+
+- Item and set skill modifiers that were shown as unscored now count: enemy OA and DA reduction, enemy damage reduction, damage absorption, block and resistances on buffs, and "+x% Chance to be Used" on weapon pool attacks.
+- Devotion bonuses to DoT duration (Rat, Scorpion and others) now lengthen DoTs.
+- "Total Damage Modified" from timed buffs (Mark of Torment and similar) applies while the buff is up.
+- Enemy damage reduction from devotion procs and pet auras (Tainted Eruption, Black Blood of Yugol) counts in Survivability.
+- Weapon pool attacks (Zolhan's Technique, Amarasta's Quick Cut and others) replace a share of the default attack, Cadence or Savagery by their chance instead of adding on top.
+- A proc granted by several items or sets (Dung Divider and Fewmet Grips: Noxious Fumes) is one effect at the summed rate: its buff, debuff or DoT is no longer counted twice.
+- A proc's DoT no longer stacks with itself: uses faster than its duration add nothing (procs with long DoTs were overvalued on fast attackers).
+- Weapon pool attacks with a cooldown replace only the uses they actually fire on.
+- Cadence: weapon pool attacks replace only its two plain hits, never the finale, and the finale's damage is averaged over the cycle.
+- DoT duration from passives and devotions counts on every capture; from a toggle only while it is on.
+- Set bonuses that convert damage on a form or toggle (Fenris 5/5 on Werewolf Form) convert all the character's damage while it is on.
+- Tests: one endgame character per build family (casters, melee, dual wield, sword and board, guns, weapon pool, retaliation, pets, shapeshift, totems and traps) built from the database, with the expected sign of common swaps.
+- `scripts/patch-check.sh`: one command after a game patch to check the hooks against the new build and regenerate the tables read from the game files, the text style classes included.
+
 ## 1.0.2 (2026-11-18)
 
 - Damage scoring fixes. A main skill's weight counts the points in its learned modifiers and transmuter (Bloody Pox 1 + Black Death 12 = 13), and their damage counts toward the skill.

@@ -18,7 +18,7 @@ Unofficial fan project, not affiliated with or endorsed by Crate Entertainment. 
 
 ## Install
 
-Download `GrimCompare-1.0.2.zip` from [GitHub Releases](https://github.com/winterofhell/grimcompare/releases) or Nexus (the same file) and unzip it anywhere.
+Download `GrimCompare-1.0.3.zip` from [GitHub Releases](https://github.com/winterofhell/grimcompare/releases) or Nexus (the same file) and unzip it anywhere.
 
 - **Windows**: double-click `install.bat`.
 - **Linux**: double-click `install.sh`, or run `./install.sh` in a terminal.
