@@ -115,10 +115,10 @@ low_health_per_sec = 0.05
 # (bosses resist it, not every enemy is in range). x the share of the time such a proc is up.
 cc_share = 0.1
 
-# Share of incoming damage per type. Unset = from the game database: each type's mean share of the largest skill
-# hit (with that skill's DoT) of the monsters of your level and difficulty (re/EnemyDamageTypes.tsv; at level 100
-# Ultimate: physical 0.37, pierce 0.05, cold 0.10, fire 0.10, poison 0.08, lightning 0.09, vitality 0.08, chaos
-# 0.06, aether 0.05, bleeding 0.03). A table replaces it (normalized, need not sum to 1). Example:
+# Share of incoming damage per type. Unset = from the game database: each type's mean share of the largest hit
+# (a skill or the plain weapon attack, with its DoT) of the monsters of your level and difficulty
+# (re/EnemyDamageTypes.tsv; at level 100 Ultimate: physical 0.39, pierce 0.05, cold 0.10, fire 0.09, poison 0.08,
+# lightning 0.08, vitality 0.06, chaos 0.07, aether 0.05, bleeding 0.04). A table replaces it (normalized, need not sum to 1). Example:
 # [survival.threat]
 # physical = 0.2
 # fire = 0.1

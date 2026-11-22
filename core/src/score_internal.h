@@ -154,9 +154,12 @@ struct Area {
 
 // Expected targets one use hits in the preset's pack (docs/MECHANICS.md §5).
 double pack_targets(const Area& a, const Settings& p);
+// What hitting `targets` enemies per use is worth in a pack, saturating: each target past the first counts
+// kPackFalloff of the one before (docs/MECHANICS.md §5).
+double pack_worth(double targets);
 // The use's value in the single-target / pack mix: 1 at pack_share 0.
 inline double pack_factor(const Area& a, const Settings& p) {
-  return p.pack_share > 0 ? 1 - p.pack_share + p.pack_share * pack_targets(a, p) : 1;
+  return p.pack_share > 0 ? 1 - p.pack_share + p.pack_share * pack_worth(pack_targets(a, p)) : 1;
 }
 // `only`: just that field of the record (the class flags still apply).
 void add_area(const arz::Record& r, std::uint32_t level, Area& out, std::string_view only = {});

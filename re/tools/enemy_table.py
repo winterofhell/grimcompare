@@ -34,10 +34,13 @@
 #   joined; "" = none). Racial bonuses match a target whose list shares any tag with the bonus's racialBonusRace,
 #   case-insensitively (ItemEquipment::ContributeRacialBonusDamage 0x33FC00 -> 0x592080 -> 0x591FE0). Every record
 #   is in the table at every level and the difficulty paks set no race, so the shares do not depend on either.
-# --threat: per difficulty and level the mean over the monsters of each resist type's share of the same largest
-#   hit (direct damage as above, offensiveElemental split evenly over Cold / Fire / Lightning, plus that skill's
-#   DoT: offensiveSlow<Type>Min x offensiveSlow<Type>DurationMin, at least 1 s). Physical / Internal Trauma count
-#   as physical, Life / Vitality Decay as vitality. The default [survival.threat] shares.
+# --threat: per difficulty and level the mean over the monsters of each resist type's share of their largest hit
+#   (direct damage, offensiveElemental split evenly over Cold / Fire / Lightning, plus that hit's DoT:
+#   offensiveSlow<Type>Min x offensiveSlow<Type>DurationMin, at least 1 s). Candidates, one vote per monster: the
+#   plain attack (the right-hand weapon's damage, or unarmed the unarmedOnly passives', plus every other
+#   Skill_Passive's flat damage and DoT) and each non-passive skill (its own damage + weaponDamagePct x the plain
+#   attack). Physical / Internal Trauma count as physical, Life / Vitality Decay as vitality. The default
+#   [survival.threat] shares.
 import re, statistics, sys
 sys.path.insert(0, __import__('os').path.dirname(__file__))
 import arz
@@ -91,22 +94,77 @@ def hit(r, level, dex, intel, d):
 SLOW = {'Physical': 'physical', 'Pierce': 'pierce', 'Cold': 'cold', 'Fire': 'fire', 'Poison': 'poison',
         'Lightning': 'lightning', 'Life': 'vitality', 'Chaos': 'chaos', 'Aether': 'aether', 'Bleeding': 'bleeding'}
 def mix(r, level, dex, intel, d):
-    out = {}
+    # Damage per resist type of one use of record r (a weapon's base damage included), and its direct part.
+    out, direct = {}, 0.0
     def add(t, k, v):
         f = (dex / 245 + 1) if t in ('Physical', 'Pierce', 'Bleeding') else (intel / 215 + 1)
         v *= f * max(0.0, 1 + (adj(d, 'offensiveTotalDamageModifier') + adj(d, 'offensive%sModifier' % t)) / 100)
         out[k] = out.get(k, 0.0) + v
+        return v
     for t in TYPES:
-        lo = at(r.get('offensive%sMin' % t, 0), level)
-        if lo <= 0: continue
-        v = (lo + max(lo, at(r.get('offensive%sMax' % t, 0), level))) / 2
-        if t == 'Elemental':
-            for e in ('Cold', 'Fire', 'Lightning'): add(e, SLOW[e], v / 3)
-        else: add(t, SLOW[t], v)
+        for f in ('offensive', 'offensiveBase'):
+            lo = at(r.get('%s%sMin' % (f, t), 0), level)
+            if lo <= 0: continue
+            v = (lo + max(lo, at(r.get('%s%sMax' % (f, t), 0), level))) / 2
+            if t == 'Elemental':
+                for e in ('Cold', 'Fire', 'Lightning'): direct += add(e, SLOW[e], v / 3)
+            else: direct += add(t, SLOW[t], v)
     for t, k in SLOW.items():
         lo = at(r.get('offensiveSlow%sMin' % t, 0), level)
         if lo > 0: add(t, k, lo * max(1.0, at(r.get('offensiveSlow%sDurationMin' % t, 0), level)))
-    return out
+    return out, direct
+def blend(into, m, w):
+    for k, v in m.items(): into[k] = into.get(k, 0.0) + v * w
+def kind(name):
+    return dbs[index[name]][2][name][0] if name in index else ''
+def weapons(table, level, w, out):
+    # Weapon records a right-hand loot table equips at this monster level, with their weight (LootMasterTable and
+    # LootItemTable_DynWeight by lootWeight, LevelTable by its levels).
+    # shortcut: a DynWeight table takes only its entries of the highest itemLevel at or under the monster's level
+    # (the lowest if none), not its bellSlope spread; affixes are left out. Revisit if the engine's pick is traced.
+    k, r = kind(table), rec(table)
+    if not r or w <= 0: return
+    if k.startswith('Weapon') and not k.startswith('WeaponArmor'):
+        out[table] = out.get(table, 0.0) + w
+    elif k == 'LevelTable':
+        lv, names = r.get('levels', []), r.get('records', [])
+        lv, names = (lv if isinstance(lv, list) else [lv]), (names if isinstance(names, list) else [names])
+        pick = [n for l, n in zip(lv, names) if l <= level] or names[:1]
+        if pick: weapons(pick[-1], level, w, out)
+    elif k in ('LootMasterTable', 'LootItemTable_DynWeight'):
+        entries = [(r[f], float(r.get('lootWeight' + f[8:], 0))) for f in r
+                   if f.startswith('lootName') and isinstance(r[f], str) and r[f]]
+        entries = [(n, x) for n, x in entries if x > 0 and rec(n)]
+        if k == 'LootItemTable_DynWeight':
+            lvl = lambda n: float((rec(n) or {}).get('itemLevel', 0))
+            under = [lvl(n) for n, _ in entries if lvl(n) <= level]
+            tier = max(under) if under else min((lvl(n) for n, _ in entries), default=0)
+            entries = [(n, x) for n, x in entries if lvl(n) == tier]
+        total = sum(x for _, x in entries)
+        for n, x in entries: weapons(n, level, w * x / total, out)
+def attack(r, lvl, dex, intel, d):
+    # The monster's plain attack: its right-hand weapon (chanceToEquipRightHand %, the lootRightHandItem<n> tables
+    # by chanceToEquipRightHandItem<n>) or, unarmed, its unarmedOnly passives, plus every other Skill_Passive's flat
+    # damage and DoT (passive flat damage goes to weapon attacks; docs/MECHANICS.md §5).
+    held = {}
+    tables = [(r.get('lootRightHandItem%d' % i), float(r.get('chanceToEquipRightHandItem%d' % i, 0))) for i in range(1, 7)]
+    tables = [(t, x) for t, x in tables if isinstance(t, str) and t and x > 0]
+    for t, x in tables: weapons(t, lvl, x / sum(x for _, x in tables), held)
+    armed = min(1.0, max(0.0, float(r.get('chanceToEquipRightHand', 0)) / 100)) if held else 0.0
+    out, direct = {}, 0.0
+    for w, x in held.items():
+        m, h = mix(rec(w), 1, dex, intel, d)
+        blend(out, m, armed * x)
+        direct += armed * x * h
+    for i in range(1, 40):
+        name = r.get('skillName%d' % i, '')
+        if kind(name) != 'Skill_Passive': continue
+        s = rec(name)
+        m, h = mix(s, max(int(ev(r.get('skillLevel%d' % i, 1), charLevel=lvl)), 1), dex, intel, d)
+        x = 1 - armed if s.get('unarmedOnly') else 1.0
+        blend(out, m, x)
+        direct += x * h
+    return out, direct
 def reduction(r, level, out):
     for t in BASE:
         v = min(0.0, at(r.get('defensive' + t, 0), level))
@@ -166,15 +224,22 @@ if '--threat' in sys.argv:
                 bio = rec(r.get('characterAttributeEquations', '')) or {}
                 dex = ev(bio.get('characterDexterity', 0), charLevel=lvl) * (1 + adj(d, 'characterDexterityModifier') / 100)
                 intel = ev(bio.get('characterIntelligence', 0), charLevel=lvl) * (1 + adj(d, 'characterIntelligenceModifier') / 100)
-                best = (0.0, None)
+                base, base_hit = attack(r, lvl, dex, intel, d)
+                best = (base_hit, base)
                 for i in range(1, 40):
                     sk = rec(r.get('skillName%d' % i, ''))
-                    if not sk: continue
+                    if not sk or kind(r['skillName%d' % i]) == 'Skill_Passive': continue
                     sl = max(int(ev(r.get('skillLevel%d' % i, 1), charLevel=lvl)), 1)
                     for s in (sk, rec(sk.get('buffSkillName', '')) if isinstance(sk.get('buffSkillName'), str) else None):
-                        if s and (h := hit(s, sl, dex, intel, d)[0]) > best[0]: best = (h, s, sl)
+                        if not s: continue
+                        m, h = mix(s, sl, dex, intel, d)
+                        pct = at(s.get('weaponDamagePct', 0), sl) / 100
+                        if pct > 0:
+                            blend(m, base, pct)
+                            h += pct * base_hit
+                        if h > best[0]: best = (h, m)
                 if best[0] <= 0: continue
-                m = mix(best[1], best[2], dex, intel, d)
+                m = best[1]
                 total = sum(m.values())
                 n += 1
                 for k, v in m.items(): acc[k] = acc.get(k, 0.0) + v / total

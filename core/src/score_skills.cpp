@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <numbers>
 #include <numeric>
 #include <set>
@@ -180,6 +181,14 @@ double pack_targets(const Area& a, const Settings& p) {
   else if (a.radius > 0) t = in(std::numbers::pi * a.radius * a.radius);
   else if (a.angle > 0) t = 1 + others * std::min(1.0, a.angle / 360);
   return a.number > 0 ? std::min(t, std::max(1.0, a.number)) : t;
+}
+
+// Design choice: a pack's weak enemies die to a few hits whatever else lands, so each extra target is worth 3/4 of the
+// one before and a use is worth at most 1 / (1 - 0.75) = 4 targets. A 6-projectile ring with full pierce (18 hits in
+// the default pack) counts 3.98, a radius over the whole pack (6) 3.29, Blade Arc (3.5) 2.55, 2 targets 1.75.
+constexpr double kPackFalloff = 0.75;
+double pack_worth(double targets) {
+  return (1 - std::pow(kPackFalloff, std::max(0.0, targets))) / (1 - kPackFalloff);
 }
 
 double max_charge_scale(const arz::Record& r, std::uint32_t level) {

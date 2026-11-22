@@ -26,7 +26,7 @@ int difficulty(const snap::Snapshot& s);
 
 Enemy at(double level, int difficulty);
 
-// CombatAttributeType -> share of the median monster's largest hit (direct + that skill's DoT), the default
+// CombatAttributeType -> mean share of the monsters' largest hit (a skill or the weapon attack, direct + DoT), the default
 // incoming damage mix.
 std::map<int, double> threat(double level, int difficulty);
 

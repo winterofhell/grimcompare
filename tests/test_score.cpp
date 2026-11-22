@@ -1049,7 +1049,23 @@ TEST_CASE("score: pack targets per use from the skill's area, projectile and cha
   p.pack_size = 2, a.sparks = 3, a.spark_chance = 100;  // one other enemy to jump to
   CHECK(score::pack_targets(a, p) == doctest::Approx(2));
   p.pack_share = 0.5;
-  CHECK(score::pack_factor(a, p) == doctest::Approx(1.5));
+  CHECK(score::pack_factor(a, p) == doctest::Approx(1 - 0.5 + 0.5 * 1.75));  // 2 targets: 1 + 0.75
+}
+
+TEST_CASE("score: pack targets saturate, each extra one worth 3/4 of the one before") {
+  CHECK(score::pack_worth(0) == 0);
+  CHECK(score::pack_worth(1) == 1);
+  CHECK(score::pack_worth(2) == doctest::Approx(1.75));
+  CHECK(score::pack_worth(3) == doctest::Approx(1 + 0.75 + 0.5625));
+  CHECK(score::pack_worth(18) < 4);  // a full-pierce ring in the default pack, 18 hits
+  CHECK(score::pack_worth(18) > score::pack_worth(6));
+  for (double t = 1; t < 20; t += 0.25) CHECK(score::pack_worth(t + 0.25) > score::pack_worth(t));
+  score::Settings p;
+  p.pack_share = 0.5;
+  score::Area ring;
+  ring.projectile = true, ring.projectiles = 8, ring.pierce = 100;
+  CHECK(score::pack_factor(ring, p) == doctest::Approx(0.5 + 0.5 * score::pack_worth(18)));
+  CHECK(score::pack_factor(ring, p) < 2.5);  // was 9.5 before the falloff
 }
 
 TEST_CASE("score: area fields sum over the skill and its modifiers (installed game; skips if absent)") {
