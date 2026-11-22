@@ -46,13 +46,22 @@ struct SkillDamageCheck {
   std::string skipped;          // non-empty: not compared, why
   std::vector<TypeDiff> types;  // every type either side deals
   std::string note;             // what was applied to either side to compare them
+  // The model rules this check runs through ("weapon damage", "dual wield", "conversion", ...): a FAIL points at
+  // one of them, a PASS confirms them all for these numbers.
+  std::vector<std::string> rules;
   bool pass() const;
 };
 // Off: more than 2% of the larger side and more than 1 damage.
 bool damage_off(const TypeDiff& d);
-// `records`: only these skills; empty = every skill the snapshot has engine numbers for.
+// `records`: only these skills; empty = every learned or item-granted skill the snapshot has engine numbers for.
 std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Database& db,
                                      const std::vector<std::string>& records = {});
+// Schema 17: each live pet's % damage per type (its SkillManager's offensive modifier totals) against the record model
+// (pet passives + pet bonuses). TypeDiff values are % here; rules "pet %".
+std::vector<SkillDamageCheck> pets(const snap::Snapshot& s, const arz::Database& db);
+// Over any number of checks: per rule, per skill and per type how many passed and failed, then the skip reasons.
+// A rule is confirmed when every check through it passed, failing when one did not.
+std::vector<std::string> damage_summary(const std::vector<SkillDamageCheck>& checks);
 // PASS / FAIL per compared skill, then the types of a FAIL (of every skill when verbose); SKIP with the reason.
 std::vector<std::string> damage_report(const std::vector<SkillDamageCheck>& checks, const std::string& label,
                                        bool verbose = false);

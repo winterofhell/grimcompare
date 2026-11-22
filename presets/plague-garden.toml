@@ -72,8 +72,9 @@ default = 0.05                                # default
 # resist with a 10% threat share. Chosen so that 7 Fire + 15 Pierce under the cap outweigh +28 Physique and
 # +8% Life (the belt case, tests/test_presets.cpp) while a +2 skills medal that costs 10 Poison still wins.
 threshold_resist_weight = 4
-# Second-tier targets (all but the base resists) are the guide's endgame minimums: below level 94 they scale by
-# level / 94 (design choice: a level 39 character is not held to 75% stun resist). Absorption does not scale.
+# Second-tier targets (all but the base resists) are the guide's endgame minimums: below level 94 percent targets
+# scale by level / 94 (design choice: a level 39 character is not held to 75% stun resist), armor / life / DA by
+# the monster table (presets/default.toml). Absorption does not scale.
 threshold_level = 94
 
 [survival]

@@ -220,7 +220,12 @@ std::string Builder::recharge_text(double cooldown, bool own) const {
 double Builder::summed(const Effect& e, const arz::Record& skill, std::string_view key) const {
   double v = key == "skillCooldownTime" ? own_or_buff(skill, key, e.level, db) : at(skill, key, e.level);
   for (const auto& [m, lv] : e.modifiers)
-    if (const arz::Record* r = db.record(m)) v += at(*r, key, lv);
+    if (const arz::Record* r = db.record(m)) {
+      v += at(*r, key, lv);
+      // A pet modifier's cooldownTime (Load 0x555DA0 -> +0x640) goes to the parent's cooldown: GetSkillModifierData
+      // 0x556850 adds it to SkillProfile_Modifiers +0x48, which Skill::GetCooldownTime 0x490ED0 reads at 0x490FBC.
+      if (key == "skillCooldownTime" && classes::is_a(r->cls, "SkillSecondary_PetModifier")) v += at(*r, "cooldownTime", lv);
+    }
   return std::max(0.0, v);
 }
 

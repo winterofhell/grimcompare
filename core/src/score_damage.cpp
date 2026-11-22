@@ -246,11 +246,12 @@ double attribute_bonus(const snap::Snapshot& s, int type, bool dot) {
 // shows the shield pass hitting.
 Gear gear(const snap::Snapshot& s, const arz::Database& db, const Bases& base) {
   const HandFlat f = weapon_flat(s, db);
-  Gear g{f.common, {}, dot_duration(s, db), {}};
+  Gear g{f.common, {}, {}, dot_duration(s, db), {}};
   add(g.flat, f.right);
   add(g.flat, base.right);
   const std::string_view left = hand_class(in_hand(s, equip::kLeftHand), db);
   if (dual_wield(s, db)) {
+    g.common = f.common;
     g.off = f.common;
     add(g.off, f.left);
     add(g.off, base.left);
@@ -335,6 +336,11 @@ Pool main_converted(const Raw& raw, const Gear& g, const Conversions& global, st
     Amounts off = raw.flat;
     add(off, weapon_part(raw, g.off));
     out.off.emplace(pool(off, raw, global, notes));
+    if (std::any_of(off.begin(), off.end(), [](const auto& x) { return x.first.second; })) {  // a DoT to fold
+      Amounts shared = raw.flat;
+      add(shared, weapon_part(raw, g.common));
+      out.shared.emplace(pool(shared, raw, global, notes));
+    }
   }
   return out;
 }
@@ -371,11 +377,17 @@ SkillDamage skill_damage(const snap::Snapshot& s, const snap::Skill& sk, const R
     // SkillActivatedWeapon::CalculateDPS 0x51A7F0, dual wield (SkillAttackInfo+0x28): per use 0.75 x (R pass + L pass)
     // (0x51A879..0x51A8D4), both in full for a cooldown skill (0x51A844). CalculateSkillDps first folds each L pass DoT
     // into the R pass one of the same source (FilterSameSource 0x11AE40, CombatAttributeDurDamage::FilterForSameSource
-    // 0x114420: the larger stays); direct damage never folds (CombatAttribute's returns false).
-    Amounts r, l;
+    // 0x114420: same type, same duration (vt+0xF0), same +0x14); direct damage never folds (CombatAttribute's returns
+    // false). The DoT both passes share (skill, non-weapon gear) folds into one; each weapon's own stays.
+    // shortcut: +0x14 read as the contributing record — revisit with a dual-wield DoT capture.
+    Amounts r, l, both;
     const double rs = final_damage(s, p, raw, g, pool, resist, &r), ls = final_damage(s, p, raw, g, *pool.off, resist, &l);
-    for (auto& [k, v] : l)
-      if (const auto it = r.find(k); k.second && it != r.end()) it->second = std::max(it->second, v), v = 0;
+    if (pool.shared) {
+      final_damage(s, p, raw, g, *pool.shared, resist, &both);
+      for (const auto& [k, v] : both)
+        if (k.second)
+          if (const auto it = l.find(k); it != l.end()) it->second = std::max(0.0, it->second - v);
+    }
     const double f = raw.cooldown > 0 ? 1.0 : 0.75;
     for (const auto* a : {&r, &l})
       for (const auto& [k, v] : *a) {
@@ -482,6 +494,7 @@ Extra extra_damage(const snap::Snapshot& s, const Side& x, const Settings& p, bo
       }
       per_use = (per_use + conv.hits[i].retaliation) * hit * mult;
     }
+    per_use *= e.pack;
     out.per_sec += per_sec * per_use;
     if (explain)
       out.inputs += " " + stem(e.record) + (e.pet ? " (pet) " : e.player_scaled ? " (player-scaled pet) " : " ") +

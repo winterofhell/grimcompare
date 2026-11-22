@@ -19,7 +19,7 @@ std::string pretty(std::string key);
 std::string resist_stat(int type);
 std::vector<Line> modifier_lines(const snap::Snapshot& before, const snap::Snapshot& after, const snap::Item* old,
                                  const snap::Item& candidate, const std::vector<score::Skill>& skills,
-                                 const arz::Database* db, const Labels& labels, const Screen& screen);
+                                 const arz::Database* db, const Labels& labels, const Screen& screen, bool packs);
 
 // tooltip_result.cpp: lines from a score result.
 std::string terms(const score::Result& r);

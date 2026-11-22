@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cctype>
+#include <numbers>
 #include <numeric>
 #include <set>
 #include <tuple>
@@ -104,13 +105,81 @@ void add_record(const arz::Database& db, const arz::Record& r, std::uint32_t lev
   out.weapon_pct += at_level(r, "weaponDamagePct", level) * scale;
   out.crit += at_level(r, "offensiveCritDamageModifier", level) * scale;
   out.cooldown += at_level(r, "skillCooldownTime", level);
+  if (classes::is_a(r.cls, "SkillSecondary_PetModifier")) out.cooldown += at_level(r, "cooldownTime", level);  // Builder::summed
   out.leech += at_level(r, "offensiveLifeLeechMin", level) * scale;
+  add_area(r, level, out.area);
   for (const auto& [in, outk, pct] : {std::tuple{"conversionInType", "conversionOutType", "conversionPercentage"},
                                       std::tuple{"conversionInType2", "conversionOutType2", "conversionPercentage2"}}) {
     const int from = damage_type_named(r.string(in)), to = damage_type_named(r.string(outk));
     const double v = at_level(r, pct, level);
     if (from && to && v > 0) add_pair(out.conversion, from, to, v);
   }
+}
+
+// The skill record and its modifiers name some fields apart (projectileExplosionRadius / explosionRadius,
+// projectilePiercingChance / projectilePiercing); a record carries one of each pair.
+// shortcut: a modifier's projectileLaunchNumber is taken to add to a base skillProjectileNumber or numProjectiles as
+// it adds to a base projectileLaunchNumber (0x54A650) — revisit with an in-game projectile count.
+void add_area(const arz::Record& r, std::uint32_t level, Area& out, std::string_view only) {
+  auto v = [&](std::string_view f) { return only.empty() || only == f ? at_level(r, f, level) : 0.0; };
+  out.radius += v("skillTargetRadius");
+  out.angle += v("skillTargetAngle");
+  out.number += v("skillTargetNumber");
+  out.explosion += v("projectileExplosionRadius") + v("explosionRadius");
+  out.projectiles += v("skillProjectileNumber") + v("projectileLaunchNumber") + v("numProjectiles");
+  out.pierce += v("projectilePiercingChance") + v("projectilePiercing");
+  out.sparks += v("sparkMaxNumber");
+  out.spark_chance += v("sparkChance");
+  out.length += v("waveDistance") + v("maxRange") * classes::is_a(r.cls, "Skill_AttackSpellCone");
+  out.start_width += v("waveStartWidth") + v("startWidth");
+  out.end_width += v("waveEndWidth") + v("endWidth");
+  out.projectile |= r.cls.find("Projectile") != std::string::npos;
+  out.chain |= classes::is_a(r.cls, "Skill_AttackChain");
+}
+
+// Pack: pack_size enemies spread evenly on a disc of pack_radius around the target, the player among them.
+// An area A hits the target and each other enemy with chance min(1, A / pack area).
+// - Chain (Skill_AttackChain::ActivateNow 0x4B25C0): max(1, sparkMaxNumber) jumps; before each, IGenerate(0, 100)
+//   against sparkChance, the first miss ends the chain; a jump picks an enemy not yet hit (GameEngine::PickObject).
+// - Projectiles: each keeps its own hit list (ProjectileBase::AddProjectileModifier 0x4067E0, FilterAndAddKnownTargets
+//   0x407730), so every projectile can hit, the same target too. A pierce roll after each hit
+//   (ProjectileBase::Penetrate 0x4048E0: chance summed over the modifiers + the projectile's own, against
+//   [0.1, 100)) carries it on through the enemies in its line; an explosion hits its area instead.
+// - Wave and spell cone: length x mean width. Radius: π r². Weapon cone: angle / 360 of the pack around the player.
+// - skillTargetNumber caps an area or cone.
+// shortcut: the pack geometry (size, radius, line) is a preset choice and every projectile finds an enemy; fragments
+// and beams count one target — revisit with an in-game pack test.
+double pack_targets(const Area& a, const Settings& p) {
+  const double others = std::max(0.0, p.pack_size - 1);
+  const double disc = std::numbers::pi * p.pack_radius * p.pack_radius;
+  auto in = [&](double area) { return 1 + others * std::min(1.0, area / disc); };
+  if (a.chain) {
+    const double q = std::clamp(a.spark_chance / 100, 0.0, 1.0);
+    const int jumps = static_cast<int>(std::min(std::max(1.0, a.sparks), std::floor(others)));
+    double t = 1, step = 1;
+    for (int k = 0; k < jumps; ++k) t += step *= q;
+    return t;
+  }
+  double t = 1;
+  if (a.projectile && (a.projectiles > 0 || a.explosion > 0 || a.pierce > 0)) {
+    double per = a.explosion > 0 ? in(std::numbers::pi * a.explosion * a.explosion) : 1;
+    if (a.pierce > 0) {
+      const double c = std::min(1.0, a.pierce / 100);
+      const int line = static_cast<int>(std::min(p.pack_size, p.pack_line));
+      double hits = 0, step = 1;
+      for (int k = 0; k < line; ++k) hits += step, step *= c;
+      per = std::max(per, hits);
+    }
+    // A lone target takes one projectile, as in single target, so a pack of one is one target.
+    // shortcut: projectiles past the pack size (shotgun on one enemy, which the hit lists allow) are not counted —
+    // revisit with an in-game hit count on one target.
+    return std::min(std::max(1.0, a.projectiles), p.pack_size) * per;
+  }
+  // Leaps, charges and teleports carry a waveDistance (how far they move) but no width: their radius counts.
+  if (a.length > 0 && a.start_width + a.end_width > 0) t = in(a.length * (a.start_width + a.end_width) / 2);
+  else if (a.radius > 0) t = in(std::numbers::pi * a.radius * a.radius);
+  else if (a.angle > 0) t = 1 + others * std::min(1.0, a.angle / 360);
+  return a.number > 0 ? std::min(t, std::max(1.0, a.number)) : t;
 }
 
 double max_charge_scale(const arz::Record& r, std::uint32_t level) {
@@ -178,8 +247,23 @@ std::string stat_unit(const fields::Target& t) {
 
 }  // namespace
 
-std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill) {
+std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill, bool pack,
+                                        const arz::Database& db, std::string_view skill) {
   std::vector<ModifierPart> out;
+  // An area field is scored when it moves the skill's targets in the default pack (Aegis' sparks do not: its class is
+  // no Skill_AttackChain).
+  Area base;
+  if (pack && main_skill) {
+    const auto sk = std::find_if(s.skills.begin(), s.skills.end(), [&](const snap::Skill& k) { return k.record == skill; });
+    std::vector<std::string> notes;
+    if (sk != s.skills.end()) base = skill_raw(s, *sk, db, notes).area;
+    else if (const arz::Record* own = db.record(skill)) add_area(*own, 1, base);
+  }
+  auto reaches = [&](std::string_view key) {
+    Area with = base;
+    add_area(r, 1, with, key);
+    return pack_targets(with, Settings{}) != pack_targets(base, Settings{});
+  };
   std::set<std::string_view> done{"skillMaxLevel"};
   for (const auto& f : fields::flat_damage()) {
     done.insert({f.min, f.max, f.duration, f.chance});
@@ -207,6 +291,15 @@ std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Rec
       {"skillCooldownTime", "s cooldown"},          {"offensiveLifeLeechMin", "% damage converted to health"},
       {"petLimit", " pet limit"},                   {"spawnObjectsTimeToLive", "s pet duration"},
       {"skillActiveDuration", "s duration"}};
+  // add_area()'s modifier fields.
+  static constexpr std::pair<std::string_view, std::string_view> kArea[] = {
+      {"skillTargetRadius", "m radius"},     {"skillTargetAngle", " degree arc"},  {"skillTargetNumber", " targets"},
+      {"explosionRadius", "m explosion"},    {"projectileLaunchNumber", " projectiles"},
+      {"projectilePiercing", "% pierce"},    {"sparkChance", "% chain chance"},   {"sparkMaxNumber", " chain jumps"},
+      {"waveDistance", "m wave length"},     {"waveStartWidth", "m wave start"},  {"waveEndWidth", "m wave end"},
+      {"projectileExplosionRadius", "m explosion"}, {"projectilePiercingChance", "% pierce"},
+      {"skillProjectileNumber", " projectiles"},    {"numProjectiles", " projectiles"},
+      {"maxRange", "m range"}, {"startWidth", "m cone start"}, {"endWidth", "m cone end"}};
   for (const auto& [key, field] : r.fields) {
     if (field.kind == arz::Field::Kind::Bool || field.numbers.empty() || field.numbers[0] == 0 || done.contains(key) ||
         fields::weapon_flag(key))
@@ -214,7 +307,10 @@ std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Rec
     const double v = field.numbers[0];
     double scale = 1;
     const auto named = std::find_if(std::begin(kNamed), std::end(kNamed), [&](const auto& n) { return n.first == key; });
-    if (const fields::Target* t = fields::damage_modifier(key))
+    const auto area = std::find_if(std::begin(kArea), std::end(kArea), [&](const auto& n) { return n.first == key; });
+    if (area != std::end(kArea))
+      out.push_back({v, std::string(area->second), main_skill && pack && reaches(key)});
+    else if (const fields::Target* t = fields::damage_modifier(key))
       out.push_back({v, "% " + std::string(damage_label(t->type, t->modifier)) + " damage", main_skill});
     else if (const auto d = std::find_if(std::begin(kDotDuration), std::end(kDotDuration), [&](const auto& x) { return x.second == key; });
              d != std::end(kDotDuration))

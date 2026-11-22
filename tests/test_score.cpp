@@ -1,3 +1,4 @@
+#include <numbers>
 #include <doctest/doctest.h>
 
 #include <algorithm>
@@ -529,13 +530,22 @@ TEST_CASE("score: second-tier thresholds are bounded and their targets scale wit
   const double gain = score::compare(none, full, {}, p, nullptr).ratio.survival;
   CHECK(gain > 1);
   CHECK(gain < 1.12);
-  // threshold_level: target x level / threshold_level below it; absorption keeps its value.
+  // threshold_level: a percent target x level / threshold_level below it; absorption keeps its value; armor, life
+  // and DA follow the monster table (physical hit, hit, OA at this level over threshold_level's).
   auto lv = p;
   lv.threshold_level = 94;
   lv.thresholds["absorption"] = 90;
+  lv.thresholds["armor"] = 2200;
+  lv.thresholds["life"] = 16000;
+  lv.thresholds["da"] = 2750;
   const auto scaled = score::compare(b, a, {}, lv, nullptr);
   CHECK(scaled.targets.at("stun_resist") == doctest::Approx(75.0 * 39 / 94));
   CHECK(scaled.targets.at("absorption") == 90);
+  const int d = enemy::difficulty(b);
+  CHECK(scaled.targets.at("armor") == doctest::Approx(2200 * enemy::at(39, d).hit_physical / enemy::at(94, d).hit_physical));
+  CHECK(scaled.targets.at("life") == doctest::Approx(16000 * enemy::at(39, d).hit / enemy::at(94, d).hit));
+  CHECK(scaled.targets.at("da") == doctest::Approx(2750 * enemy::at(39, d).oa / enemy::at(94, d).oa));
+  CHECK(scaled.targets.at("life") < 16000.0 * 39 / 94);  // monster hits grow faster than the level
   CHECK_FALSE(scaled.targets.contains(""));
   snap::Snapshot b94 = b, a94 = a;
   b94.level = a94.level = 94;
@@ -913,6 +923,31 @@ TEST_CASE("score: Onslaught's combo charges scale a cooldown main skill (install
   CHECK(after_text({kRing, kOnslaught}).find("x1.600 combo (5.00 charges)") != std::string::npos);
 }
 
+TEST_CASE("score: a learned cooldown skill's crowd control and its modifier's hold the enemy (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  auto skill = [](std::uint32_t id, const char* record, std::uint32_t level) {
+    snap::Skill k;
+    k.id = id;
+    k.record = record;
+    k.level = k.current_level = level;
+    return k;
+  };
+  snap::Snapshot s = base(94);
+  // Dreeg's Evil Eye has no cooldown: spammed, its control is not counted.
+  s.skills = {skill(1, "records/skills/playerclass03/evileye1.dbr", 10),
+              skill(3, "records/skills/playerclass03/evileye3.dbr", 1)};
+  s.skills[0].modifier_ids = {3};
+  score::Preset p;
+  auto after = [&] { return score::compare(s, s, score::main_skills(s, p, db), p, db).after; };
+  CHECK(after().find("evileye1 cc") == std::string::npos);
+  // evileye1b (4 s cooldown) makes it a cooldown skill; evileye3 L1: 40% confusion 3-5 s (1.6 s) over 60% stun
+  // 1.5-3 s (1.35 s), longest wins: 1.6 s x 0.25/s.
+  s.skills.push_back(skill(2, "records/skills/playerclass03/evileye1b.dbr", 1));
+  s.skills[0].modifier_ids = {2, 3};
+  CHECK(after().find("evileye1 cc 0.400") != std::string::npos);
+}
+
 TEST_CASE("score: an on-attack proc's rate follows the state's trigger rate; merged sources keep their sum") {
   score::Side::Hit h;
   h.on = effects::Effect::On::kAttack;
@@ -972,4 +1007,94 @@ TEST_CASE("score: retaliation is converted with each state's conversions") {
   s.conversions = {{2, 6, 50}};  // a buff state's Physical -> Fire
   CHECK(score::converted_for(s, x, p, &memo, own, notes).retaliation == doctest::Approx(50 + 50 * 2 * 0.5));
   CHECK(memo.size() == 2);
+}
+
+TEST_CASE("score: pack targets per use from the skill's area, projectile and chain fields") {
+  score::Settings p;  // pack 6 enemies, radius 5 m, line 3
+  score::Area a;
+  CHECK(score::pack_targets(a, p) == 1);
+  CHECK(score::pack_factor(a, p) == 1);  // pack_share 0: single target only
+  a.radius = 2.5;                         // a quarter of the pack disc
+  CHECK(score::pack_targets(a, p) == doctest::Approx(1 + 5 * 0.25));
+  a.radius = 9;
+  CHECK(score::pack_targets(a, p) == doctest::Approx(6));
+  a.number = 3;  // skillTargetNumber caps it
+  CHECK(score::pack_targets(a, p) == doctest::Approx(3));
+  a = {};
+  a.angle = 180, a.number = 5;  // Blade Arc
+  CHECK(score::pack_targets(a, p) == doctest::Approx(3.5));
+  a = {};
+  a.length = 10, a.start_width = 3, a.end_width = 4.5;  // Forcewave: 37.5 m² of 78.5
+  CHECK(score::pack_targets(a, p) == doctest::Approx(1 + 5 * 37.5 / (std::numbers::pi * 25)));
+  a = {};
+  a.projectile = true, a.projectiles = 3;  // Phantom Blade: every projectile hits, one target each
+  CHECK(score::pack_targets(a, p) == doctest::Approx(3));
+  a.pierce = 50;  // 1 + .5 + .25 through 3 in line
+  CHECK(score::pack_targets(a, p) == doctest::Approx(3 * 1.75));
+  a.pierce = 0, a.explosion = 2.5;
+  CHECK(score::pack_targets(a, p) == doctest::Approx(3 * 2.25));
+  a.projectiles = 8, a.pierce = 100;  // one enemy per projectile at most: a pack of one is one target
+  CHECK(score::pack_targets(a, p) == doctest::Approx(6 * 3));
+  score::Settings lone = p;
+  lone.pack_size = 1;
+  CHECK(score::pack_targets(a, lone) == doctest::Approx(1));
+  a = {};
+  a.length = 8, a.radius = 2.5;  // a leap: waveDistance is how far it moves, no width; its radius counts
+  CHECK(score::pack_targets(a, p) == doctest::Approx(1 + 5 * 0.25));
+  a = {};
+  a.chain = true, a.sparks = 3, a.spark_chance = 50;  // 1 + .5 + .25 + .125
+  CHECK(score::pack_targets(a, p) == doctest::Approx(1.875));
+  a.sparks = 0;  // max(1, sparkMaxNumber)
+  CHECK(score::pack_targets(a, p) == doctest::Approx(1.5));
+  p.pack_size = 2, a.sparks = 3, a.spark_chance = 100;  // one other enemy to jump to
+  CHECK(score::pack_targets(a, p) == doctest::Approx(2));
+  p.pack_share = 0.5;
+  CHECK(score::pack_factor(a, p) == doctest::Approx(1.5));
+}
+
+TEST_CASE("score: area fields sum over the skill and its modifiers (installed game; skips if absent)") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  score::Area a;
+  score::add_area(*db->record("records/skills/playerclass04/phantomblade.dbr"), 1, a);  // projectileLaunchNumber 3
+  score::add_area(*db->record("records/skills/playerclass04/phantomblade_mod1.dbr"), 3, a);  // projectilePiercing 40
+  CHECK(a.projectile);
+  CHECK(a.projectiles == 3);
+  CHECK(a.pierce == 40);
+  score::Area arc;
+  score::add_area(*db->record("records/skills/playerclass01/bladearc1.dbr"), 1, arc);
+  CHECK(arc.angle == 180);
+  CHECK(arc.number == 5);
+  CHECK_FALSE(arc.projectile);
+  // The tooltip scores an area field only where it moves the skill's targets: Bastion's ricochets on Aegis of Menhir
+  // (Skill_AttackProjectileChain, no Skill_AttackChain) are not read, its explosion is.
+  snap::Snapshot s = base(94);
+  snap::Skill aegis;
+  aegis.id = 1, aegis.record = "records/skills/playerclass09/aegis1.dbr", aegis.level = aegis.current_level = 1;
+  s.skills = {aegis};
+  int sparks = 0, explosion = 0;
+  for (const auto& part : score::modifier_parts(s, *db->record("records/skills/playerclass09/aegis2.dbr"), true, true, *db, aegis.record)) {
+    INFO(part.unit);
+    if (part.unit.find("chain") != std::string::npos) {
+      ++sparks;
+      CHECK_FALSE(part.scored);
+    }
+    if (part.unit == "m explosion") {
+      ++explosion;
+      CHECK(part.scored);
+    }
+  }
+  CHECK(sparks > 0);
+  CHECK(explosion == 1);
+}
+
+TEST_CASE("score: pack keys in [damage]") {
+  std::string error;
+  const auto p = score::parse("[damage]\npack_share = 0.4\npack_size = 8\npack_radius = 6\npack_line = 2\n", error);
+  REQUIRE(p);
+  CHECK(p->pack_share == 0.4);
+  CHECK(p->pack_size == 8);
+  CHECK(p->pack_radius == 6);
+  CHECK(p->pack_line == 2);
+  CHECK_FALSE(score::parse("[damage]\npack_share = 2\n", error));
 }

@@ -28,6 +28,14 @@ void sec_pets(Ctx& c) {
       p.cast_speed_modifier = api.total_char_mod(pet, 16);
       const void* sm = api.skill_manager(pet);
       p.default_skill_id = api.default_skill_id(sm, 0);
+      // As sec_damage_modifiers / sec_conversions for the player, on the pet's own SkillManager: every call goes
+      // through Character virtuals, which Pet overrides (MECHANICS §5 "Pets").
+      AccBuf buf;
+      void* acc = api.combat_acc_ctor(buf.bytes, kDisplayModifyProcs);
+      api.collect_offensive_modifiers(sm, acc, 0);
+      combat_totals(acc, pet, p.damage_modifiers);
+      api.combat_acc_dtor(acc);
+      conversions(sm, api.collect_conversions, p.conversions);
       const Span list = vec(api.skill_list(sm), sizeof(void*));
       for (std::size_t k = 0; k < list.count; ++k) {
         const void* sk = rd<const void*>(list.begin, k * sizeof(void*));

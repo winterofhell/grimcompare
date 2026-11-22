@@ -346,6 +346,11 @@ TEST_CASE("setup: catalog rejects bad input") {
   const std::string ok = "[[build]]\nid = \"a\"\nname = \"A\"\ncategory = \"melee\"\nclasses = [\"01\"]\ndamage = [\"fire\"]\n";
   CHECK(load_catalog(ok, error));
   CHECK_FALSE(load_catalog(ok + ok, error));  // duplicate id
+  CHECK_FALSE(load_catalog(ok + "pack = 1.5\n", error));
+  const auto packs = load_catalog(ok + "pack = 0.5\n", error);
+  REQUIRE(packs);
+  CHECK((*packs)[0].pack == 0.5);
+  CHECK(from_entry((*packs)[0], {1}, "x").advanced.at("damage.pack_share") == 0.5);
 }
 
 TEST_CASE("setup: fits, class codes") {

@@ -51,6 +51,46 @@ TEST_CASE("enemy: the table is re/EnemyByLevel.tsv") {
   for (int d = 0; d < enemy::kDifficulties; ++d) CHECK(enemy::at(50, d).crit_damage == (d == 5 ? 40 : 0));
 }
 
+TEST_CASE("enemy: the incoming damage mix is re/EnemyDamageTypes.tsv") {
+  std::ifstream f(std::filesystem::path(GDC_SOURCE_DIR) / "re/EnemyDamageTypes.tsv");
+  REQUIRE(f.good());
+  std::string line;
+  std::getline(f, line);  // header: physical pierce cold fire poison lightning vitality chaos aether bleeding
+  const std::string names[] = {"Normal", "NormalVeteran", "Elite", "EliteVeteran", "Ultimate", "Ascendant"};
+  const int types[] = {2, 4, 5, 6, 7, 8, 9, 10, 11, 15};
+  int rows = 0;
+  while (std::getline(f, line)) {
+    std::istringstream in(line);
+    std::string difficulty;
+    double level;
+    in >> difficulty >> level;
+    const auto d = std::find(std::begin(names), std::end(names), difficulty) - std::begin(names);
+    REQUIRE(d < enemy::kDifficulties);
+    const auto got = enemy::threat(level, static_cast<int>(d));
+    REQUIRE(got.size() == std::size(types));
+    double sum = 0;
+    for (const int t : types) {
+      double share;
+      in >> share;
+      REQUIRE(!in.fail());
+      CHECK(got.at(t) == share);
+      sum += share;
+    }
+    CHECK(sum == doctest::Approx(1).epsilon(0.01));
+    ++rows;
+  }
+  CHECK(rows == 21 * enemy::kDifficulties);
+  CHECK(enemy::threat(0, 4) == enemy::threat(1, 4));
+  CHECK(enemy::threat(500, 4) == enemy::threat(100, 4));
+  CHECK(enemy::threat(12.5, 0).at(2) == doctest::Approx((enemy::threat(10, 0).at(2) + enemy::threat(15, 0).at(2)) / 2));
+  // Physical leads at every level (the median monster's largest hit); Ascendant's damage paks lower it.
+  for (double level : {1.0, 50.0, 100.0}) {
+    const auto t = enemy::threat(level, 4);
+    CHECK(std::max_element(t.begin(), t.end(), [](auto& x, auto& y) { return x.second < y.second; })->first == 2);
+    CHECK(enemy::threat(level, 5).at(2) < t.at(2));
+  }
+}
+
 TEST_CASE("enemy: hits, OA and DA grow with the difficulty; the snapshot picks the row") {
   for (double level : {1.0, 27.0, 60.0, 100.0})
     // Normal < Elite < Ultimate, and each with the ramp above it (Elite Veteran: +25% +40% damage, more than

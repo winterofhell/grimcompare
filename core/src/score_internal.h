@@ -135,6 +135,32 @@ struct Retaliation {
   std::map<int, double> pct;
 };
 
+// The area, target and projectile fields of a skill and its modifiers, each summed: Skill::GetSkillModifierData
+// 0x49A6C0 adds every modifier's SkillProfile_Modifiers field to the skill's (0x54A650, field by field).
+struct Area {
+  double radius = 0;         // skillTargetRadius
+  double angle = 0;          // skillTargetAngle, degrees
+  double number = 0;         // skillTargetNumber: at most this many targets; 0 = no cap
+  double explosion = 0;      // projectileExplosionRadius, modifiers' explosionRadius
+  double projectiles = 0;    // skillProjectileNumber, projectileLaunchNumber, numProjectiles
+  double pierce = 0;         // projectilePiercingChance, modifiers' projectilePiercing, %
+  double sparks = 0;         // sparkMaxNumber
+  double spark_chance = 0;   // sparkChance, %
+  double length = 0;         // waveDistance, a spell cone's maxRange
+  double start_width = 0, end_width = 0;  // waveStartWidth / startWidth, waveEndWidth / endWidth
+  bool projectile = false;   // a projectile class: projectiles and pierce count
+  bool chain = false;        // Skill_AttackChain
+};
+
+// Expected targets one use hits in the preset's pack (docs/MECHANICS.md §5).
+double pack_targets(const Area& a, const Settings& p);
+// The use's value in the single-target / pack mix: 1 at pack_share 0.
+inline double pack_factor(const Area& a, const Settings& p) {
+  return p.pack_share > 0 ? 1 - p.pack_share + p.pack_share * pack_targets(a, p) : 1;
+}
+// `only`: just that field of the record (the class flags still apply).
+void add_area(const arz::Record& r, std::uint32_t level, Area& out, std::string_view only = {});
+
 struct Raw {
   Amounts flat;            // dot: per second x duration
   Amounts pct;             // 58 / 60 spread
@@ -149,6 +175,7 @@ struct Raw {
   Conversions conversion;  // in the order CollectLocalConversionAttributes adds them
   // % Retaliation Added to Attack per use: the retaliation it adds, flat already x the pct (retaliation_damage).
   Retaliation retaliation;
+  Area area;
 };
 
 // Weapon base damage both sides share (shared_base()): never compared, only carried.
@@ -164,6 +191,7 @@ struct Gear {
   // uses.
   Amounts flat;  // the R Hand pass (with a caster off-hand, which shares it)
   Amounts off;   // dual wield: the L Hand weapon's pass; empty otherwise
+  Amounts common;  // dual wield: what both passes share (flat without the hands' own)
   std::map<int, double> dot;
   effects::Shred enemy_da;  // the side's debuffs; none for the auto skill pick
   // DurDamage::Process 0x114206: duration × (1 + Σ duration % / 100), skill and gear % in one sum.
@@ -261,6 +289,7 @@ struct Side {
     std::vector<Dot> dots;
     double pet_hit = 1;          // Class Pet: expected hit multiplier at the pet's OA
     Retaliation retaliation;     // as Raw::retaliation
+    double pack = 1;             // pack_factor() of its records
     double pool_chance = 0;      // Skill_WPAttack_*: the share of weapon pool skill uses it can take
     effects::Effect::On on = effects::Effect::On::kOther;
     double chance = 0, recharge = 0;
@@ -298,6 +327,7 @@ struct Pass {
 struct Pool : Pass {
   double retaliation = 0;  // Raw::retaliation final, before the hit roll; each hand's pass adds it
   std::optional<Pass> off;  // dual wield, weapon skills: the L Hand pass
+  std::optional<Pass> shared;  // with `off`: the part both passes share (skill, non-weapon gear, skills, sets)
 };
 
 // Converted once per conversion set; buff states mostly share one.
@@ -406,8 +436,13 @@ Utility utility_of(const snap::Snapshot& s, const Settings& p, const arz::Databa
 Other other(const snap::Snapshot& s, const Utility& u, const Settings& p, bool explain);
 
 // score_side.cpp
+// A main skill's record among the learned skills, then the item-granted ones (main_skills() picks learned only).
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
           const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured = nullptr);
+// A Class Pet's % damage per key as the record model takes it without engine totals: its own passives plus the pet
+// bonuses (its final type, All and, for Cold / Fire / Lightning, Elemental).
+std::map<Key, double> pet_record_pct(const snap::Snapshot& s, const arz::Database& db, const std::string& pet_record,
+                                     const std::vector<Key>& keys);
 
 // score_buffs.cpp
 // Cast buffs not in the totals at capture, and charged Skill_WeaponPool_ChargedScaling main skills of `side`.

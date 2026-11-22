@@ -250,17 +250,32 @@ def mod_how(f):
         return 'scored', 'Damage: combo charges the modified skill builds, for cooldown main skills (SkillManager::IncrementComboCharge 0x53F990, Skill::CollectComboMultiplier 0x4993D0)'
     if f == 'skillComboChargeDuration':
         return 'no', 'not scored: combo charge expiry is not modeled'
-    if re.match(r'(projectile\w+|skillTarget\w+|beam\w+|wave\w+|explosionRadius|spark\w+|targetingMode|'
-                r'overwriteBaseSkill|petBurstSpawn|petChanges)$', f):
-        return 'no', 'not scored: area, targets, projectiles or behaviour; the model is one target, one use'
+    if f in ('skillTargetRadius', 'skillTargetAngle', 'skillTargetNumber', 'explosionRadius', 'projectileLaunchNumber',
+             'projectilePiercing', 'sparkChance', 'sparkMaxNumber', 'waveDistance', 'waveStartWidth', 'waveEndWidth',
+             'projectileExplosionRadius', 'projectilePiercingChance', 'maxRange', 'startWidth', 'endWidth'):
+        return 'scored', MAIN + 'targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill\'s own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill\'s targets (chain jumps on Skill_AttackChain only, not Aegis\' Skill_AttackProjectileChain); single target: no effect'
+    if f in ('projectileLaunchRotation', 'skillTargetInterval'):
+        return 'no', 'not scored: spread / timing; the pack part takes every projectile to find an enemy'
+    if re.match(r'(projectile\w+|beam\w+|targetingMode|overwriteBaseSkill|petBurstSpawn|petChanges)$', f):
+        return 'no', 'not scored: fragments, beams, projectile swaps or behaviour without a traced damage path'
     if f == 'offensiveDamageMultModifier':
         return 'scored', MAIN + '"Total Damage Modified by": multiplies the skill\'s damage after its additive %; several compound (ModifyDamage 0x119280, CombatAttribute_DamageMultiplier::Execute 0x117E50); on a timed buff, every hit of the player\'s while it is up'
     if f in ('skillLifePercent', 'skillLifeBonusBuffDuration', 'skillLifePercentBuffDuration'):
         return 'no', 'not scored: heals are read from the skill record only'
     if f in ('skillCooldownReduction', 'skillCooldownReductionChance', 'skillManaCostReduction') or f.startswith('racialBonus'):
         return 'no', 'not scored: read from items only'
-    if f in ('cooldownCharges', 'cooldownTime'):
-        return 'no', 'not scored: skill charges are not modeled'
+    if f == 'cooldownCharges':
+        return 'zero', '0 by design: one recharge timer refills the charges one at a time over the full cooldown (Skill::StartCooldown 0x490DA0, SetChargeCooldown 0x4912B0, UpdateCooldownCharges 0x491740, Skill::Update 0x4817C0), so uses per second stay 1 / cooldown; charges add a burst at the start of a fight only'
+    if f == 'cooldownTime':
+        return 'scored', 'Damage: cooldown of the skill the pet modifier belongs to (SkillSecondary_PetModifier::GetSkillModifierData 0x556850 -> SkillProfile_Modifiers +0x48, Skill::GetCooldownTime 0x490ED0); pets alive of timed summons, uses per second'
+    if re.match(r'offensive(Stun|Freeze|Knockdown|Fear|Confusion|Petrify|Sleep|Trap|Convert)(Min|Max|Chance)$', f):
+        return 'scored', 'Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill\'s own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill\'s rate and the enemy\'s control resistance are not modeled'
+    if re.match(r'offensive(Projectile)?Fumble(Min|DurationMin)$', f):
+        return 'no', 'not scored: the enemy\'s melee / projectile attacks fail; the incoming mix has no melee / projectile split'
+    if re.match(r'offensiveSlow(AttackSpeed|RunSpeed|TotalSpeed)(Min|DurationMin)$', f):
+        return 'no', 'not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken'
+    if f == 'offensiveTauntMin':
+        return 'zero', '0 by design: taunt turns enemies onto the player; no solo Survivability or Damage meaning'
     if f.startswith(('defensive', 'character')):
         return 'no', 'not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled")'
     if f == 'retaliationDamagePct' or RETALIATION_DAMAGE.match(f):

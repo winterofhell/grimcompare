@@ -12,6 +12,7 @@
 #include <deque>
 #include <filesystem>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "calibration.h"
@@ -286,8 +287,35 @@ unsigned changes(const Probe& a, const Probe& b) {
   return t;
 }
 
+// Calibration: one snapshot per buff state not seen before this session, so the engine damage check sees each
+// (CalculateSkillDps with those buffs up). Polled once a second; at most one capture per 3 s and 64 per session.
+constexpr ULONGLONG kBuffPollMs = 1000, kBuffGapMs = 3000;
+constexpr std::size_t kMaxBuffStates = 64;
+std::set<std::uint64_t> g_buff_seen;
+ULONGLONG g_next_buff_poll = 0, g_buff_capture_at = 0;
+bool g_buff_poll = true;
+
+void buff_tick(ULONGLONG now) {
+  if (!g_buff_poll || now < g_next_buff_poll || !calibration_on() || g_buff_seen.size() >= kMaxBuffStates) return;
+  g_next_buff_poll = now + kBuffPollMs;
+  std::uint64_t h = 0;
+  const Take r = snapshot_buffs(h);
+  if (r == Take::Faulted) {
+    g_buff_poll = false;
+    log::write("calibration: buff poll faulted; buff state snapshots off");
+    return;
+  }
+  if (r != Take::Ok || g_buff_seen.contains(h) || now < g_buff_capture_at) return;
+  const bool first = g_buff_seen.empty();  // the load snapshot holds it
+  g_buff_seen.insert(h);
+  if (first) return;
+  g_buff_capture_at = now + kBuffGapMs;
+  capture(store::kBuff, false);
+}
+
 void auto_tick() {
   const ULONGLONG now = GetTickCount64();
+  if (!g_pending) buff_tick(now);
   if (now < g_next_probe) return;
   g_next_probe = now + kProbeMs;
   Probe p;

@@ -108,6 +108,38 @@ Take snapshot_probe(Probe& out) {
   return out.player ? Take::Ok : Take::NoPlayer;
 }
 
+Take snapshot_buffs(std::uint64_t& out) {
+  if (!api_ready) return Take::NoPlayer;
+  out = 0;
+  static std::string name;  // capacity kept across polls
+  auto read = [&] {
+    void* engine = const_cast<void*>(*api.engine_var);
+    const void* p = engine ? api.main_player(engine) : nullptr;
+    if (!p) return;
+    const void* sm = api.skill_manager(p);
+    std::uint64_t h = 1469598103934665603ull;
+    for (const void* list : {api.skill_list(sm), api.item_skill_list(sm)}) {
+      const Span skills = vec(list, sizeof(void*));
+      for (std::size_t i = 0; i < skills.count; ++i) {
+        const void* sk = rd<const void*>(skills.begin, i * sizeof(void*));
+        if (!sk || api.current_level(sk) == 0) continue;
+        set_cstr(name, api.object_name(sk));
+        const std::string& buff = api.buff_skill_name(sk);
+        if (!api.buff_active(p, name) && (buff.empty() || !api.buff_active(p, buff))) continue;
+        const u32 id = api.object_id(sk);
+        for (int b = 0; b < 4; ++b) h = (h ^ ((id >> (8 * b)) & 0xFF)) * 1099511628211ull;
+      }
+    }
+    out = h;
+  };
+  seh::Fault f;
+  if (!seh::run(read, f)) {
+    log::printf("snapshot buffs: FAULT 0x%08lX at 0x%016llX", f.code, static_cast<unsigned long long>(f.addr));
+    return Take::Faulted;
+  }
+  return out ? Take::Ok : Take::NoPlayer;
+}
+
 namespace {
 Take candidate(const void* item, u32 id, snap::Item& out, int& item_type) {
   if (!api_ready || !api.item_type_ok) return Take::NoPlayer;

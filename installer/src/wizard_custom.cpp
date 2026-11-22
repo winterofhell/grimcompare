@@ -44,6 +44,7 @@ const std::vector<Advanced>& advanced_list() {
       {"score.survival", "Survival weight", "How strongly staying alive counts (the exponent of Survivability)."},
       {"score.other", "Extras weight", "How strongly small extras count: run speed, regeneration, crowd-control resists."},
       {"thresholds.resist", "Resistance target", "Each base resistance below this costs a lot, above it adds little. 0 = off, 80 = the cap."},
+      {"damage.pack_share", "Pack share", "Part of the fighting against packs rather than one target (0..1): area, extra targets, projectiles and chains count there."},
       {"damage.kills_per_sec", "Kills per second", "Enemies you kill per second while fighting: drives \"on kill\" effects. Lower it for boss fights."},
       {"survival.incoming_hits_per_sec", "Hits taken per second", "Drives \"when hit\" effects such as retaliation procs and defensive buffs."},
       {"survival.melee_share", "Share of melee hits", "Part of the hits you take that are melee (0..1); the rest are projectiles."},
@@ -59,6 +60,7 @@ double default_of(const std::string& key, const BuildAnswers& a) {
   if (key == "score.survival") return sb;
   if (key == "score.other") return a.pets ? 0.35 : s.other_weight;
   if (key == "thresholds.resist") return 0;
+  if (key == "damage.pack_share") return s.pack_share;
   if (key == "damage.kills_per_sec") return s.kills_per_sec;
   if (key == "survival.incoming_hits_per_sec") return s.incoming_hits_per_sec;
   if (key == "survival.melee_share") return s.melee_share;

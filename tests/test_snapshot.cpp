@@ -79,6 +79,10 @@ Snapshot sample() {
   pet.default_skill_id = 3002;
   pet.skills = {{3002, "records/skills/default/defaultpetattack.dbr", 1, 20, 30},
                 {3003, "records/skills/playerclass03/pets/petskill_hellhound_fireclaw.dbr", 16, 0, 0}};
+  CombatTotals fire;
+  fire.type = 6, fire.damage_modifier = 120, fire.dot_modifier = 45;
+  pet.damage_modifiers = {fire};
+  pet.conversions = {Conversion{2, 6, 0.3f}};
   s.pets = {pet};
   SkillDps dps;
   dps.skill_id = 77;
@@ -157,6 +161,11 @@ TEST_CASE("snapshot JSON round-trips") {
   CHECK(b.pets[0].attack_speed_modifier == 25);
   CHECK(b.pets[0].cast_speed_modifier == 0);
   CHECK(b.pets[0].default_skill_id == 3002);
+  REQUIRE(b.pets[0].damage_modifiers.size() == 1);
+  CHECK(b.pets[0].damage_modifiers[0].damage_modifier == 120);
+  CHECK(b.pets[0].damage_modifiers[0].dot_modifier == 45);
+  REQUIRE(b.pets[0].conversions.size() == 1);
+  CHECK(b.pets[0].conversions[0].percent == 0.3f);
   REQUIRE(b.pets[0].skills.size() == 2);
   CHECK(b.pets[0].skills[0].anim_frames == 20);
   CHECK(b.pets[0].skills[0].anim_frame_rate == 30);
@@ -197,7 +206,7 @@ TEST_CASE("snapshot JSON: bad input throws") {
   CHECK_THROWS_AS(from_json("{"), std::runtime_error);
   CHECK_THROWS_AS(from_json("[]"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 1})"), std::runtime_error);
-  CHECK_THROWS_AS(from_json(R"({"schema": 17})"), std::runtime_error);
+  CHECK_THROWS_AS(from_json(R"({"schema": 18})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "skills": {}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"level": "x"}})"), std::runtime_error);
   CHECK_THROWS_AS(from_json(R"({"schema": 2, "character": {"pth": {"thresholds": [1], "damage_modifiers": [1]}}})"),

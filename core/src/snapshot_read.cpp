@@ -216,6 +216,8 @@ Pet read_pet(const J& j) {
     get(x, "anim_frame_rate", k.anim_frame_rate);
     return k;
   });
+  get_list(j, "damage_modifiers", p.damage_modifiers, read_combat);
+  get_list(j, "conversions", p.conversions, read_conversion);
   return p;
 }
 

@@ -8,6 +8,13 @@
 - A shield's own damage affixes no longer count for weapon attacks; the game leaves them out.
 - Engine damage check: compares the off-hand too, undoes damage reductions on the character, applies "Total Damage Modified" from timed buffs up at capture, and reports what it cannot model as `SKIP DMG` with a reason instead of a failure.
 - Snapshot schema 16 (`skill_dps` dual-wield flag, `damage_reduction`); older snapshots still load.
+- Single target vs pack: new `[damage] pack_share` (default 0, single target as before), with `pack_size`, `pack_radius` and `pack_line`. Above 0, skills count the enemies they hit in a pack from their area, cone, wave, chain, projectile, pierce and explosion fields and their modifiers'. Catalog builds whose main skills clear packs (Forcewave, Ring of Steel, Blade Arc, Phantasmal Blades and others) opt in at 0.5.
+- Pets: live pets' own damage totals are captured (snapshot schema 17) and replace the record estimate; pet bonus conversions, DoT duration and crit damage now apply to pet hits. The damage check compares each live pet's % per type with the model.
+- The incoming damage mix and the threshold targets below the endgame level now come from the game's monster tables at the character's level and difficulty instead of a fixed hand table. Physical is about twice the old share, so armor and physical resist are worth more.
+- The damage check also records item-granted skills and, while calibration is on, a new snapshot each time a buff state not seen before is up. `gdc_calibrate` prints a summary of the rules confirmed and failing, per skill and per damage type.
+- Crowd control of learned skills with a cooldown (Shadow Strike, Blitz, Aegis of Menhir and others) and of their skill modifiers counts in Survivability, as item procs already did.
+- A pet modifier's "skill recharge" (Blight Fiend, Hellhound and others) shortens the summon's cooldown.
+- Dual wield: only the DoT both hands share folds into one; each weapon's own DoT now counts.
 
 ## 1.0.4 (2026-11-19)
 

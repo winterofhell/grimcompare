@@ -14,4 +14,7 @@ void calibration_record(const snap::Snapshot& s, bool full, const std::string& n
 
 int calibration_failures();
 
+// Calibration is writing (the store opened and nothing faulted).
+bool calibration_on();
+
 }  // namespace gdc::adapter

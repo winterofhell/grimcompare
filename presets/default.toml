@@ -32,8 +32,10 @@ threshold_resist_weight = 1.0
 # second tier. 0.1 = far under its target one costs at most ~10% Survivability, so it can tip a close call but
 # never outweighs a base resist dropping under its cap.
 threshold_secondary_weight = 0.1
-# > 0: below this character level, second-tier targets (but absorption) are scaled by level / threshold_level,
-# so a stage can state endgame targets. 0 = targets as written.
+# > 0: below this character level, second-tier targets (but absorption) are scaled down, so a stage can state
+# endgame targets: armor, life and DA by how the monsters' physical hit, hit and OA at your level compare to
+# theirs at threshold_level (re/EnemyByLevel.tsv), percent targets by level / threshold_level (design choice).
+# 0 = targets as written.
 threshold_level = 0
 # Timed buffs you cast (Blood of Dreeg): true = recast whenever the recharge allows, up
 # min(1, duration / (recharge x (1 - cooldown reduction))) of the time (rank values from the database, your
@@ -113,18 +115,13 @@ low_health_per_sec = 0.05
 # (bosses resist it, not every enemy is in range). x the share of the time such a proc is up.
 cc_share = 0.1
 
-# Share of incoming damage per type (normalized, need not sum to 1).
-[survival.threat]
-physical = 0.20
-pierce = 0.05
-cold = 0.10
-fire = 0.10
-poison = 0.10
-lightning = 0.10
-vitality = 0.10
-chaos = 0.10
-aether = 0.10
-bleeding = 0.05
+# Share of incoming damage per type. Unset = from the game database: each type's mean share of the largest skill
+# hit (with that skill's DoT) of the monsters of your level and difficulty (re/EnemyDamageTypes.tsv; at level 100
+# Ultimate: physical 0.37, pierce 0.05, cold 0.10, fire 0.10, poison 0.08, lightning 0.09, vitality 0.08, chaos
+# 0.06, aether 0.05, bleeding 0.03). A table replaces it (normalized, need not sum to 1). Example:
+# [survival.threat]
+# physical = 0.2
+# fire = 0.1
 
 # The target's resistances: your RR (gear, skills, devotions, procs, pets) lowers them, damage x (1 - resist/100)
 # (docs/MECHANICS.md §1). Values from the DB (bosses as the target is the design choice): mean base defensive<Type>

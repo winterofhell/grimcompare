@@ -65,10 +65,17 @@ double damage_taken(const snap::Snapshot& s, const model::Sheet& sh, const Setti
                     const std::vector<RrState>& states, double physical_hit, double armor_absorb, Survival& out) {
   const int difficulty = enemy::difficulty(s);
   const auto regions = model::region_armor(s);
+  // The derived mix of the last level and difficulty, kept: every buff state of a side asks for the same one.
+  thread_local double last_level = -1;
+  thread_local int last_difficulty = -1;
+  thread_local std::map<int, double> table;
+  if (p.threat.empty() && (s.level != last_level || difficulty != last_difficulty))
+    table = enemy::threat(s.level, difficulty), last_level = s.level, last_difficulty = difficulty;
+  const auto& threat = p.threat.empty() ? table : p.threat;
   double shares = 0;
-  for (const auto& [type, share] : p.threat) shares += share;
+  for (const auto& [type, share] : threat) shares += share;
   double taken = 0;
-  for (const auto& [type, share] : p.threat) {
+  for (const auto& [type, share] : threat) {
     const auto x = std::find_if(sh.resists.begin(), sh.resists.end(), [&](const auto& r) { return r.type == type; });
     double f = 0;
     for (const RrState& st : states) {
@@ -124,10 +131,19 @@ void apply_thresholds(const snap::Snapshot& s, const model::Sheet& sh, const Set
         if (name == "resist") out.thresholds["resist:" + std::to_string(t)] = ft;  // one part per resist
       }
     } else {
-      // Absorption is a percentage of armor, not an amount that grows with level.
-      const double scaled = p.threshold_level > 0 && s.level < p.threshold_level && name != "absorption"
-                                ? target * s.level / p.threshold_level
-                                : target;
+      // Below threshold_level a flat target follows the monsters (re/EnemyByLevel.tsv, §9): armor absorbs per hit
+      // (the physical part of their hit), life against the hit, DA against their OA, each as its ratio here to the
+      // one at threshold_level. Percent targets scale by level / threshold_level (design choice); absorption is a
+      // percentage of armor and does not scale.
+      double scaled = target;
+      if (p.threshold_level > 0 && s.level < p.threshold_level && name != "absorption") {
+        const double enemy::Enemy::*grows = name == "armor" ? &enemy::Enemy::hit_physical
+                                            : name == "life" ? &enemy::Enemy::hit
+                                            : name == "da"   ? &enemy::Enemy::oa
+                                                             : nullptr;
+        const double at = grows ? enemy::at(p.threshold_level, difficulty).*grows : 0;
+        scaled *= at > 0 ? enemy::at(s.level, difficulty).*grows / at : s.level / p.threshold_level;
+      }
       value = name == "physical_resist"     ? shown(kPhysical)
               : name == "absorption"        ? armor_absorb * 100
               : name == "armor"             ? sh.armor

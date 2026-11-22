@@ -132,6 +132,10 @@ void write_damage(std::string& o, const Settings& from, const std::vector<Skill>
   line(o, "pet_attack_rate", number(from.pet_attack_rate));
   line(o, "kills_per_sec", number(from.kills_per_sec));
   line(o, "offtarget_weight", number(from.offtarget_weight));
+  line(o, "pack_share", number(from.pack_share));
+  line(o, "pack_size", number(from.pack_size));
+  line(o, "pack_radius", number(from.pack_radius));
+  line(o, "pack_line", number(from.pack_line));
   line(o, "retaliation", from.retaliation_damage ? "true" : "false");
   std::string cw;
   for (const auto& [a, b] : from.conversion_warn) cw += (cw.empty() ? "" : ", ") + toml_string(conversion_name(a) + "->" + conversion_name(b));
@@ -151,6 +155,7 @@ void write_survival(std::string& o, const Settings& from) {
   line(o, "incoming_hits_per_sec", number(from.incoming_hits_per_sec));
   line(o, "low_health_per_sec", number(from.low_health_per_sec));
   line(o, "cc_share", number(from.cc_share));
+  if (from.threat.empty()) return;  // the monster table
   o += "\n[survival.threat]\n";
   for (const auto& [t, v] : from.threat) line(o, threat_name(t), number(v));
 }

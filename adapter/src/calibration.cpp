@@ -60,8 +60,12 @@ void record(const snap::Snapshot& s, bool full, const std::string& name, const a
       ++g_failures;
     }
   // Engine damage check: the snapshot alone, on every one that holds the engine's numbers.
-  if (db && !s.skill_dps.empty()) {
-    const auto checks = calibrate::damage(s, *db);
+  if (db && (!s.skill_dps.empty() || !s.pets.empty())) {
+    auto checks = calibrate::pets(s, *db);
+    if (!s.skill_dps.empty()) {
+      auto skills = calibrate::damage(s, *db);
+      checks.insert(checks.begin(), skills.begin(), skills.end());
+    }
     const auto lines = calibrate::damage_report(checks, label);
     for (const auto& c : checks)
       if (c.skipped.empty() && !c.pass()) ++g_failures;
@@ -120,5 +124,7 @@ void calibration_record(const snap::Snapshot& s, bool full, const std::string& n
 }
 
 int calibration_failures() { return g_failures.load(); }
+
+bool calibration_on() { return g_on.load(); }
 
 }  // namespace gdc::adapter

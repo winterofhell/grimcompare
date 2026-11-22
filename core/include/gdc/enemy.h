@@ -1,5 +1,6 @@
 #pragma once
 // Median monster per level and difficulty (MECHANICS §8, §9).
+#include <map>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,10 @@ struct Enemy {
 int difficulty(const snap::Snapshot& s);
 
 Enemy at(double level, int difficulty);
+
+// CombatAttributeType -> share of the median monster's largest hit (direct + that skill's DoT), the default
+// incoming damage mix.
+std::map<int, double> threat(double level, int difficulty);
 
 // Difficulty's monsterAttributePak resist bonus (gameengine.dbr).
 double resist(int type, int difficulty);

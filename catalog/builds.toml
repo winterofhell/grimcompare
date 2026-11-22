@@ -10,11 +10,15 @@
 #             traps and auras are scored as a share on top of these, so a summoner lists the default weapon attack.
 #             The wizard keeps the default attack and the skills of the character's masteries.
 #   sets      lootset records for target_sets
-#   other     [other] weight overrides, only where Damage / Survivability do not see the stat
+#   other     [other] weight overrides, only where Damage / Survivability do not see the stat (taste: what the
+#             build lives on, e.g. leech for a melee build; none is derived)
+#   pack      [damage] pack_share for builds whose main skills clear packs (taste: half the fighting against packs);
+#             the comment names the area. Unset: single target only. Targets per use are derived (DB fields).
 #   conversion, stats, items: plain-words hints for the menu
 # [[build.variant]] overrides any of name, classes, damage, skills, sets, other, conversion, stats, items.
 # Skills are scored from the character's real points; conversions from the real gear. Nothing here is a weight
-# on damage types: a converted-away type scores ~0 from the math.
+# on damage types: a converted-away type scores ~0 from the math. Incoming damage mix, enemy OA / DA / hit and
+# RR come from the monster table of the character's level and difficulty, not from here.
 
 # ---------------------------------------------------------------- Melee
 
@@ -36,6 +40,7 @@ category = "melee"
 classes = ["0109", "0108", "0105", "0102"]
 damage = ["physical", "internal_trauma"]
 skills = ["records/skills/playerclass01/shieldhammer1.dbr"]
+pack = 0.5  # clearing build: Forcewave is a wave through the pack
 conversion = "None on the Physical route."
 stats = "Physical damage, cast speed (Forcewave is a spell), Offensive Ability, crit damage; life leech, physical resist, armor"
 items = "Forcewave ranks"
@@ -127,6 +132,7 @@ category = "melee"
 classes = ["0410"]
 damage = ["cold", "frostburn"]
 skills = ["records/skills/playerclass04/ringofsteel.dbr", "records/skills/playerclass10/onslaught1.dbr"]
+pack = 0.5  # clearing build: Ring of Steel is a radius around the player
 sets = ["records/items/lootsets/itemset_d108.dbr"]
 conversion = "Korba's Fury turns Onslaught and Savagery Physical into Cold; Ring of Frost turns Ring of Steel's Pierce into Cold."
 stats = "Cold and Frostburn damage, attack speed, Offensive Ability, crit damage; life leech, dodge, physical resist"
@@ -290,6 +296,7 @@ category = "melee"
 classes = ["0102", "0106"]
 damage = ["fire", "burn"]
 skills = ["records/skills/playerclass01/bladearc1.dbr"]
+pack = 0.5  # clearing build: Blade Arc is a 180 degree cone of up to 5 targets
 conversion = "Physical to Fire: Shar'Zul's Worldeater 45%; Sunherald's Claymore converts Menhir's Bulwark."
 stats = "Attack speed (Blade Arc is a weapon attack), Fire and Burn damage, Offensive Ability, crit damage; life leech, life regeneration"
 items = "Sunherald's Claymore, Shar'Zul's Worldeater, Thermite Mine"
@@ -498,6 +505,7 @@ category = "ranged"
 classes = ["0206"]
 damage = ["lightning", "electrocute"]
 skills = ["records/skills/playerclass02/stunjacks1.dbr", "records/skills/playerclass06/savagery1.dbr"]
+pack = 0.5  # clearing build: Stun Jacks fires a burst of exploding jacks
 sets = ["records/items/lootsets/itemset_d022b.dbr"]
 conversion = "Light's Guardian turns Stun Jacks' Physical into Lightning; Stormrend does too."
 stats = "Cast speed, cooldown reduction, Lightning and Electrocute damage, Offensive Ability; life regeneration, Blast Shield"
@@ -593,6 +601,7 @@ category = "caster"
 classes = ["0207", "0307", "0709", "0407"]
 damage = ["fire", "burn"]
 skills = ["records/skills/playerclass07/purifyingflame1.dbr"]
+pack = 0.5  # clearing build: Flames of Ignaffar is a spell cone
 conversion = "Fire stays Fire."
 stats = "Cast speed, damage of your type, Offensive Ability, crit damage; life leech, Inquisitor Seal"
 items = "Bloodsworn Sigil"
@@ -620,6 +629,7 @@ category = "caster"
 classes = ["0510", "0910"]
 damage = ["cold", "frostburn"]
 skills = ["records/skills/playerclass10/windsofasterkarn1.dbr", "records/skills/playerclass05/skyshard1.dbr", "records/skills/playerclass09/judgment1.dbr"]
+pack = 0.5  # clearing build: Winds of Asterkarn and Sky Shard are areas
 conversion = "Winds of Asterkarn is Cold; keep conversions into Cold."
 stats = "Cast speed, cooldown reduction, Cold and Frostburn damage, Offensive Ability; armor, physical resist"
 items = "Stormfang (Zealot)"
@@ -639,6 +649,7 @@ category = "caster"
 classes = ["0507", "0508"]
 damage = ["fire", "lightning", "burn", "electrocute"]
 skills = ["records/skills/playerclass05/arcanemissile.dbr"]
+pack = 0.5  # clearing build: Panetti's Replicating Missile explodes on impact
 sets = ["records/items/lootsets/itemset_d011b.dbr"]
 conversion = "Invoker's Will: PRM Aether to Fire and Lightning, Cold to Fire and Lightning."
 stats = "Cast speed, Elemental damage, Offensive Ability, crit damage; Inquisitor Seal, Mirror, energy regeneration"
@@ -662,6 +673,7 @@ category = "caster"
 classes = ["0408", "0304", "0410", "0405"]
 damage = ["vitality", "vitality_decay"]
 skills = ["records/skills/playerclass04/phantomblade.dbr"]
+pack = 0.5  # clearing build: Phantasmal Blades fires several piercing blades
 conversion = "Turn all of Phantasmal Blades' Pierce, Cold, Vitality and Chaos into one type."
 stats = "Cast speed (not attack speed), flat damage, damage of your type, Offensive Ability; energy regeneration, life"
 items = ""
@@ -714,6 +726,7 @@ category = "caster"
 classes = ["0506", "0510", "0205", "0105"]
 damage = ["cold", "lightning", "frostburn", "electrocute"]
 skills = ["records/skills/playerclass05/skyshard1.dbr", "records/skills/playerclass05/devastation.dbr"]
+pack = 0.5  # clearing build: Sky Shard and Devastation are dropped areas
 conversion = "Keep Trozan's Sky Shard Cold and Lightning."
 stats = "Cooldown reduction, cast speed, damage of your type, Offensive Ability; Maiven's Sphere, Mirror"
 items = ""
@@ -745,6 +758,7 @@ category = "caster"
 classes = ["0205", "0203", "0204"]
 damage = ["lightning", "electrocute"]
 skills = ["records/skills/playerclass02/grenado1.dbr", "records/skills/playerclass02/canisterbomb1.dbr", "records/skills/playerclass02/blackwater1.dbr"]
+pack = 0.5  # clearing build: every main skill is an exploding projectile
 sets = ["records/items/lootsets/itemset_d008b.dbr"]
 conversion = "Barrelsmith's Destroyers: Fire to Lightning 45% per pistol, Canister Bomb Pierce to Lightning. Skyfire Grenado and Concussive Bomb turn Physical into Lightning."
 stats = "Cooldown reduction, cast speed, damage of your type and its DoT, Offensive Ability; energy regeneration, Blast Shield"
@@ -767,6 +781,7 @@ category = "caster"
 classes = ["0408", "0405"]
 damage = ["vitality", "vitality_decay"]
 skills = ["records/skills/playerclass04/ringofsteel.dbr", "records/skills/playerclass04/shadowstrike.dbr", "records/skills/playerclass08/illomen1.dbr"]
+pack = 0.5  # clearing build: Ring of Steel is a radius around the player
 sets = ["records/items/lootsets/itemset_d219.dbr"]
 conversion = "Armor of the Eternal Night (Morgoneth) converts Pierce to Vitality, not to Cold."
 stats = "Cooldown reduction, Vitality damage, Offensive Ability, crit damage; life, life leech"
@@ -832,6 +847,7 @@ category = "caster"
 classes = ["0306", "0608", "0308", "0809"]
 damage = ["vitality", "vitality_decay"]
 skills = ["records/skills/playerclass08/ravenousearth1.dbr", "records/skills/playerclass03/sigilofdestruction1.dbr", "records/skills/playerclass06/devouringswarm1.dbr"]
+pack = 0.5  # clearing build: Ravenous Earth and Sigil of Destruction are areas
 sets = ["records/items/lootsets/itemset_d119.dbr"]
 conversion = "None needed: the zones are Vitality. Dark One's Gift turns Chaos into Vitality 25%."
 stats = "Cast speed, cooldown reduction, Vitality and Vitality Decay damage, Offensive Ability; life, armor"

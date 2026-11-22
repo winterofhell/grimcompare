@@ -26,7 +26,8 @@ std::string apply(std::string_view target, std::string_view patch);
 std::string folder_name(std::string_view utf8_name);
 
 enum Trigger : unsigned {
-  kLoad = 1, kEquip = 2, kLevel = 4, kSkill = 8, kDevotion = 16, kAttribute = 32, kDifficulty = 64, kManual = 128
+  kLoad = 1, kEquip = 2, kLevel = 4, kSkill = 8, kDevotion = 16, kAttribute = 32, kDifficulty = 64, kManual = 128,
+  kBuff = 256  // calibration: a buff state not captured before
 };
 std::vector<std::string> tags(unsigned triggers);
 

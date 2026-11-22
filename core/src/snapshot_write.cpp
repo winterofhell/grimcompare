@@ -215,6 +215,8 @@ J pet(const Pet& p) {
     if (k.anim_frame_rate != 0) x["anim_frame_rate"] = k.anim_frame_rate;
     return x;
   });
+  put_list(j, "damage_modifiers", p.damage_modifiers, combat);
+  put_list(j, "conversions", p.conversions, conversion);
   return j;
 }
 

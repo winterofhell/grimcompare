@@ -1,5 +1,5 @@
-# Rewrites the generated tables in core/src/enemy.cpp (kRows, kRaces) from re/EnemyByLevel.tsv and
-# re/EnemyRaces.tsv, after re/tools/enemy_table.py regenerated them for a new game build.
+# Rewrites the generated tables in core/src/enemy.cpp (kRows, kThreat, kRaces) from re/EnemyByLevel.tsv,
+# re/EnemyDamageTypes.tsv and re/EnemyRaces.tsv, after re/tools/enemy_table.py regenerated them for a new game build.
 # usage: python3 -I re/tools/enemy_cpp.py <repo root>
 import re
 import sys
@@ -31,6 +31,16 @@ levels = {len([r for r in rows if r['difficulty'] == d]) for d in DIFFS}
 if len(levels) != 1:
     sys.exit(f'EnemyByLevel.tsv: uneven level counts {levels}')
 
+THREAT = ['physical', 'pierce', 'cold', 'fire', 'poison', 'lightning', 'vitality', 'chaos', 'aether', 'bleeding']
+shares = tsv('EnemyDamageTypes.tsv')
+threat = []
+for d in DIFFS:
+    mine = [r for r in shares if r['difficulty'] == d]
+    if [r['level'] for r in mine] != [r['level'] for r in rows if r['difficulty'] == d]:
+        sys.exit(f'EnemyDamageTypes.tsv: levels for {d} differ from EnemyByLevel.tsv')
+    body = ''.join(f"        {{{num(r['level'])}, {{{', '.join(num(r[c]) for c in THREAT)}}}}},\n" for r in mine)
+    threat.append(f'    {{  // {d}\n{body}    }},\n')
+
 races = tsv('EnemyRaces.tsv')
 race_body = ''.join(f"    {{\"{r['races']}\", {r['monsters']}}},\n" for r in races)
 
@@ -39,9 +49,11 @@ src = open(path, encoding='utf-8').read()
 src, n1 = re.subn(r'(constexpr int kLevels = )\d+;', rf'\g<1>{levels.pop()};', src)
 src, n2 = re.subn(r'(constexpr Row kRows\[kDifficulties\]\[kLevels\] = \{\n).*?(\n\};)',
                   lambda m: m.group(1) + ''.join(blocks).rstrip('\n') + m.group(2), src, flags=re.S)
+src, n4 = re.subn(r'(constexpr Shares kThreat\[kDifficulties\]\[kLevels\] = \{\n).*?(\n\};)',
+                  lambda m: m.group(1) + ''.join(threat).rstrip('\n') + m.group(2), src, flags=re.S)
 src, n3 = re.subn(r'(constexpr Races kRaces\[\] = \{\n).*?(\n\};)',
                   lambda m: m.group(1) + race_body.rstrip('\n') + m.group(2), src, flags=re.S)
-if (n1, n2, n3) != (1, 1, 1):
-    sys.exit(f'core/src/enemy.cpp: table markers not found ({n1}, {n2}, {n3})')
+if (n1, n2, n3, n4) != (1, 1, 1, 1):
+    sys.exit(f'core/src/enemy.cpp: table markers not found ({n1}, {n2}, {n3}, {n4})')
 open(path, 'w', encoding='utf-8').write(src)
 print(f'{len(rows)} level rows, {len(races)} race groups')

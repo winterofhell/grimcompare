@@ -2,6 +2,7 @@
 // database, checking the sign a player would expect.
 #include <doctest/doctest.h>
 
+#include "gdc/calibrate.h"
 #include "build_harness.h"
 
 using namespace gdc;
@@ -145,6 +146,44 @@ TEST_CASE("templates: pet on an Occultist with Hellhound; player-scaled summons 
   CHECK(r.pets);  // labelled experimental in the tooltip
   CHECK(b.ring([](snap::ItemStats&) {}, "records/items/gearaccessories/rings/c040_ring.dbr") > 0);  // +2 Hellhound
   CHECK(b.neck("records/items/gearaccessories/necklaces/c003_necklace.dbr") > 0);  // +Occultist mastery
+  // Grim Harvest boots (c101: pet bonus +6% crit damage only): crit damage counts only above the crit threshold,
+  // which this Hellhound's hit chance does not reach.
+  CHECK(b.worth(bare(12, "records/items/gearfeet/c101_feet.dbr")).ratio.damage == doctest::Approx(1));
+  // A live pet's engine totals (schema 17) replace the record %: with +300% of every type already on it, the ring's +50%
+  // adds less.
+  snap::Pet live;
+  live.record = "records/skills/playerclass03/pets/pet_hellhound_a16.dbr";
+  for (const int type : {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15}) {
+    snap::CombatTotals row;
+    row.type = type;
+    row.damage_modifier = row.dot_modifier = 300;
+    live.damage_modifiers.push_back(row);
+  }
+  b.s.pets = {live};
+  const auto engine = b.worth(cult);
+  CHECK(engine.ratio.damage > 1);
+  CHECK(engine.ratio.damage < r.ratio.damage);
+  // The engine check of a pet's %: rows equal to the record model pass, 20 points more on Fire is off.
+  b.s.schema = snap::kSchema;
+  for (auto& row : b.s.pets[0].damage_modifiers) row.damage_modifier = row.dot_modifier = 0;
+  const auto model = calibrate::pets(b.s, *b.db);
+  REQUIRE(model.size() == 1);
+  REQUIRE(model[0].skipped.empty());
+  CHECK(model[0].rules == std::vector<std::string>{"pet %"});
+  for (const auto& t : model[0].types)
+    for (auto& row : b.s.pets[0].damage_modifiers)
+      if (row.type == t.key.first) (t.key.second ? row.dot_modifier : row.damage_modifier) = static_cast<float>(t.model);
+  CHECK(calibrate::pets(b.s, *b.db)[0].pass());
+  for (auto& row : b.s.pets[0].damage_modifiers)
+    if (row.type == 6) row.damage_modifier += 20;
+  const auto off = calibrate::pets(b.s, *b.db);
+  CHECK_FALSE(off[0].pass());
+  for (const auto& t : off[0].types) CHECK(calibrate::damage_off(t) == (t.key == score::DamageKey{6, false}));
+  b.s.pets[0].damage_modifiers.clear();
+  CHECK(calibrate::pets(b.s, *b.db)[0].skipped == "no engine totals captured for this pet");
+  b.s.schema = 16;
+  CHECK(calibrate::pets(b.s, *b.db).empty());  // not captured before schema 17
+  b.s.pets.clear();
   // The player's own offense does not reach a Class Pet.
   CHECK(b.dmg(6, 40, 40) == 0);
   CHECK(b.chr(21, 80) == 0);

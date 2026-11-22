@@ -74,6 +74,11 @@ Eval eval(const snap::Snapshot& s, double absorbed, const Side& side, const Proc
       }
       d.value *= mult, d.per_use *= mult, d.plain *= mult;
       if (explain && mult != 1 && !e.skills.back().inputs.empty()) e.skills.back().inputs += " x" + fmt(mult, 3) + " buff mult";
+      if (const double f = pack_factor(m.raw.area, p); f != 1) {
+        d.value *= f, d.per_use *= f, d.plain *= f;
+        if (explain && !d.inputs.empty())
+          d.inputs += " x" + fmt(f, 3) + " pack (" + fmt(pack_targets(m.raw.area, p), 2) + " targets)";
+      }
     }
     combo(s, side, *db, e.skills, explain);
     // The trigger rates at this state's speeds (as rates() in score_side.cpp): the main skills' uses/s, the crit

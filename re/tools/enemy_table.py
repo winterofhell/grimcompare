@@ -4,6 +4,7 @@
 #        python3 -I re/tools/enemy_table.py <game dir> --resists > re/EnemyResistByDifficulty.tsv
 #        python3 -I re/tools/enemy_table.py <game dir> --penalty > re/PlayerResistByDifficulty.tsv
 #        python3 -I re/tools/enemy_table.py <game dir> --races > re/EnemyRaces.tsv
+#        python3 -I re/tools/enemy_table.py <game dir> --threat > re/EnemyDamageTypes.tsv
 # For every Monster record under records/creatures/enemies/ (Common, Champion, Hero) at charLevel = L:
 #   level  = the record's charLevel equation
 #   OA, DA = combatformulas.dbr offensive/defensiveAbilityEquation on the bio record's
@@ -33,6 +34,10 @@
 #   joined; "" = none). Racial bonuses match a target whose list shares any tag with the bonus's racialBonusRace,
 #   case-insensitively (ItemEquipment::ContributeRacialBonusDamage 0x33FC00 -> 0x592080 -> 0x591FE0). Every record
 #   is in the table at every level and the difficulty paks set no race, so the shares do not depend on either.
+# --threat: per difficulty and level the mean over the monsters of each resist type's share of the same largest
+#   hit (direct damage as above, offensiveElemental split evenly over Cold / Fire / Lightning, plus that skill's
+#   DoT: offensiveSlow<Type>Min x offensiveSlow<Type>DurationMin, at least 1 s). Physical / Internal Trauma count
+#   as physical, Life / Vitality Decay as vitality. The default [survival.threat] shares.
 import re, statistics, sys
 sys.path.insert(0, __import__('os').path.dirname(__file__))
 import arz
@@ -83,6 +88,25 @@ def hit(r, level, dex, intel, d):
         total += v
         if t == 'Physical': phys += v
     return total, phys
+SLOW = {'Physical': 'physical', 'Pierce': 'pierce', 'Cold': 'cold', 'Fire': 'fire', 'Poison': 'poison',
+        'Lightning': 'lightning', 'Life': 'vitality', 'Chaos': 'chaos', 'Aether': 'aether', 'Bleeding': 'bleeding'}
+def mix(r, level, dex, intel, d):
+    out = {}
+    def add(t, k, v):
+        f = (dex / 245 + 1) if t in ('Physical', 'Pierce', 'Bleeding') else (intel / 215 + 1)
+        v *= f * max(0.0, 1 + (adj(d, 'offensiveTotalDamageModifier') + adj(d, 'offensive%sModifier' % t)) / 100)
+        out[k] = out.get(k, 0.0) + v
+    for t in TYPES:
+        lo = at(r.get('offensive%sMin' % t, 0), level)
+        if lo <= 0: continue
+        v = (lo + max(lo, at(r.get('offensive%sMax' % t, 0), level))) / 2
+        if t == 'Elemental':
+            for e in ('Cold', 'Fire', 'Lightning'): add(e, SLOW[e], v / 3)
+        else: add(t, SLOW[t], v)
+    for t, k in SLOW.items():
+        lo = at(r.get('offensiveSlow%sMin' % t, 0), level)
+        if lo > 0: add(t, k, lo * max(1.0, at(r.get('offensiveSlow%sDurationMin' % t, 0), level)))
+    return out
 def reduction(r, level, out):
     for t in BASE:
         v = min(0.0, at(r.get('defensive' + t, 0), level))
@@ -129,6 +153,32 @@ if '--races' in sys.argv:
         groups[key] = groups.get(key, 0) + 1
     print('races\tmonsters')
     for k in sorted(groups): print('%s\t%d' % (k, groups[k]))
+    sys.exit(0)
+
+if '--threat' in sys.argv:
+    keys = list(SLOW.values())
+    print('difficulty\tlevel\t' + '\t'.join(keys))
+    for d, name in enumerate(DIFFICULTIES):
+        for L in [1] + list(range(5, 101, 5)):
+            acc, n = {}, 0
+            for r in mons:
+                lvl = ev(r.get('charLevel', 'charLevel'), charLevel=L)
+                bio = rec(r.get('characterAttributeEquations', '')) or {}
+                dex = ev(bio.get('characterDexterity', 0), charLevel=lvl) * (1 + adj(d, 'characterDexterityModifier') / 100)
+                intel = ev(bio.get('characterIntelligence', 0), charLevel=lvl) * (1 + adj(d, 'characterIntelligenceModifier') / 100)
+                best = (0.0, None)
+                for i in range(1, 40):
+                    sk = rec(r.get('skillName%d' % i, ''))
+                    if not sk: continue
+                    sl = max(int(ev(r.get('skillLevel%d' % i, 1), charLevel=lvl)), 1)
+                    for s in (sk, rec(sk.get('buffSkillName', '')) if isinstance(sk.get('buffSkillName'), str) else None):
+                        if s and (h := hit(s, sl, dex, intel, d)[0]) > best[0]: best = (h, s, sl)
+                if best[0] <= 0: continue
+                m = mix(best[1], best[2], dex, intel, d)
+                total = sum(m.values())
+                n += 1
+                for k, v in m.items(): acc[k] = acc.get(k, 0.0) + v / total
+            print('%s\t%d\t' % (name, L) + '\t'.join('%.3f' % (acc.get(k, 0.0) / n) for k in keys))
     sys.exit(0)
 
 print('difficulty\tlevel\tmonsters\toa\tda\thit\thit_physical\tmonsters_with_skill_hit\trr\trr_share\tcrit_damage\tbosses\tboss_rr\tboss_rr_share')

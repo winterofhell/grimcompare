@@ -15,20 +15,26 @@ namespace {
 constexpr std::string_view kControl[] = {"Stun", "Freeze", "Knockdown", "Fear", "Confusion", "Petrify", "Sleep", "Trap", "Convert"};
 
 // An enemy is held once: longest control x its chance.
-double held_seconds(const arz::Record* rec, const arz::Record* buff, std::uint32_t lv) {
-  double held = 0;
-  static const auto kControlFields = [] {  // offensive<Kind>Min / Max / Chance
-    std::array<std::array<std::string, 3>, std::size(kControl)> out;
-    for (std::size_t i = 0; i < out.size(); ++i)
-      for (std::size_t j = 0; j < 3; ++j) out[i][j] = "offensive" + std::string(kControl[i]) + (j == 0 ? "Min" : j == 1 ? "Max" : "Chance");
-    return out;
-  }();
-  for (const arz::Record* r : {rec, buff})
+// A modifier's offensive attributes join its skill's (Skill::AddModifierOffensiveDamageAttributes 0x493480 calls each
+// learned and item modifier's vt+0x688 into the skill's accumulator), so its control counts with the skill's.
+// shortcut: same-kind controls of a skill and its modifier are taken as separate rolls (longest wins), not summed —
+// revisit when the accumulator's merge of two Stun entries is traced.
+double held_seconds(const arz::Database& db, const arz::Record* r, std::uint32_t lv) {
+  if (!r) return 0;
+  return db.derived<double>(*r, lv, [&] {
+    static const auto kControlFields = [] {  // offensive<Kind>Min / Max / Chance
+      std::array<std::array<std::string, 3>, std::size(kControl)> out;
+      for (std::size_t i = 0; i < out.size(); ++i)
+        for (std::size_t j = 0; j < 3; ++j) out[i][j] = "offensive" + std::string(kControl[i]) + (j == 0 ? "Min" : j == 1 ? "Max" : "Chance");
+      return out;
+    }();
+    double held = 0;
     for (const auto& [fmin, fmax, fchance] : kControlFields) {
-      const double min = r ? at_level(*r, fmin, lv) : 0, chance = r ? at_level(*r, fchance, lv) : 0;
+      const double min = at_level(*r, fmin, lv), chance = at_level(*r, fchance, lv);
       if (min > 0) held = std::max(held, (min + std::max(min, at_level(*r, fmax, lv))) / 2 * (chance > 0 && chance < 100 ? chance / 100 : 1));
     }
-  return held;
+    return held;
+  });
 }
 
 // damageAbsorptionPercent / 100 and damageAbsorption / one hit, the skill's plus its modifiers' (Mark of Torment).
@@ -107,8 +113,11 @@ Procs procs(const snap::Snapshot& s, const Side& side, const Settings& p, const 
   for (const auto& e : side.effects.effects) {
     if (e.pet) continue;
     const arz::Record* rec = db.record(e.record);
-    // Cast buffs come from learned_buffs(); here self-triggered passives only.
-    if (!rec || (e.source == "learned" && !model::triggered_buff(*rec))) continue;
+    if (!rec) continue;
+    // Cast buffs come from learned_buffs(); of a cast skill only its crowd control, when it has a cooldown (a spammed
+    // skill's rate and the enemy's control resistance are not modeled).
+    const bool cast = e.source == "learned" && !model::triggered_buff(*rec);
+    if (cast && (e.maintained || e.per_sec <= 0)) continue;
     const arz::Record* buff = db.record(rec->string("buffSkillName"));
     const std::uint32_t lv = std::max<std::uint32_t>(e.level, 1);
     const auto preset_uptime = p.uptime.find(e.record);
@@ -119,8 +128,10 @@ Procs procs(const snap::Snapshot& s, const Side& side, const Settings& p, const 
       else out.unknown.emplace(e.record, e.basis);
       return known;
     };
-    const double held = held_seconds(rec, buff, lv);
+    double held = std::max(held_seconds(db, rec, lv), held_seconds(db, buff, lv));
+    for (const auto& [m, ml] : e.modifiers) held = std::max(held, held_seconds(db, db.record(m), ml));
     if (held > 0 && seen("cc " + fmt(up(held), 3))) free *= 1 - up(held);
+    if (cast) continue;
     const arz::Record* stats = buff && model::self_buff(*buff) ? buff : model::self_buff(*rec) ? rec : nullptr;
     if (!stats) continue;
     // Low-health buffs: up while needed, if off cooldown (design choice).

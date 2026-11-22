@@ -115,6 +115,7 @@ TEST_CASE("folder names") {
 TEST_CASE("trigger tags") {
   CHECK(store::tags(store::kEquip | store::kLevel) == std::vector<std::string>{"equip", "level"});
   CHECK(store::tags(0).empty());
+  CHECK(store::tags(store::kBuff) == std::vector<std::string>{"buff"});
 }
 
 TEST_CASE("store: full baseline then deltas that rebuild every snapshot; rotation keeps active segments") {

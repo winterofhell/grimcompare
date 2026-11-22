@@ -271,7 +271,7 @@ std::vector<std::string> tags(unsigned t) {
   static constexpr std::pair<unsigned, const char*> kNames[] = {
       {kLoad, "load"},         {kEquip, "equip"},         {kLevel, "level"},
       {kSkill, "skill"},       {kDevotion, "devotion"},   {kAttribute, "attribute"},
-      {kDifficulty, "difficulty"}, {kManual, "manual"}};
+      {kDifficulty, "difficulty"}, {kManual, "manual"},     {kBuff, "buff"}};
   std::vector<std::string> out;
   for (const auto& [bit, name] : kNames)
     if (t & bit) out.emplace_back(name);
@@ -307,7 +307,7 @@ void read(const fs::path& char_dir, const std::function<void(const Record&)>& ea
       r.seq = seq;
       r.full = full;
       for (const auto& t : rec.value("trigger", J::array()))
-        for (unsigned bit = 1; bit <= kManual; bit <<= 1)
+        for (unsigned bit = 1; bit <= kBuff; bit <<= 1)
           if (const auto n = tags(bit); !n.empty() && t == n[0]) r.triggers |= bit;
       r.snapshot = from_keyed(state.dump());
       each(r);

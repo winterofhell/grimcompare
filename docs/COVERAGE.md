@@ -404,42 +404,31 @@ identity fields are left out. "Main skills only": a learned skill that is not a 
 own, so its modifier's damage is not scored. The Shift view lists each changed modifier per skill and marks
 parts not scored.
 
-223 fields: 147 scored, 14 zero by design, 62 not scored.
+223 fields: 164 scored, 16 zero by design, 43 not scored.
 
 | Field | Records | Scored how |
 |---|---|---|
-| `beamAngle` | 6 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `beamNumber` | 6 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `cooldownCharges` | 74 | not scored: skill charges are not modeled |
-| `cooldownTime` | 10 | not scored: skill charges are not modeled |
+| `beamAngle` | 6 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
+| `beamNumber` | 6 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
 | `defensiveBleedingDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `defensivePoisonDuration` | 1 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
 | `defensiveProtection` | 2 | not scored: no stat-model target (a swap that changes a defensive / character one warns "not modeled") |
-| `explosionRadius` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `offensiveFreezeChance` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveFreezeMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveFumbleDurationMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveFumbleMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensivePetrifyChance` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensivePetrifyMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveProjectileFumbleDurationMin` | 6 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveProjectileFumbleMin` | 6 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowAttackSpeedDurationMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowAttackSpeedMin` | 5 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowRunSpeedDurationMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowRunSpeedMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowTotalSpeedDurationMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveSlowTotalSpeedMin` | 3 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveStunMin` | 4 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `offensiveTauntMin` | 1 | not scored: crowd control / debuff of the skill without a damage or RR model |
-| `overwriteBaseSkill` | 28 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `petBurstSpawn` | 68 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `petChanges` | 46 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `projectileFragmentsOverride` | 18 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `projectileLaunchNumber` | 35 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `projectileLaunchRotation` | 20 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `projectileOverride` | 135 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `projectilePiercing` | 41 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `offensiveFumbleDurationMin` | 1 | not scored: the enemy's melee / projectile attacks fail; the incoming mix has no melee / projectile split |
+| `offensiveFumbleMin` | 1 | not scored: the enemy's melee / projectile attacks fail; the incoming mix has no melee / projectile split |
+| `offensiveProjectileFumbleDurationMin` | 6 | not scored: the enemy's melee / projectile attacks fail; the incoming mix has no melee / projectile split |
+| `offensiveProjectileFumbleMin` | 6 | not scored: the enemy's melee / projectile attacks fail; the incoming mix has no melee / projectile split |
+| `offensiveSlowAttackSpeedDurationMin` | 5 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `offensiveSlowAttackSpeedMin` | 5 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `offensiveSlowRunSpeedDurationMin` | 4 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `offensiveSlowRunSpeedMin` | 4 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `offensiveSlowTotalSpeedDurationMin` | 3 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `offensiveSlowTotalSpeedMin` | 3 | not scored: enemy speed; Survivability is health per incoming damage, not damage per second taken |
+| `overwriteBaseSkill` | 28 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
+| `petBurstSpawn` | 68 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
+| `petChanges` | 46 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
+| `projectileFragmentsOverride` | 18 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
+| `projectileLaunchRotation` | 20 | not scored: spread / timing; the pack part takes every projectile to find an enemy |
+| `projectileOverride` | 135 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
 | `racialBonusPercentDamage` | 1 | not scored: read from items only |
 | `racialBonusRace` | 1 | not scored: read from items only |
 | `refreshCooldownAmount` | 146 | not scored: triggered cooldown / duration refresh is not modeled |
@@ -461,15 +450,7 @@ parts not scored.
 | `skillLifePercent` | 20 | not scored: heals are read from the skill record only |
 | `skillLifePercentBuffDuration` | 28 | not scored: heals are read from the skill record only |
 | `skillManaCostReduction` | 78 | not scored: read from items only |
-| `skillTargetAngle` | 60 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `skillTargetNumber` | 62 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `skillTargetRadius` | 58 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `sparkChance` | 9 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `sparkMaxNumber` | 9 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `targetingMode` | 844 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `waveDistance` | 29 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `waveEndWidth` | 7 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
-| `waveStartWidth` | 5 | not scored: area, targets, projectiles or behaviour; the model is one target, one use |
+| `targetingMode` | 844 | not scored: fragments, beams, projectile swaps or behaviour without a traced damage path |
 | `Axe` | 2 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
 | `Axe2h` | 3 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
 | `Dagger` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
@@ -483,7 +464,9 @@ parts not scored.
 | `Spear2h` | 6 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
 | `Sword` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
 | `Sword2h` | 7 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `cooldownCharges` | 74 | 0 by design: one recharge timer refills the charges one at a time over the full cooldown (Skill::StartCooldown 0x490DA0, SetChargeCooldown 0x4912B0, UpdateCooldownCharges 0x491740, Skill::Update 0x4817C0), so uses per second stay 1 / cooldown; charges add a burst at the start of a fight only |
 | `dualRangedOrAllRangedOnly` | 1 | 0 by design: weapon requirement of the modified skill (the character already uses it) |
+| `offensiveTauntMin` | 1 | 0 by design: taunt turns enemies onto the player; no solo Survivability or Damage meaning |
 | `characterAttackSpeedMaxModifier` | 62 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
 | `characterAttackSpeedModifier` | 101 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
 | `characterDefensiveAbility` | 65 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
@@ -509,6 +492,7 @@ parts not scored.
 | `conversionOutType2` | 209 | Damage, main skills only: skill conversion, before the global one |
 | `conversionPercentage` | 794 | Damage, main skills only: skill conversion, before the global one |
 | `conversionPercentage2` | 208 | Damage, main skills only: skill conversion, before the global one |
+| `cooldownTime` | 10 | Damage: cooldown of the skill the pet modifier belongs to (SkillSecondary_PetModifier::GetSkillModifierData 0x556850 -> SkillProfile_Modifiers +0x48, Skill::GetCooldownTime 0x490ED0); pets alive of timed summons, uses per second |
 | `damageAbsorptionPercent` | 13 | Survivability: % absorption of the modified buff while it is up |
 | `defensiveAether` | 27 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
 | `defensiveAllResistance` | 51 | Damage: resistance reduction when the modified skill is a debuff (negative values); else sheet stat while the skill is active |
@@ -532,6 +516,7 @@ parts not scored.
 | `defensiveStun` | 4 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
 | `defensiveTotalSpeedResistance` | 2 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
 | `defensiveTrap` | 1 | sheet stat while the modified skill is active (passive, toggle, running buff); stat model |
+| `explosionRadius` | 29 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
 | `modSpawnObjects` | 6 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
 | `modSpawnObjects2` | 4 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
 | `modSpawnObjects3` | 4 | Damage: the summoned pet and its time to live (Skill_SpawnPetTransmuter; AddModifierPetChanges 0x494CE0) |
@@ -557,6 +542,8 @@ parts not scored.
 | `offensiveFireMax` | 2 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveFireMin` | 158 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveFireModifier` | 15 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveFreezeChance` | 3 | Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill's own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill's rate and the enemy's control resistance are not modeled |
+| `offensiveFreezeMin` | 4 | Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill's own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill's rate and the enemy's control resistance are not modeled |
 | `offensiveLifeLeechMin` | 131 | Other `life_leech`, main skills only |
 | `offensiveLifeMax` | 1 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveLifeMin` | 142 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
@@ -564,6 +551,8 @@ parts not scored.
 | `offensiveLightningMax` | 44 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveLightningMin` | 107 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveLightningModifier` | 12 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensivePetrifyChance` | 1 | Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill's own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill's rate and the enemy's control resistance are not modeled |
+| `offensivePetrifyMin` | 3 | Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill's own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill's rate and the enemy's control resistance are not modeled |
 | `offensivePhysicalMax` | 1 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensivePhysicalMin` | 100 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensivePhysicalModifier` | 15 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
@@ -604,6 +593,7 @@ parts not scored.
 | `offensiveSlowPoisonDurationModifier` | 4 | Damage, main skills only: +% DoT duration of that final type, added to the gear's |
 | `offensiveSlowPoisonMin` | 56 | Damage, main skills only: flat damage in the skill's own pool, converted with it, skill % and sheet % added (Skill::CollectCombatParameters 0x499570 -> AddModifierOffensiveDamageAttributes 0x493480) |
 | `offensiveSlowPoisonModifier` | 11 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
+| `offensiveStunMin` | 4 | Survivability `cc_share`: seconds the modified skill holds an enemy x its uses per second, joined to the skill's own (AddModifierOffensiveDamageAttributes 0x493480; longest control wins); procs and skills with a cooldown only, a spammed skill's rate and the enemy's control resistance are not modeled |
 | `offensiveTotalDamageModifier` | 27 | Damage, main skills only: skill-local % of that type, added to the sheet % (AddModifierOffensiveModifierAttributes 0x4935B0) |
 | `offensiveTotalDamageReductionPercentDurationMin` | 18 | Survivability: enemy damage reduction at the modified skill's uptime, strongest only (gdc::effects) |
 | `offensiveTotalDamageReductionPercentMin` | 18 | Survivability: enemy damage reduction at the modified skill's uptime, strongest only (gdc::effects) |
@@ -613,6 +603,8 @@ parts not scored.
 | `offensiveTotalResistanceReductionPercentMin` | 3 | Damage: resistance reduction of the modified skill through gdc::effects (uptime, highest-only) |
 | `petLimit` | 83 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
 | `petSkillName` | 287 | Damage: pet skill added to the pet (SkillSecondary_PetModifier) |
+| `projectileLaunchNumber` | 35 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `projectilePiercing` | 41 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
 | `retaliationColdMin` | 1 | Damage, only under `[damage] retaliation = true`: the modified skill's % Retaliation Added to Attack, or its retaliation while the skill is up |
 | `retaliationDamagePct` | 109 | Damage, only under `[damage] retaliation = true`: the modified skill's % Retaliation Added to Attack, or its retaliation while the skill is up |
 | `retaliationElementalMin` | 1 | Damage, only under `[damage] retaliation = true`: the modified skill's % Retaliation Added to Attack, or its retaliation while the skill is up |
@@ -629,5 +621,13 @@ parts not scored.
 | `skillChanceWeight` | 279 | Damage: weapon pool chance of the modified Skill_WPAttack_* (weights add, Skill_WPAttack::GetChanceWeight 0x5160E0; past 100 in all, each w / sum, SkillManager::SelectWeaponPoolSkill 0x5364C0) |
 | `skillComboChargeLevel` | 31 | Damage: combo charges the modified skill builds, for cooldown main skills (SkillManager::IncrementComboCharge 0x53F990, Skill::CollectComboMultiplier 0x4993D0) |
 | `skillCooldownTime` | 294 | Damage, main skills only: cooldown (uses per second); procs' recharge too |
+| `skillTargetAngle` | 60 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `skillTargetNumber` | 62 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `skillTargetRadius` | 58 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `sparkChance` | 9 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `sparkMaxNumber` | 9 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
 | `spawnObjectsTimeToLive` | 16 | Damage: pets alive (GetSpawnObjectTimeToLive 0x493660) |
+| `waveDistance` | 29 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `waveEndWidth` | 7 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
+| `waveStartWidth` | 5 | Damage, main skills only: targets per use in the pack part, under `[damage] pack_share` > 0 (summed with the skill's own, Skill::GetSkillModifierData 0x49A6C0 -> 0x54A650; chains Skill_AttackChain::ActivateNow 0x4B25C0, pierce ProjectileBase::Penetrate 0x4048E0); only where it changes that skill's targets (chain jumps on Skill_AttackChain only, not Aegis' Skill_AttackProjectileChain); single target: no effect |
 | `weaponDamagePct` | 540 | Damage, main skills only: % weapon damage |

@@ -171,20 +171,27 @@ std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Databas
   std::vector<score::Skill> mains;
   std::vector<const snap::SkillDps*> engine;
   const std::string whole = snapshot_skip(s, db);
-  for (const auto& sk : s.skills) {
-    if (sk.current_level == 0) continue;
-    if (!records.empty() && std::find(records.begin(), records.end(), sk.record) == records.end()) continue;
-    const snap::SkillDps* d = engine_for(s, sk);
-    if (!d) continue;
-    if (sk.record != score::kDefaultAttack && !score::skill_kind(db, sk.record, sk.current_level).main) continue;
-    SkillDamageCheck c{sk.record, skip_reason(sk, *d, db), {}, {}};
-    if (c.skipped.empty()) c.skipped = whole;
-    if (c.skipped.empty()) {
-      mains.push_back({sk.record, 1});
-      engine.push_back(d);
+  for (const auto* list : {&s.skills, &s.item_skills})
+    for (const auto& sk : *list) {
+      if (sk.current_level == 0) continue;
+      if (!records.empty() && std::find(records.begin(), records.end(), sk.record) == records.end()) continue;
+      const bool item = list == &s.item_skills;
+      // side() takes the learned one, then the first item skill of the record.
+      if (item && (score::skill_by_record(s, sk.record) ||
+                   std::find_if(s.item_skills.data(), &sk, [&](const snap::Skill& x) { return x.record == sk.record; }) != &sk))
+        continue;
+      const snap::SkillDps* d = engine_for(s, sk);
+      if (!d) continue;
+      if (sk.record != score::kDefaultAttack && !score::skill_kind(db, sk.record, sk.current_level).main) continue;
+      SkillDamageCheck c{sk.record, skip_reason(sk, *d, db), {}, {}, {}};
+      if (item) c.rules.push_back("item skill");
+      if (c.skipped.empty()) c.skipped = whole;
+      if (c.skipped.empty()) {
+        mains.push_back({sk.record, 1});
+        engine.push_back(d);
+      }
+      out.push_back(std::move(c));
     }
-    out.push_back(std::move(c));
-  }
   if (mains.empty()) return out;
   // As scoring builds a side, with "% Retaliation Added to Attack" in, and no enemy resists or type weights.
   score::Settings p;
@@ -238,16 +245,106 @@ std::vector<SkillDamageCheck> damage(const snap::Snapshot& s, const arz::Databas
       static_cast<score::Pass&>(l) = *pool.off;
       l.retaliation = pool.retaliation;
       model_l = hand(l);
-      // CalculateSkillDps folds each L pass DoT into the R pass one of the same source (FilterSameSource 0x11AE40).
-      for (auto& [k, v] : model_l)
-        if (const auto it = model_r.find(k); k.second && it != model_r.end()) it->second = std::max(it->second, v), v = 0;
+      // CalculateSkillDps folds each L pass DoT into the R pass one of the same source (FilterSameSource 0x11AE40):
+      // the part both passes share leaves the L list, each weapon's own stays (as score::skill_damage).
+      if (pool.shared) {
+        static_cast<score::Pass&>(l) = *pool.shared;
+        for (const auto& [k, v] : hand(l))
+          if (const auto it = model_l.find(k); k.second && it != model_l.end()) it->second = std::max(0.0, it->second - v);
+      }
     }
     compare(model_r, engine_r, seconds, false, c.types);
     // Without the flag (shield, caster off-hand, one weapon) the sheet leaves the L Hand list out.
     if (d.dual_wield || pool.off) compare(model_l, d.dual_wield ? engine_l : Amounts{}, seconds, true, c.types);
     c.note = note;
     if (c.types.empty()) c.skipped = "no damage on either side";
+    if (const arz::Record* r = db.record(c.record)) c.rules.push_back("class " + r->cls);
+    if (c.record == score::kDefaultAttack) c.rules.push_back("default attack");
+    if (m.raw.weapon_pct > 0) c.rules.push_back("weapon damage");
+    if (!m.raw.flat.empty()) c.rules.push_back("skill flat damage");
+    if (pool.off) c.rules.push_back("dual wield");
+    if (!m.raw.conversion.empty()) c.rules.push_back("skill conversion");
+    if (!global.empty()) c.rules.push_back("gear conversion");
+    if (!m.raw.retaliation.flat.empty()) c.rules.push_back("retaliation added");
+    if (std::any_of(c.types.begin(), c.types.end(), [](const TypeDiff& t) { return t.key.second; })) c.rules.push_back("DoT");
+    if (mult != 1) c.rules.push_back("buff multiplier");
+    if (red.percent != 0 || red.physical_percent != 0 || red.elemental_percent != 0) c.rules.push_back("damage reductions");
   }
+  return out;
+}
+
+std::vector<SkillDamageCheck> pets(const snap::Snapshot& s, const arz::Database& db) {
+  std::vector<SkillDamageCheck> out;
+  for (const auto& pet : s.pets) {
+    SkillDamageCheck& c = out.emplace_back();
+    c.record = pet.record;
+    c.rules = {"pet %"};
+    if (pet.damage_modifiers.empty()) {
+      if (s.schema < 17) out.pop_back();  // not captured before schema 17
+      else c.skipped = "no engine totals captured for this pet";
+      continue;
+    }
+    if (!db.record(pet.record)) {
+      c.skipped = "not in the database";
+      continue;
+    }
+    std::vector<Key> keys;
+    for (const auto& row : pet.damage_modifiers)
+      if (score::damage_type(row.type)) keys.insert(keys.end(), {{row.type, false}, {row.type, true}});
+    const auto model = score::pet_record_pct(s, db, pet.record, keys);
+    for (const auto& row : pet.damage_modifiers)
+      if (score::damage_type(row.type))
+        for (const bool dot : {false, true})
+          c.types.push_back({{row.type, dot}, model.at({row.type, dot}), dot ? row.dot_modifier : row.damage_modifier, 0, false});
+    if (c.types.empty()) c.skipped = "no damage type in the engine totals";
+  }
+  return out;
+}
+
+std::vector<std::string> damage_summary(const std::vector<SkillDamageCheck>& checks) {
+  struct Count {
+    int pass = 0, fail = 0;
+    std::set<std::string> failing;
+    void add(bool ok, const std::string& who) {
+      ok ? ++pass : ++fail;
+      if (!ok) failing.insert(who);
+    }
+  };
+  std::map<std::string, Count> rules, skills, types;
+  std::map<std::string, int> skips;
+  for (const auto& c : checks) {
+    if (!c.skipped.empty()) {
+      ++skips[c.skipped];
+      continue;
+    }
+    const std::string who = score::stem(c.record);
+    const bool ok = c.pass();
+    for (const auto& r : c.rules) rules[r].add(ok, who);
+    skills[who].add(ok, who);
+    const bool pet = std::find(c.rules.begin(), c.rules.end(), "pet %") != c.rules.end();
+    for (const auto& t : c.types)
+      types[std::string(pet ? "pet " : "") + (t.off_hand ? "L Hand " : "") + score::damage_label(t.key)].add(!damage_off(t), who);
+  }
+  auto names = [](const std::set<std::string>& v) {
+    std::string out;
+    for (const auto& n : v) out += (out.empty() ? "" : ", ") + n;
+    return out;
+  };
+  std::vector<std::string> out;
+  std::string confirmed;
+  for (const auto& [r, n] : rules)
+    if (!n.fail) confirmed += (confirmed.empty() ? "" : ", ") + r + " (" + std::to_string(n.pass) + ")";
+  out.push_back("RULES confirmed: " + (confirmed.empty() ? std::string("none") : confirmed));
+  for (const auto& [r, n] : rules)
+    if (n.fail)
+      out.push_back("RULE failing: " + r + ": " + std::to_string(n.fail) + " of " + std::to_string(n.pass + n.fail) +
+                    " off (" + names(n.failing) + ")");
+  for (const auto& [k, n] : skills)
+    out.push_back("SKILL " + k + ": " + std::to_string(n.pass) + " pass, " + std::to_string(n.fail) + " fail");
+  for (const auto& [k, n] : types)
+    out.push_back("TYPE " + k + ": " + std::to_string(n.pass) + " ok, " + std::to_string(n.fail) + " off" +
+                  (n.fail ? " (" + names(n.failing) + ")" : ""));
+  for (const auto& [why, n] : skips) out.push_back("SKIPPED " + std::to_string(n) + "x " + why);
   return out;
 }
 
@@ -259,12 +356,13 @@ std::vector<std::string> damage_report(const std::vector<SkillDamageCheck>& chec
     return std::string(buf);
   };
   for (const auto& c : checks) {
+    const std::string what = std::find(c.rules.begin(), c.rules.end(), "pet %") != c.rules.end() ? "PET% " : "DMG ";
     if (!c.skipped.empty()) {
-      out.push_back("SKIP DMG " + label + " " + score::stem(c.record) + " (" + c.skipped + ")");
+      out.push_back("SKIP " + what + label + " " + score::stem(c.record) + " (" + c.skipped + ")");
       continue;
     }
     const bool pass = c.pass();
-    out.push_back(std::string(pass ? "PASS DMG " : "FAIL DMG ") + label + " " + score::stem(c.record) +
+    out.push_back(std::string(pass ? "PASS " : "FAIL ") + what + label + " " + score::stem(c.record) +
                   (c.note.empty() ? "" : " (" + c.note + ")"));
     if (pass && !verbose) continue;
     for (const auto& d : c.types) {

@@ -21,6 +21,7 @@ struct Entry {
   std::vector<std::string> damage;   // [match] damage names
   std::vector<std::string> skills, sets;
   std::map<std::string, gdc::score::Weight> other;
+  double pack = 0;  // [damage] pack_share: a clearing build's share of fighting packs
   std::string conversion, stats, items;
 };
 

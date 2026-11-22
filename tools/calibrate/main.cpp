@@ -30,13 +30,14 @@ fs::path game_dir() {
 struct Totals {
   int checked = 0, failed = 0, skipped = 0;
   int req_checked = 0, req_failed = 0;  // schema 7
-  int dmg_skills = 0, dmg_failed = 0, dmg_without = 0;  // schema 15
+  int dmg_skills = 0, dmg_failed = 0, dmg_without = 0;  // schema 15; pets from 17
 };
 
 struct Ctx {
   const arz::Database* db = nullptr;
   score::Preset preset;
   bool verbose = false;
+  std::vector<calibrate::SkillDamageCheck>* all = nullptr;  // every engine check, for the summary
 };
 
 std::string pct(double ratio) {
@@ -75,11 +76,13 @@ void report(const std::string& head, const snap::Snapshot& a, const snap::Snapsh
 // Engine damage check of one snapshot; counts snapshots without engine numbers.
 void damage_check(const std::string& head, const snap::Snapshot& s, const Ctx& x, Totals& t) {
   if (!x.db) return;
-  if (s.skill_dps.empty()) {
-    ++t.dmg_without;
-    return;
+  auto checks = calibrate::pets(s, *x.db);
+  if (s.skill_dps.empty()) ++t.dmg_without;
+  else {
+    auto skills = calibrate::damage(s, *x.db);
+    checks.insert(checks.begin(), skills.begin(), skills.end());
   }
-  const auto checks = calibrate::damage(s, *x.db);
+  x.all->insert(x.all->end(), checks.begin(), checks.end());
   for (const auto& c : checks)
     if (c.skipped.empty()) {
       ++t.dmg_skills;
@@ -154,6 +157,8 @@ int main(int argc, char** argv) {
       x.preset = *p;
     }
     Totals t;
+    std::vector<calibrate::SkillDamageCheck> all;
+    x.all = &all;
     if (damage_only) {
       for (const char* f : singles) damage_check(fs::path(f).filename().string(), load_json(f), x, t);
     } else if (pair[0]) {
@@ -171,9 +176,13 @@ int main(int argc, char** argv) {
           if (e.is_directory() && (only.empty() || e.path().filename() == only)) calibrate_dir(e.path(), x, t);
       }
     }
+    if (!all.empty()) {
+      std::cout << "== engine damage summary (" << all.size() << " checks)\n";
+      for (const auto& l : calibrate::damage_summary(all)) std::cout << l << "\n";
+    }
     std::cout << t.checked << " checked, " << t.failed << " failed, " << t.skipped << " skipped; requirements "
               << t.req_checked << " checked, " << t.req_failed << " disagree with the engine; engine damage "
-              << t.dmg_skills << " skill checks, " << t.dmg_failed << " off, " << t.dmg_without
+              << t.dmg_skills << " skill and pet checks, " << t.dmg_failed << " off, " << t.dmg_without
               << " snapshots without engine numbers\n";
     return t.failed || t.req_failed || t.dmg_failed ? 1 : 0;
   } catch (const std::exception& e) {

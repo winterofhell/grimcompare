@@ -9,6 +9,7 @@
 #include <tuple>
 
 #include "game_db.h"
+#include "gdc/attribute_names.h"
 #include "gdc/calibrate.h"
 
 using namespace gdc;
@@ -102,6 +103,46 @@ void scale_engine(snap::Snapshot& s, F f) {
 }
 }  // namespace
 
+TEST_CASE("engine damage check: the summary counts rules, skills and types") {
+  calibrate::SkillDamageCheck ok{"records/skills/a/fire1.dbr", {}, {{{6, false}, 100, 100}}, {}, {"weapon damage", "DoT"}};
+  calibrate::SkillDamageCheck bad{"records/skills/a/cold1.dbr", {}, {{{5, true}, 100, 150}, {{6, false}, 10, 10}}, {}, {"DoT"}};
+  calibrate::SkillDamageCheck skip{"records/skills/a/x.dbr", "no damage on either side", {}, {}, {}};
+  calibrate::SkillDamageCheck pet{"records/p/pet.dbr", {}, {{{6, false}, 50, 50}}, {}, {"pet %"}};
+  const auto lines = calibrate::damage_summary({ok, bad, ok, skip, skip, pet});
+  const std::vector<std::string> want = {
+      "RULES confirmed: pet % (1), weapon damage (2)",
+      "RULE failing: DoT: 1 of 3 off (cold1)",
+      "SKILL cold1: 0 pass, 1 fail",
+      "SKILL fire1: 2 pass, 0 fail",
+      "SKILL pet: 1 pass, 0 fail",
+      "TYPE Fire: 3 ok, 0 off",
+      "TYPE Frostburn: 0 ok, 1 off (cold1)",
+      "TYPE pet Fire: 1 ok, 0 off",
+      "SKIPPED 2x no damage on either side",
+  };
+  CHECK(lines == want);
+  CHECK(calibrate::damage_summary({}) == std::vector<std::string>{"RULES confirmed: none"});
+}
+
+TEST_CASE("engine damage check: item-granted skills are checked too") {
+  const arz::Database* db = game_db();
+  if (!db) return;
+  snap::Snapshot s = fixture("lvl27-wp-after-legs.json");
+  blank_engine(s);
+  for (const auto& k : s.item_skills)
+    if (k.current_level > 0) s.skill_dps.push_back({k.id, k.record, false, false, 0, {}, {}});
+  const auto model = calibrate::damage(s, *db);
+  const auto item = std::find_if(model.begin(), model.end(), [](const auto& c) {
+    return c.skipped.empty() && std::find(c.rules.begin(), c.rules.end(), "item skill") != c.rules.end();
+  });
+  REQUIRE(item != model.end());
+  INFO(item->record);
+  CHECK_FALSE(item->pass());
+  engine_from_model(s, model);
+  for (const auto& c : calibrate::damage(s, *db))
+    if (c.record == item->record) CHECK(c.pass());
+}
+
 TEST_CASE("engine damage check: tolerance is 2% and 1 damage") {
   CHECK(!calibrate::damage_off({{6, false}, 100, 101.9}));
   CHECK(calibrate::damage_off({{6, false}, 100, 103}));
@@ -185,7 +226,7 @@ TEST_CASE("engine damage check: the model side runs on every fixture") {
   }
 }
 
-TEST_CASE("engine damage check: dual wield compares each hand, L Hand DoTs fold into the R Hand (installed game; skips if absent)") {
+TEST_CASE("engine damage check: dual wield compares each hand, the shared DoT folds into the R Hand (installed game; skips if absent)") {
   const arz::Database* db = game_db();
   if (!db) return;
   // R: +10 Fire, Bleeding 20/s x 3 s; L: +20 Fire, Bleeding 10/s x 3 s.
@@ -200,15 +241,26 @@ TEST_CASE("engine damage check: dual wield compares each hand, L Hand DoTs fold 
     REQUIRE(fire_r);
     REQUIRE(fire_l);
     CHECK(fire_l->model > fire_r->model);  // each hand its own affix
-    REQUIRE(type_of(c, {15, true}, false));
-    CHECK_FALSE(type_of(c, {15, true}, true));  // folded
+    // Each weapon's own Bleeding is its own source: it stays in its hand's list.
+    const auto *bleed_r = type_of(c, {15, true}, false), *bleed_l = type_of(c, {15, true}, true);
+    REQUIRE(bleed_r);
+    REQUIRE(bleed_l);
+    CHECK(bleed_l->model == doctest::Approx(bleed_r->model / 2));
   }
-  // Hands swapped: the folded Bleeding is the larger one either way.
-  snap::Snapshot mirror = s;
-  std::swap(mirror.equipped[0].stats, mirror.equipped[1].stats);
-  const auto swapped = calibrate::damage(mirror, *db);
-  for (std::size_t i = 0; i < model.size(); ++i)
-    CHECK(type_of(swapped[i], {15, true}, false)->model == doctest::Approx(type_of(model[i], {15, true}, false)->model));
+  // A ring's Bleeding is in both passes: it folds, the R Hand list keeps it, the L Hand list is unchanged.
+  snap::Snapshot ring = s;
+  snap::Item& band = ring.equipped.emplace_back();
+  band.id = 102;
+  band.location = equip::kFinger1;
+  band.record = "records/items/gearaccessories/rings/c017_ring.dbr";
+  band.stats = snap::ItemStats{};
+  band.stats->offensive_damage = {{15, true, 10, 10, 3}};
+  const auto shared = calibrate::damage(ring, *db);
+  REQUIRE(shared.size() == model.size());
+  for (std::size_t i = 0; i < model.size(); ++i) {
+    CHECK(type_of(shared[i], {15, true}, true)->model == doctest::Approx(type_of(model[i], {15, true}, true)->model));
+    CHECK(type_of(shared[i], {15, true}, false)->model > type_of(model[i], {15, true}, false)->model);
+  }
   // The model's own numbers per hand pass; 10% more on one L Hand type fails that type only.
   engine_from_model(s, model);
   for (const auto& d : s.skill_dps) CHECK(d.dual_wield);

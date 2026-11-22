@@ -9,7 +9,7 @@
 namespace gdc::snap {
 
 // Schema written; from_json reads kMinSchema..kSchema.
-inline constexpr int kSchema = 16;
+inline constexpr int kSchema = 17;
 inline constexpr int kMinSchema = 2;
 
 // Save key, as GameEngine::GetPlayerFolder builds it.
@@ -179,6 +179,12 @@ struct Pet {
   float attack_speed = 0, cast_speed = 0, attack_speed_modifier = 0, cast_speed_modifier = 0;
   std::uint32_t default_skill_id = 0;  // SkillManager::GetDefaultSkillId(0) 0x52EC10 of the pet's SkillManager
   std::vector<PetSkill> skills;        // SkillManager::GetSkillList of the pet
+  // Schema 17: the pet's engine totals, as the player's damage_modifiers / conversions but from the pet's own
+  // SkillManager (SkillManager::CollectAvailableOffensiveModifierAttributes 0x535BC0 calls the character's
+  // vt+0x6F0 / +0x730 / +0x768: Pet::ContributeMisc / GameBalance / MutatorOffensiveModifierAttributes 0x3C7790 /
+  // 0x3C79F0 / 0x3C7FA0, which add the pet bonuses). Empty: not captured.
+  std::vector<CombatTotals> damage_modifiers;
+  std::vector<Conversion> conversions;
 };
 
 // Schema 15: Player::CalculateSkillDps 0x3DFD30 (1.3.1.2), the engine's own sheet DPS numbers for one skill.

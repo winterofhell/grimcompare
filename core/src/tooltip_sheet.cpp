@@ -287,7 +287,7 @@ std::multiset<std::pair<std::string, std::string>> unlearned_modifiers(const sna
 // Item skill modifiers the swap adds (green) or removes (red), one line per skill, numbers as the item tooltip.
 std::vector<Line> modifier_lines(const snap::Snapshot& before, const snap::Snapshot& after, const snap::Item* old,
                                  const snap::Item& candidate, const std::vector<score::Skill>& skills,
-                                 const arz::Database* db, const Labels& labels, const Screen& screen) {
+                                 const arz::Database* db, const Labels& labels, const Screen& screen, bool packs) {
   std::vector<Line> out;
   if (!db) return out;
   auto line = [&](const std::string& skill, const std::string& modifier, bool lost, bool learned) {
@@ -295,7 +295,7 @@ std::vector<Line> modifier_lines(const snap::Snapshot& before, const snap::Snaps
     if (!r) return;
     const bool main = std::any_of(skills.begin(), skills.end(), [&](const score::Skill& k) { return k.record == skill; });
     std::vector<std::string> items;
-    for (const auto& part : score::modifier_parts(before, *r, main))
+    for (const auto& part : score::modifier_parts(before, *r, main, packs, *db, skill))
       items.push_back(signed_num(lost ? -part.value : part.value, std::abs(part.value) < 10 && part.value != std::round(part.value) ? 1 : 0) + part.unit +
                       (part.scored && learned ? "" : " (not scored)"));
     if (items.empty()) return;

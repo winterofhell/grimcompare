@@ -10,12 +10,24 @@
 namespace gdc::score {
 namespace {
 
-// Stats of a petBonusName record or a Class Pet's bonuses.
-using PetStats = std::map<std::tuple<fields::Kind, int, bool>, double>;
+// A Class Pet's bonuses: the stats, conversions and DoT duration % of its petBonusName records.
+struct PetStats {
+  std::map<std::tuple<fields::Kind, int, bool>, double> stats;
+  std::vector<snap::Conversion> conversions;  // in record order
+  std::map<int, double> dot_duration;         // kDotDuration type -> %
+};
 
 double stat(const PetStats& b, fields::Kind kind, int type, bool modifier) {
-  const auto it = b.find({kind, type, modifier});
-  return it != b.end() ? it->second : 0;
+  const auto it = b.stats.find({kind, type, modifier});
+  return it != b.stats.end() ? it->second : 0;
+}
+
+// % damage of the final type k: its own, All (60: one field, both kinds) and, for cold / fire / lightning, Elemental.
+double bonus_pct(const PetStats& b, const Key& k) {
+  double pct = 0;
+  for (const int t : {k.first, 60, k.first == 5 || k.first == 6 || k.first == 8 ? kElemental : -1})
+    if (t > 0) pct += stat(b, fields::Kind::Damage, t, t != kAll && k.second);
+  return pct;
 }
 
 bool timed(const arz::Record& r, std::uint32_t level, const arz::Database& db) {
@@ -30,9 +42,18 @@ bool timed(const arz::Record& r, std::uint32_t level, const arz::Database& db) {
 PetStats pet_bonuses(const snap::Snapshot& s, const arz::Database& db) {
   PetStats out;
   auto take = [&](const arz::Record& r, std::uint32_t level) {
-    if (const arz::Record* b = db.record(r.string("petBonusName")))
-      for (const auto& [k, v] : db.derived<sets::Bonus>(*b, level, [&] { return sets::bonus(*b, static_cast<int>(level)); }).stats)
-        out[k] += v;
+    if (const arz::Record* b = db.record(r.string("petBonusName"))) {
+      const auto& bonus = db.derived<sets::Bonus>(*b, level, [&] { return sets::bonus(*b, static_cast<int>(level)); });
+      for (const auto& [k, v] : bonus.stats) out.stats[k] += v;
+      out.conversions.insert(out.conversions.end(), bonus.conversions.begin(), bonus.conversions.end());
+      const auto& dot = db.derived<std::map<int, double>>(*b, level, [&] {
+        std::map<int, double> d;
+        for (const auto& [type, field] : kDotDuration)
+          if (const double v = sets::bonus_field(*b, field, static_cast<int>(level)); v != 0) d[type] += v;
+        return d;
+      });
+      for (const auto& [type, v] : dot) out.dot_duration[type] += v;
+    }
   };
   for (const auto& it : s.equipped)
     for (const auto& r : model::item_records(it))
@@ -95,31 +116,64 @@ std::vector<int> enemy_types(const Settings& p) {
   return t;
 }
 
-// Class Pet hit, experimental (MECHANICS §4).
-// shortcut: player formulas, no crit / DoT / conversion — revisit with a pet build.
+// The Skill_Passive skills of a pet's record at the character's level.
+Raw pet_passives(const snap::Snapshot& s, const arz::Database& db, const arz::Record& pet) {
+  Raw own;
+  for (const auto& [r, l] : effects::pet_skills(pet, s.level, {}, db))
+    if (const arz::Record* x = db.record(r); x && classes::is_a(x->cls, "Skill_Passive")) add_record(db, *x, l, own);
+  return own;
+}
+
+// Class Pet hit, experimental (MECHANICS §4 / §5). Skill::CollectCombatParameters 0x499570 runs for the pet's skill
+// as for the player's: its flat damage converted by the pet's conversions (Pet::ContributeMiscConversionAttributes:
+// the pet bonuses'), then the pet's % of the final type (its passives and pet bonuses), DoT duration × (1 + Σ
+// duration %) (DurDamage::Process 0x114206), crit damage at the hit roll.
+// `live`: the pet's engine totals (schema 17) replace the record %; a prediction shifts them by the pet bonus change
+// since `captured` (its pet bonuses).
+// shortcut: player formulas for the attribute bonus and OA; a pet skill's own conversion is not read — revisit with
+// a pet build.
 void pet_scaling(const snap::Snapshot& s, const Settings& p, const arz::Database& db, const PetStats& bonus,
-                 const effects::Effect& e, const effects::Shred& da, Side::Hit& h) {
+                 const effects::Effect& e, const effects::Shred& da, const snap::Pet* live, const PetStats& captured,
+                 Side::Hit& h) {
   const arz::Record* pet = db.record(e.pet_record);
   if (!pet) return;
-  Raw own;
-  for (const auto& [r, l] : effects::pet_skills(*pet, s.level, {}, db))
-    if (const arz::Record* x = db.record(r); x && classes::is_a(x->cls, "Skill_Passive")) add_record(db, *x, l, own);
+  const Raw own = pet_passives(s, db, *pet);
   const arz::Record* bio = db.record(pet->string("characterAttributeEquations"));
   auto attr = [&](std::string_view field, int type) {
     const double base = bio ? effects::equation(bio->string(field), s.level).value_or(0) : 0;
     return (base + stat(bonus, fields::Kind::Char, type, false)) * (1 + stat(bonus, fields::Kind::Char, type, true) / 100);
   };
   const double cunning = attr("characterDexterity", kCunning), spirit = attr("characterIntelligence", kSpirit);
+  const bool engine = live && !live->damage_modifiers.empty();
+  if (!bonus.conversions.empty()) {
+    std::vector<std::string> notes;  // the player's conversion notes cover gear; a pet's are not shown
+    split_elemental(h.flat);
+    h.flat = convert_pairs(h.flat, {}, global_pairs(bonus.conversions), notes);
+  }
   for (auto& [k, v] : h.flat) {
     double pct = 0;
-    if (const auto it = own.pct.find(k); it != own.pct.end()) pct += it->second;
-    for (const int t : {k.first, 60, k.first == 5 || k.first == 6 || k.first == 8 ? kElemental : -1})
-      if (t > 0) pct += stat(bonus, fields::Kind::Damage, t, t != kAll && k.second);  // 60: one field, both kinds
+    if (engine) {
+      if (const auto* row = find(live->damage_modifiers, k.first)) pct += k.second ? row->dot_modifier : row->damage_modifier;
+      pct += bonus_pct(bonus, k) - bonus_pct(captured, k);
+    } else {
+      if (const auto it = own.pct.find(k); it != own.pct.end()) pct += it->second;
+      pct += bonus_pct(bonus, k);
+    }
     v *= std::max(0.0, 1 + pct / 100 + attribute_bonus(cunning, spirit, k.first, k.second));
+    if (k.second) {
+      const auto d = bonus.dot_duration.find(k.first);
+      const auto o = own.duration.find(k.first);
+      v *= 1 + ((d != bonus.dot_duration.end() ? d->second : 0) + (o != own.duration.end() ? o->second : 0)) / 100;
+    }
+  }
+  double crit = stat(bonus, fields::Kind::Damage, kCritDamage, false);
+  if (engine) {
+    const auto* row = find(live->damage_modifiers, kCritDamage);
+    crit += (row ? row->damage_modifier : 0) - stat(captured, fields::Kind::Damage, kCritDamage, false);
   }
   const double oa_base = bio ? effects::equation(bio->string("characterOffensiveAbility"), s.level).value_or(0) : 0;
   const double oa = (oa_base + stat(bonus, fields::Kind::Char, 21, false)) * (1 + stat(bonus, fields::Kind::Char, 22, false) / 100);
-  h.pet_hit = formulas::expected_hit(formulas::probability_to_hit(oa, da.apply(enemy_da(s, p))), s.pth, 0).multiplier;
+  h.pet_hit = formulas::expected_hit(formulas::probability_to_hit(oa, da.apply(enemy_da(s, p))), s.pth, crit).multiplier;
 }
 
 // A prediction shifts pet speed by the bonus change.
@@ -148,7 +202,8 @@ void weigh_life_leech(Side& out, const std::vector<Skill>& skills) {
 
 // Damage per second of procs, pets and weapon pool attacks.
 void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Database& db, std::optional<PetStats>& pets,
-                  Side& out) {
+                  const snap::Snapshot* captured, Side& out) {
+  std::optional<PetStats> at_capture;
   for (const auto& e : out.effects.effects) {
     // A weapon pool attack (Skill_WPAttack_*, the only effects with a pool chance) replaces a weapon pool skill's use:
     // its whole hit counts, the use it took is lost (eval()).
@@ -195,11 +250,22 @@ void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Databas
     h.flat = std::move(a), h.dots = std::move(dots);
     if (h.pet) {
       if (!pets) pets = pet_bonuses(s, db);
-      pet_scaling(s, p, db, *pets, e, out.gear.enemy_da, h);
+      const auto it = std::find_if(s.pets.begin(), s.pets.end(), [&](const snap::Pet& x) { return x.record == e.pet_record; });
+      const snap::Pet* live = it != s.pets.end() ? &*it : nullptr;
+      // Read only with the pet's engine totals.
+      if (!at_capture && live && !live->damage_modifiers.empty())
+        at_capture = captured && captured != &s ? pet_bonuses(*captured, db) : *pets;
+      pet_scaling(s, p, db, *pets, e, out.gear.enemy_da, live, at_capture ? *at_capture : *pets, h);
     } else {
       h.on = e.on, h.chance = e.chance, h.recharge = e.recharge;
     }
     if (pool) h.pool_chance = e.pool_chance;
+    if (p.pack_share > 0) {
+      Area area;
+      add_area(*rec, lv, area);
+      if (own != rec) add_area(*own, lv, area);
+      h.pack = pack_factor(area, p);
+    }
     out.hits.push_back(std::move(h));
   }
 }
@@ -207,11 +273,28 @@ void collect_hits(const snap::Snapshot& s, const Settings& p, const arz::Databas
 }  // namespace
 
 // `captured`: the snapshot s was predicted from (null: s itself).
+std::map<Key, double> pet_record_pct(const snap::Snapshot& s, const arz::Database& db, const std::string& pet_record,
+                                     const std::vector<Key>& keys) {
+  std::map<Key, double> out;
+  const arz::Record* pet = db.record(pet_record);
+  if (!pet) return out;
+  const Raw own = pet_passives(s, db, *pet);
+  const PetStats bonus = pet_bonuses(s, db);
+  for (const Key& k : keys) {
+    const auto it = own.pct.find(k);
+    out[k] = (it != own.pct.end() ? it->second : 0) + bonus_pct(bonus, k);
+  }
+  return out;
+}
+
 Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Settings& p, const arz::Database& db,
           const Bases& base, std::vector<std::string>& notes, const snap::Snapshot* captured) {
   Side out;
   for (const auto& k : skills) {
     const snap::Skill* sk = skill_by_record(s, k.record);
+    if (!sk)
+      for (const auto& x : s.item_skills)
+        if (x.record == k.record) sk = &x;
     Main& m = out.mains.emplace_back();
     m.skill = sk;
     if (sk) m.raw = skill_raw(s, *sk, db, notes);
@@ -251,7 +334,7 @@ Side side(const snap::Snapshot& s, const std::vector<Skill>& skills, const Setti
   out.gear.enemy_da = effects::shred(out.effects.reductions, effects::kEnemyDA);
   weigh_life_leech(out, skills);
   out.rates = r;
-  collect_hits(s, p, db, pets, out);
+  collect_hits(s, p, db, pets, captured, out);
   for (std::size_t k = 0; k < skills.size(); ++k)
     if (weapon_pool(out.mains[k], db)) out.mains[k].pool = skills[k].weight;
   return out;

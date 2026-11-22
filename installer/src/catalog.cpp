@@ -55,18 +55,26 @@ bool weights(const toml::node* n, std::map<std::string, gdc::score::Weight>& out
   return true;
 }
 
+bool share(const toml::node* n, double& out, std::string& error, std::string_view what) {
+  if (!n) return true;
+  const auto v = n->value<double>();
+  if (!v || !n->is_number() || *v < 0 || *v > 1) return error = std::string(what) + " must be a number in 0..1", false;
+  out = *v;
+  return true;
+}
+
 // Fields an entry or variant may set.
 bool fields(const toml::table& t, Entry& e, std::string& error) {
   for (const auto& [k, _] : t) {
     static constexpr std::string_view kKnown[] = {"id", "name", "category", "classes", "damage", "skills", "sets",
-                                                   "other", "conversion", "stats", "items", "variant"};
+                                                   "other", "pack", "conversion", "stats", "items", "variant"};
     if (std::find(std::begin(kKnown), std::end(kKnown), k.str()) == std::end(kKnown))
       return error = "unknown key " + std::string(k.str()), false;
   }
   return text(t.get("name"), e.name, error, "name") && strings(t.get("classes"), e.classes, error, "classes") &&
          strings(t.get("damage"), e.damage, error, "damage") && strings(t.get("skills"), e.skills, error, "skills") &&
          strings(t.get("sets"), e.sets, error, "sets") && weights(t.get("other"), e.other, error) &&
-         text(t.get("conversion"), e.conversion, error, "conversion") && text(t.get("stats"), e.stats, error, "stats") &&
+         share(t.get("pack"), e.pack, error, "pack") && text(t.get("conversion"), e.conversion, error, "conversion") && text(t.get("stats"), e.stats, error, "stats") &&
          text(t.get("items"), e.items, error, "items");
 }
 

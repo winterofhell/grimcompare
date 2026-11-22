@@ -85,6 +85,10 @@ constexpr NumberKey kDamageNumbers[] = {
     {"pet_attack_rate", 0, 100, &Settings::pet_attack_rate},
     {"kills_per_sec", 0, 100, &Settings::kills_per_sec},
     {"offtarget_weight", 0, 1, &Settings::offtarget_weight},
+    {"pack_share", 0, 1, &Settings::pack_share},
+    {"pack_size", 1, 50, &Settings::pack_size},
+    {"pack_radius", 0.5, 50, &Settings::pack_radius},
+    {"pack_line", 1, 50, &Settings::pack_line},
 };
 constexpr NumberKey kSurvivalNumbers[] = {
     {"enemy_oa_per_level", 0, 1000, &Settings::enemy_oa_per_level},

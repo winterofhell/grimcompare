@@ -415,6 +415,14 @@ TEST_CASE("effects: a pet without a time to live is kept at petLimit; a transmut
     CHECK(e.pet_record == "records/skills/playerclass08/pets/blightbeast_16b.dbr");
     CHECK(e.pets == doctest::Approx(12.0 / 5));
   }
+  // head_d005 (SkillSecondary_PetModifier, cooldownTime -2) shortens the summon's cooldown to 3 s: 12 / 3, the limit.
+  snap::ItemSkillModifier fiend;
+  fiend.skill_id = 3;
+  fiend.skill_record = "records/skills/playerclass08/summon_blightbeast1.dbr";
+  fiend.modifier_record = "records/skills/itemskillsgdx1/skillmodifiers/upgradedgdx1/head_d005_summonblightbeast.dbr";
+  s.item_skill_modifiers.push_back(fiend);
+  for (const auto& e : pets_of("summon_blightbeast1.dbr")) CHECK(e.pets == 3);
+  s.item_skill_modifiers.clear();
   s.skill_attributes = {{1, 60}};  // CooldownReduction 60%: 2 s, so the limit
   for (const auto& e : pets_of("summon_blightbeast1.dbr")) CHECK(e.pets == 3);
 }

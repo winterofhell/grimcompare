@@ -31,7 +31,10 @@ struct ModifierPart {
   std::string unit;  // after the number: " Vitality", "s duration"
   bool scored = false;
 };
-std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill);
+// `pack`: the preset scores packs (pack_share > 0), so the area, target and projectile fields that change `skill`'s
+// targets count.
+std::vector<ModifierPart> modifier_parts(const snap::Snapshot& s, const arz::Record& r, bool main_skill, bool pack,
+                                        const arz::Database& db, std::string_view skill);
 
 // A record as main_skills' auto mode sees it.
 struct SkillKind {
@@ -70,6 +73,9 @@ struct Settings {
   // [damage] retaliation: retaliation and % Retaliation Added to Attack count in Damage, not Other.
   bool retaliation_damage = false;
   double filler_weight = 0.5;
+  // [damage] pack_*: the share of fighting a pack instead of one target (0 = single target only), and the pack: its
+  // enemies, its radius (m) and how many of them a straight line through it crosses.
+  double pack_share = 0, pack_size = 6, pack_radius = 5, pack_line = 3;
   double enemy_da_per_level = 0;    // 0 = monster table (gdc/enemy.h)
   double pet_attack_rate = 0;       // 0 = estimated from the pet record (experimental, effects::pets)
   double kills_per_sec = 0.5;
@@ -87,9 +93,9 @@ struct Settings {
   double incoming_hits_per_sec = 2;
   double low_health_per_sec = 0.05;
   double cc_share = 0.1;
-  std::map<int, double> threat = {  // CombatAttributeType -> share of incoming damage (normalized)
-      {2, 0.20}, {4, 0.05}, {5, 0.10}, {6, 0.10}, {7, 0.10}, {8, 0.10},
-      {9, 0.10}, {10, 0.10}, {11, 0.10}, {15, 0.05}};
+  // CombatAttributeType -> share of incoming damage (normalized); empty = enemy::threat at the character's level
+  // and difficulty.
+  std::map<int, double> threat;
   std::map<std::string, Weight> other = default_other();
   std::string stage;
   // Mean defensive<Type> of the 48 Boss records.

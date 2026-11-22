@@ -38,6 +38,10 @@ struct Probe {
 };
 Take snapshot_probe(Probe& out);
 
+// FNV-1a over the ids of the learned and item skills whose buff is up (Character::IsSkillBuffActive, as the
+// snapshot reads it), in list order. For the calibration poll.
+Take snapshot_buffs(std::uint64_t& out);
+
 // NoPlayer also when init could not verify the type slot.
 Take snapshot_candidate(const void* item, snap::Item& out, int& item_type);
 
